@@ -1,0 +1,42 @@
+/* UBS Design System Fonts */
+/* Frutiger Font Family - Official UBS Typography */
+
+/* Frutiger Light (300) */
+@font-face {
+  font-family: 'Frutiger';
+  src: url('/src/fonts/Frutiger-Light.woff2') format('woff2'),
+       url('/src/fonts/Frutiger-Light.woff') format('woff');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Frutiger Regular (400) */
+@font-face {
+  font-family: 'Frutiger';
+  src: url('/src/fonts/Frutiger-Regular.woff2') format('woff2'),
+       url('/src/fonts/Frutiger-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Frutiger Medium (500) */
+@font-face {
+  font-family: 'Frutiger';
+  src: url('/src/fonts/Frutiger-Medium.woff2') format('woff2'),
+       url('/src/fonts/Frutiger-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Frutiger Bold (700) */
+@font-face {
+  font-family: 'Frutiger';
+  src: url('/src/fonts/Frutiger-Bold.woff2') format('woff2'),
+       url('/src/fonts/Frutiger-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
