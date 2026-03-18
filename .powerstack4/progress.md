@@ -482,3 +482,30 @@ All 6 stage prompts built (T-4.2 through T-4.7): comprehension, classification, 
 - 5-dimension scoring with geometric mean: ✅
 - Complexity thresholds 80/85/90: ✅
 - Zero AI dependency: ✅
+
+#### T-4.9 Stage 1 Implementation: Deep Comprehension — Complete
+- `src/pipeline/stages/runStage1Comprehension.ts` — 238 lines
+- `src/pipeline/stages/runStage1Comprehension.test.ts` — 18 tests
+
+##### Architecture:
+- **runStage1Comprehension(input, config, aiConfig, onProgress?)** — async stage function
+- Uses `buildComprehensionPrompt` (not inline template)
+- Uses `withRetry` for transient API errors (max 3 retries)
+- JSON parsing: direct parse → code block extraction fallback
+- Validation: normalizes all fields, defaults for invalid enums (priority→medium, severity→minor)
+- Progress: running → complete/failed
+- Never throws: returns StageResult with success: false
+- Duration via Date.now(), token usage from AI response
+- **Design decision**: added `aiConfig: AIClientConfig` param (beyond StageFunction signature) — orchestrator will bind via closure
+
+[SIMPLIFY] No changes needed — clean async stage with parsing/validation pipeline
+[REVIEW] Approved — Critical: 0, Important: 2 (fixed: duplicate rawContent, fragile prompt assertion), Minor: 2 (noted)
+
+##### Verification:
+- `npx tsc --noEmit` → zero errors
+- `npx vitest run src/pipeline/stages/runStage1Comprehension.test.ts` → 18 tests passed
+- Valid JSON → correct ComprehensionOutput: ✅
+- Code block extraction: ✅
+- Malformed JSON → success: false: ✅
+- Network error → graceful return: ✅
+- Progress callbacks: ✅

@@ -1,14 +1,14 @@
-# Task Plan: Epic Generator v5 — T-4.8 BM25 Quality Scorer
+# Task Plan: Epic Generator v5 — T-4.9 Stage 1 Implementation
 
 ## Goal
-Build deterministic scoring module: BM25 saturation, filler detection (5 categories, 70+ patterns), 5-dimension section scoring with geometric mean aggregation, document-level scoring with complexity-scaled thresholds. Zero AI dependency.
+Implement Stage 1 (Deep Comprehension): calls AI with comprehension prompt, parses JSON response, validates ComprehensionOutput. Uses withRetry for transient errors. Never throws on recoverable errors.
 
 ## Current Phase
-- **Phase**: T-4.8 Scoring Module
+- **Phase**: T-4.9 Stage 1 Implementation
 - **Status**: in_progress
-- **Dependencies**: T-4.1 (pipelineTypes ✅)
-- **Deliverables**: src/pipeline/epicScorer.ts + tests
-- **Acceptance**: saturate() pure, filler detection 5 categories 70+ patterns, 5-dim scoring with geometric mean, complexity thresholds (80/85/90), all tests pass, zero AI dependency
+- **Dependencies**: T-4.1 (types ✅), T-4.2 (prompt ✅), T-3.1-3.3 (callAI ✅), T-3.4 (withRetry ✅), T-1.2 (getScaledWordTarget ✅)
+- **Deliverables**: src/pipeline/stages/runStage1Comprehension.ts + tests
+- **Acceptance**: matches StageFunction signature, uses buildComprehensionPrompt, uses withRetry, JSON parsing with fallback, progress reporting, graceful errors, all tests pass
 
 ## Decisions
 - (none yet)
