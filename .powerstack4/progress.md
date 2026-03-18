@@ -381,3 +381,29 @@
 - Scoring rubric with calibration examples: ✅
 - All 5 transformation actions: ✅
 - All StructuralOutput fields: ✅
+
+#### T-4.5 Stage 4 Prompt: Content Refinement — Complete
+- `src/pipeline/prompts/refinementPrompt.ts` — 193 lines (per-section prompt builder)
+- `src/pipeline/prompts/refinementPrompt.test.ts` — 31 tests
+
+##### Architecture:
+- **buildRefinementPrompt(vars)** — per-section prompt (called once per section, not once per doc)
+- **PROMPT_VERSION** — semver '1.0.0'
+- **RefinementPromptVars** — {sectionTitle, sectionContent, transformationAction, categoryName, formatInstruction, complexityLevel, wordTarget, previousFeedback?, iterationNumber}
+- Conditional feedback: `iterationNumber > 0 && previousFeedback` → includes `<previous_attempt_feedback>` XML block
+- ACTION_INSTRUCTIONS: Record<TransformationAction['action'], string> with per-action rewrite guidance
+- Format instruction from getFormatInstruction() interpolated into `<format_instruction>` block
+- Word target with ±20% tolerance computed via Math.round
+- Output JSON matches PipelineRefinedSection (sectionId, title, content, formatUsed)
+
+[SIMPLIFY] No changes needed — clean conditional prompt builder
+[REVIEW] Approved — Critical: 0, Important: 0, Minor: 3 (isRetry edge case, empty feedback doc, wordTarget guard)
+
+##### Verification:
+- `npx tsc --noEmit` → zero errors
+- `npx vitest run src/pipeline/prompts/refinementPrompt.test.ts` → 31 tests passed
+- First attempt (no feedback): ✅
+- Retry (with feedback): ✅
+- Format instruction interpolated: ✅
+- Complexity scaling: ✅
+- All PipelineRefinedSection fields: ✅

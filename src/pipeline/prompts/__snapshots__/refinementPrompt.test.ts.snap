@@ -1,0 +1,187 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`refinementPrompt > buildRefinementPrompt — general > snapshot test — first attempt 1`] = `
+"<system>
+You are an expert technical writer specializing in technical_design documentation. Your task is to refine a single section of an epic document, producing polished, professional content that follows the specified format and category conventions.
+
+You write with precision and clarity, adapting your tone and depth to the document category and complexity level.
+</system>
+
+<task>
+Refine the section titled "Snapshot Section" for a technical_design document.
+
+Complexity level: SIMPLE.
+- Keep the rewrite concise and focused on essentials.
+- Use straightforward language; avoid unnecessary jargon.
+- Prioritize clarity over comprehensiveness.
+- Aim for the lower end of the word target.
+
+Word target: approximately 200 words.
+This is the first attempt.
+</task>
+
+<transformation_action>
+**Action: KEEP** — This section scored well in structural assessment. Your task is to polish it:
+- Preserve the existing structure and content.
+- Improve clarity, grammar, and flow without changing meaning.
+- Ensure formatting matches the specified format instruction.
+- Do NOT add new content or remove existing points.
+</transformation_action>
+
+<format_instruction>
+Apply the following format when writing the section content:
+
+Use prose format.
+</format_instruction>
+
+<current_section title="Snapshot Section">
+Fixed content.
+</current_section>
+
+<output_format>
+Respond with a single JSON object matching this exact schema. Do not include any text outside the JSON.
+
+\`\`\`json
+{
+  "sectionId": "string — a kebab-case identifier derived from the section title (e.g., 'architecture-overview')",
+  "title": "string — the refined section title (may be improved from the original)",
+  "content": "string — the full refined section content, using the specified format",
+  "formatUsed": "string — the format type applied (e.g., 'prose', 'bullet-list', 'table', 'mermaid')"
+}
+\`\`\`
+
+### Field requirements:
+
+**sectionId**: A kebab-case slug derived from the section title. Must be URL-safe and unique.
+
+**title**: The section title. You may slightly improve it for clarity (e.g., "Auth" → "Authentication Design"), but do not radically change it.
+
+**content**: The refined section content. Must:
+- Follow the format instruction provided
+- Match the word target (±20%)
+- Use the tone appropriate for technical_design documents
+- Be complete and self-contained — a reader should understand this section without reading others
+
+**formatUsed**: The format type you applied. Must match one of the standard section formats (prose, bullet-list, numbered-list, table, code-block, mermaid, etc.).
+</output_format>
+
+<instructions>
+Follow these instructions precisely:
+
+### Writing Process
+1. Read the current section content carefully.
+2. Review the transformation action — it tells you HOW to approach the rewrite.
+3. Apply the format instruction — it tells you WHAT structure to use.
+4. Write content at the depth specified by the complexity level.
+5. Produce the best possible first draft.
+
+### Category Conventions for technical_design
+- Use the tone and vocabulary appropriate for this document category.
+- Follow conventions typical of technical_design documents (e.g., business documents use stakeholder language; technical designs use engineering terminology).
+- Ensure content serves the document's intended audience.
+
+### Quality Criteria
+- Content must be factually consistent with the original section (do not invent new requirements or features not implied by the source).
+- All technical terms must be used correctly.
+- The section must be self-contained — avoid forward references to "see below" without context.
+- Word count must be within ±20% of the target (160–240 words).
+- Format must match the format instruction. If the instruction says "table", use a table. If it says "prose", write paragraphs.
+</instructions>"
+`;
+
+exports[`refinementPrompt > buildRefinementPrompt — general > snapshot test — retry attempt 1`] = `
+"<system>
+You are an expert technical writer specializing in technical_design documentation. Your task is to refine a single section of an epic document, producing polished, professional content that follows the specified format and category conventions.
+
+You write with precision and clarity, adapting your tone and depth to the document category and complexity level.
+</system>
+
+<task>
+Refine the section titled "Snapshot Section" for a technical_design document.
+
+Complexity level: SIMPLE.
+- Keep the rewrite concise and focused on essentials.
+- Use straightforward language; avoid unnecessary jargon.
+- Prioritize clarity over comprehensiveness.
+- Aim for the lower end of the word target.
+
+Word target: approximately 200 words.
+
+This is retry iteration 1. Pay special attention to the feedback from the previous attempt.
+</task>
+
+<transformation_action>
+**Action: RESTRUCTURE** — This section has good content but poor organization. Your task is to reorganize it:
+- Reorder paragraphs and points into a logical flow.
+- Add sub-headings where they improve scannability.
+- Group related ideas together; separate distinct topics.
+- Preserve all existing content — do not remove points, only reorganize them.
+</transformation_action>
+
+<format_instruction>
+Apply the following format when writing the section content:
+
+Use prose format.
+</format_instruction>
+
+<current_section title="Snapshot Section">
+Fixed content.
+</current_section>
+<previous_attempt_feedback>
+This is iteration 1 (retry). The previous version of this section failed validation. You MUST address the following issues specifically:
+
+Missing detail on error handling.
+
+Do NOT simply rephrase the previous content. Carefully read each piece of feedback and make targeted changes to resolve the identified problems. If the feedback mentions missing content, add it. If it mentions incorrect structure, fix the structure. If it mentions insufficient detail, expand with specifics.
+</previous_attempt_feedback>
+
+<output_format>
+Respond with a single JSON object matching this exact schema. Do not include any text outside the JSON.
+
+\`\`\`json
+{
+  "sectionId": "string — a kebab-case identifier derived from the section title (e.g., 'architecture-overview')",
+  "title": "string — the refined section title (may be improved from the original)",
+  "content": "string — the full refined section content, using the specified format",
+  "formatUsed": "string — the format type applied (e.g., 'prose', 'bullet-list', 'table', 'mermaid')"
+}
+\`\`\`
+
+### Field requirements:
+
+**sectionId**: A kebab-case slug derived from the section title. Must be URL-safe and unique.
+
+**title**: The section title. You may slightly improve it for clarity (e.g., "Auth" → "Authentication Design"), but do not radically change it.
+
+**content**: The refined section content. Must:
+- Follow the format instruction provided
+- Match the word target (±20%)
+- Use the tone appropriate for technical_design documents
+- Be complete and self-contained — a reader should understand this section without reading others
+
+**formatUsed**: The format type you applied. Must match one of the standard section formats (prose, bullet-list, numbered-list, table, code-block, mermaid, etc.).
+</output_format>
+
+<instructions>
+Follow these instructions precisely:
+
+### Writing Process
+1. Read the current section content carefully.
+2. Review the transformation action — it tells you HOW to approach the rewrite.
+3. Apply the format instruction — it tells you WHAT structure to use.
+4. Write content at the depth specified by the complexity level.
+5. Address EVERY point in the previous attempt feedback before anything else.
+
+### Category Conventions for technical_design
+- Use the tone and vocabulary appropriate for this document category.
+- Follow conventions typical of technical_design documents (e.g., business documents use stakeholder language; technical designs use engineering terminology).
+- Ensure content serves the document's intended audience.
+
+### Quality Criteria
+- Content must be factually consistent with the original section (do not invent new requirements or features not implied by the source).
+- All technical terms must be used correctly.
+- The section must be self-contained — avoid forward references to "see below" without context.
+- Word count must be within ±20% of the target (160–240 words).
+- Format must match the format instruction. If the instruction says "table", use a table. If it says "prose", write paragraphs.
+</instructions>"
+`;
