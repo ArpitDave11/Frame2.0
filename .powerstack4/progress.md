@@ -551,3 +551,29 @@ All 6 stage prompts built (T-4.2 through T-4.7): comprehension, classification, 
 ##### Verification:
 - `npx tsc --noEmit` → zero errors
 - 22 tests passed (11+11)
+
+#### T-4.13 Stage 5 Implementation: Mandatory Sections — Complete
+- `src/pipeline/stages/runStage5Mandatory.ts` — Mermaid diagram + stories + epic assembly
+- `src/pipeline/stages/runStage5Mandatory.test.ts` — 12 tests
+- Mermaid validation (directive check, fallback), story count truncation, story field defaults, epic assembly
+
+[SIMPLIFY] No changes needed
+[REVIEW] Approved — Critical: 0, Important: 2 (fixed: story ID counter, min count warning), Minor: 3 (noted)
+
+#### T-4.14 Stage 6 Implementation: Validation Gate — Complete
+- `src/pipeline/stages/runStage6Validation.ts` — quality gatekeeper with AI+local scoring blend
+- `src/pipeline/stages/runStage6Validation.test.ts` — 17 tests
+- 70/30 AI+local blend, traceability matrix, feedback quality validation, failure detection
+
+[SIMPLIFY] No changes needed
+[REVIEW] Approved — Critical: 0, Important: 0, Minor: 4 (noted)
+
+##### Verification:
+- `npx tsc --noEmit` → zero errors
+- 29 tests passed (12+17)
+
+---
+
+### ALL 6 PIPELINE STAGES COMPLETE
+Stages 1-6 implemented: Comprehension, Classification, Structural, Refinement, Mandatory, Validation.
+Total stage tests: 18 + 22 + 11 + 11 + 12 + 17 = 91 tests across 6 stage implementations.
