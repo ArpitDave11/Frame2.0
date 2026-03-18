@@ -458,3 +458,27 @@
 
 ### Phase 4 Pipeline Prompts — COMPLETE
 All 6 stage prompts built (T-4.2 through T-4.7): comprehension, classification, structural, refinement, mandatory, validation. Total: 133 tests across 6 prompt builders.
+
+#### T-4.8 BM25-Based Quality Scorer — Complete
+- `src/pipeline/epicScorer.ts` — 319 lines, zero AI dependency
+- `src/pipeline/epicScorer.test.ts` — 42 tests
+
+##### Architecture:
+- **saturate(value, k)** — BM25 saturation primitive, pure function
+- **detectFiller(text)** — 5 categories, 85 total patterns (hedging 22, emptyPhrases 17, aiFluff 20, redundantModifiers 13, vagueLanguage 13), word-boundary-safe
+- **scoreSection(content, terms, config)** — 5 dimensions (completeness, clarity, specificity, actionability, technicalDepth), overall via weighted geometric mean
+- **scoreDocument(sections, terms, config)** — per-dimension minimum gate, recommendations
+- **getDefaultScoringConfig(complexity)** — thresholds: simple=80, moderate=85, complex=90
+- Aggregation: weighted geometric mean with 0.01 floor, per-dimension minimum gate
+
+[SIMPLIFY] No changes needed — clean deterministic module
+[REVIEW] Approved — Critical: 0, Important: 1 (fixed: test assertion accuracy), Minor: 3 (noted)
+
+##### Verification:
+- `npx tsc --noEmit` → zero errors
+- `npx vitest run src/pipeline/epicScorer.test.ts` → 42 tests passed
+- saturate(0,1.2)=0, saturate(1,1.2)≈0.4545, saturate(100,1.2)≈0.988: ✅
+- Filler detection 5 categories, 85 patterns (≥70): ✅
+- 5-dimension scoring with geometric mean: ✅
+- Complexity thresholds 80/85/90: ✅
+- Zero AI dependency: ✅
