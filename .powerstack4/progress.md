@@ -430,3 +430,31 @@
 - Story count scales with complexity: ✅
 - Requirement traceability: ✅
 - All MandatoryOutput fields: ✅
+
+#### T-4.7 Stage 6 Prompt: Validation Gate — Complete
+- `src/pipeline/prompts/validationPrompt.ts` — prompt builder
+- `src/pipeline/prompts/validationPrompt.test.ts` — 24 tests
+
+##### Architecture:
+- **buildValidationPrompt(vars)** — validates epic through 3 lenses
+- Three validation modes: requirements traceability (REQ-xxx → section/story mapping), self-audit (12 quality checks scored 0-10, overall 0-100), failure pattern detection (11 patterns: 3 critical, 4 major, 4 minor)
+- Actionable feedback with good/bad examples contrasted
+- Passing score threshold interpolated from config (complexity-scaled)
+- Retry iteration awareness (iterationNumber > 0)
+- Output JSON matches ValidationOutput (traceabilityMatrix, auditChecks, overallScore, passed, detectedFailures, feedback)
+
+[SIMPLIFY] No changes needed — single template literal function
+[REVIEW] Approved — Critical: 0, Important: 0, Minor: 2 (entity interpolation test, iterationNumber boundary test)
+
+##### Verification:
+- `npx tsc --noEmit` → zero errors
+- `npx vitest run src/pipeline/prompts/validationPrompt.test.ts` → 24 tests passed
+- 3 validation modes (traceability, audit, failure detection): ✅
+- Actionable feedback (specific, not generic): ✅
+- Passing score threshold interpolated: ✅
+- All ValidationOutput fields: ✅
+
+---
+
+### Phase 4 Pipeline Prompts — COMPLETE
+All 6 stage prompts built (T-4.2 through T-4.7): comprehension, classification, structural, refinement, mandatory, validation. Total: 133 tests across 6 prompt builders.
