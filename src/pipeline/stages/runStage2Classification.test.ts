@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runStage2Classification, summarizeComprehension } from './runStage2Classification';
+import { runStage2Classification, summarizeComprehension, resolveConsensus } from './runStage2Classification';
 import type {
   ClassificationInput,
   ComprehensionOutput,
@@ -56,6 +56,9 @@ const SAMPLE_CONFIG: PipelineConfig = {
   maxIterations: 3,
   passingScore: 85,
   storyCountRange: [10, 15],
+  generationTemperature: 0.3,
+  validationTemperature: 0.7,
+  classificationTemperature: 0.5,
 };
 
 const SAMPLE_AI_CONFIG: AIClientConfig = {
@@ -270,7 +273,7 @@ describe('runStage2Classification', () => {
 
       const result = await runStage2Classification(SAMPLE_INPUT, SAMPLE_CONFIG, SAMPLE_AI_CONFIG);
 
-      expect(result.metadata.tokensUsed).toBe(400);
+      expect(result.metadata.tokensUsed).toBe(1200); // 400 × 3 votes
       expect(result.metadata.model).toBe('gpt-4o-2024');
       expect(result.metadata.stageName).toBe('classification');
       expect(result.metadata.duration).toBeGreaterThanOrEqual(0);
@@ -278,12 +281,13 @@ describe('runStage2Classification', () => {
   });
 
   describe('integration', () => {
-    it('uses withRetry wrapper', async () => {
+    it('uses withRetry wrapper for each vote', async () => {
       mockCallAI.mockResolvedValue({ content: VALID_CLASSIFICATION_JSON, model: 'gpt-4o' });
 
       await runStage2Classification(SAMPLE_INPUT, SAMPLE_CONFIG, SAMPLE_AI_CONFIG);
 
-      expect(mockWithRetry).toHaveBeenCalledWith(expect.any(Function), 'classification', 3);
+      expect(mockWithRetry).toHaveBeenCalledTimes(3);
+      expect(mockWithRetry).toHaveBeenCalledWith(expect.any(Function), 'classification-vote-1', 3);
     });
 
     it('passes comprehension summary as readable text, not raw JSON', async () => {
@@ -293,11 +297,9 @@ describe('runStage2Classification', () => {
 
       const callArgs = mockCallAI.mock.calls[0]!;
       const systemPrompt = callArgs[1]!.systemPrompt;
-      // Should contain readable entity format, not JSON braces
       expect(systemPrompt).toContain('PaymentService');
       expect(systemPrompt).toContain('[service]');
       expect(systemPrompt).toContain('REQ-001');
-      // Should NOT be raw JSON
       expect(systemPrompt).not.toContain('"keyEntities"');
     });
   });
@@ -352,3 +354,71 @@ describe('summarizeComprehension', () => {
     expect(result).not.toContain('"keyEntities"');
   });
 });
+
+// ─── resolveConsensus ───────────────────────────────────────
+
+describe('resolveConsensus', () => {
+  const makeVote = (cat: string, conf: number): ClassificationOutput => ({
+    primaryCategory: cat as EpicCategory,
+    confidence: conf,
+    categoryConfig: {},
+    reasoning: `Classified as ${cat}`,
+  });
+
+  it('all 3 votes agree → confidence = original × 1.0', () => {
+    const votes = [
+      makeVote('technical_design', 0.9),
+      makeVote('technical_design', 0.85),
+      makeVote('technical_design', 0.88),
+    ];
+    const result = resolveConsensus(votes);
+    expect(result.primaryCategory).toBe('technical_design');
+    expect(result.confidence).toBeCloseTo(0.9, 2); // highest × 3/3
+    expect(result.reasoning).toContain('3/3');
+  });
+
+  it('2 of 3 agree → winning category from majority, confidence adjusted', () => {
+    const votes = [
+      makeVote('technical_design', 0.9),
+      makeVote('technical_design', 0.85),
+      makeVote('api_specification', 0.8),
+    ];
+    const result = resolveConsensus(votes);
+    expect(result.primaryCategory).toBe('technical_design');
+    expect(result.confidence).toBeCloseTo(0.9 * (2 / 3), 2);
+    expect(result.reasoning).toContain('2/3');
+    expect(result.reasoning).toContain('api_specification');
+  });
+
+  it('all 3 disagree → highest confidence wins, confidence × 1/3', () => {
+    const votes = [
+      makeVote('technical_design', 0.7),
+      makeVote('api_specification', 0.9),
+      makeVote('feature_specification', 0.8),
+    ];
+    const result = resolveConsensus(votes);
+    // Each has 1 vote — sorted by count (tie), then the first in Map iteration wins
+    expect(result.confidence).toBeLessThan(0.5); // heavily penalized
+  });
+
+  it('single vote → passes through with 1/1 confidence', () => {
+    const votes = [makeVote('migration_plan', 0.85)];
+    const result = resolveConsensus(votes);
+    expect(result.primaryCategory).toBe('migration_plan');
+    expect(result.confidence).toBeCloseTo(0.85, 2);
+    expect(result.reasoning).toContain('1/1');
+  });
+
+  it('reasoning includes consensus info', () => {
+    const votes = [
+      makeVote('technical_design', 0.9),
+      makeVote('technical_design', 0.85),
+      makeVote('technical_design', 0.88),
+    ];
+    const result = resolveConsensus(votes);
+    expect(result.reasoning).toContain('[Consensus:');
+  });
+});
+
+import type { ClassificationOutput } from '@/pipeline/pipelineTypes';
+import type { EpicCategory } from '@/domain/types';

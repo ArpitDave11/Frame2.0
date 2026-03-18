@@ -47,6 +47,9 @@ export function buildPipelineConfig(complexity: ComplexityLevel): PipelineConfig
     maxIterations: cc.maxPipelineIterations,
     passingScore: cc.validationThreshold,
     storyCountRange: [storyRange.min, storyRange.max],
+    generationTemperature: 0.3,
+    validationTemperature: 0.7,
+    classificationTemperature: 0.5,
   };
 }
 

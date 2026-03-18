@@ -54,6 +54,7 @@ export async function runStage1Comprehension(
       () => callAI(aiConfig, {
         systemPrompt: prompt,
         userPrompt: 'Analyze the document provided above and produce the JSON output as specified.',
+        temperature: config.generationTemperature,
       }),
       STAGE_NAME,
       3,

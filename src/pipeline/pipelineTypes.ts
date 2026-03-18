@@ -157,6 +157,9 @@ export interface PipelineConfig {
   readonly maxIterations: number;
   readonly passingScore: number;
   readonly storyCountRange: readonly [number, number];
+  readonly generationTemperature: number;      // Stages 1, 3, 4, 5 — default 0.3
+  readonly validationTemperature: number;      // Stage 6 — default 0.7
+  readonly classificationTemperature: number;  // Stage 2 — default 0.5
 }
 
 export interface PipelineProgress {

@@ -71,6 +71,7 @@ export async function runStage6Validation(
       () => callAI(aiConfig, {
         systemPrompt: prompt,
         userPrompt: 'Validate the epic and produce the JSON output as specified.',
+        temperature: config.validationTemperature,
       }),
       STAGE_NAME,
       3,

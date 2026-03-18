@@ -73,6 +73,7 @@ export async function runStage3Structural(
       () => callAI(aiConfig, {
         systemPrompt: prompt,
         userPrompt: 'Assess the document structure and produce the JSON output as specified.',
+        temperature: config.generationTemperature,
       }),
       STAGE_NAME,
       3,

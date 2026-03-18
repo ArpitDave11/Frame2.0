@@ -25,6 +25,9 @@ const SAMPLE_CONFIG: PipelineConfig = {
   maxIterations: 3,
   passingScore: 85,
   storyCountRange: [10, 15],
+  generationTemperature: 0.3,
+  validationTemperature: 0.7,
+  classificationTemperature: 0.5,
 };
 
 const SAMPLE_AI_CONFIG: AIClientConfig = {

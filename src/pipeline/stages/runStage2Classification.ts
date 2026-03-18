@@ -1,8 +1,8 @@
 /**
- * Stage 2 — Category Classification.
+ * Stage 2 — Category Classification (3-vote self-consistency).
  *
  * Classifies the epic into exactly one of 7 categories with a confidence
- * score. Consumes Stage 1 comprehension output for informed classification.
+ * score. Uses 3-vote majority consensus to reduce misclassification risk.
  * Validates category against EpicCategory enum, clamps confidence to 0-1.
  */
 
@@ -35,8 +35,9 @@ const VALID_CATEGORIES: readonly EpicCategory[] = [
 ];
 
 const DEFAULT_CATEGORY: EpicCategory = 'technical_design';
+const VOTE_COUNT = 3;
 
-// ─── Main Stage Function ────────────────────────────────────
+// ─── Main Stage Function (3-vote self-consistency) ──────────
 
 export async function runStage2Classification(
   input: ClassificationInput,
@@ -45,11 +46,13 @@ export async function runStage2Classification(
   onProgress?: PipelineProgressCallback,
 ): Promise<StageResult<ClassificationOutput>> {
   const startTime = Date.now();
+  let totalTokens = 0;
+  let model = '';
 
   onProgress?.({
     stageName: STAGE_NAME,
     status: 'running',
-    message: 'Classifying document into category...',
+    message: `Classifying document (${VOTE_COUNT}-vote consensus)...`,
     timestamp: Date.now(),
   });
 
@@ -61,53 +64,60 @@ export async function runStage2Classification(
       complexityLevel: config.complexity,
     });
 
-    const response = await withRetry(
-      () => callAI(aiConfig, {
-        systemPrompt: prompt,
-        userPrompt: 'Classify the document provided above and produce the JSON output as specified.',
-      }),
-      STAGE_NAME,
-      3,
-    );
+    // Run classification VOTE_COUNT times for self-consistency
+    const votes: ClassificationOutput[] = [];
 
-    const parsed = parseClassificationResponse(response.content);
+    for (let i = 0; i < VOTE_COUNT; i++) {
+      try {
+        const response = await withRetry(
+          () => callAI(aiConfig, {
+            systemPrompt: prompt,
+            userPrompt: 'Classify the document provided above and produce the JSON output as specified.',
+            temperature: config.classificationTemperature,
+          }),
+          `${STAGE_NAME}-vote-${i + 1}`,
+          3,
+        );
 
-    if (!parsed) {
+        totalTokens += response.usage?.totalTokens ?? 0;
+        if (response.model) model = response.model;
+
+        const parsed = parseClassificationResponse(response.content);
+        if (parsed) votes.push(parsed);
+      } catch {
+        // Individual vote failure — continue with remaining votes
+      }
+    }
+
+    if (votes.length === 0) {
       onProgress?.({
         stageName: STAGE_NAME,
         status: 'failed',
-        message: 'Failed to parse AI response as valid ClassificationOutput',
+        message: 'All classification votes failed',
         timestamp: Date.now(),
       });
 
       return {
         success: false,
         data: emptyClassificationOutput(),
-        metadata: {
-          stageName: STAGE_NAME,
-          duration: Date.now() - startTime,
-          tokensUsed: response.usage?.totalTokens ?? 0,
-          model: response.model,
-        },
+        metadata: { stageName: STAGE_NAME, duration: Date.now() - startTime, tokensUsed: totalTokens, model },
       };
     }
+
+    // Majority vote on primaryCategory
+    const result = resolveConsensus(votes);
 
     onProgress?.({
       stageName: STAGE_NAME,
       status: 'complete',
-      message: `Classified as ${parsed.primaryCategory} (confidence: ${(parsed.confidence * 100).toFixed(0)}%)`,
+      message: `Classified as ${result.primaryCategory} (${votes.length}-vote, ${(result.confidence * 100).toFixed(0)}% confidence)`,
       timestamp: Date.now(),
     });
 
     return {
       success: true,
-      data: parsed,
-      metadata: {
-        stageName: STAGE_NAME,
-        duration: Date.now() - startTime,
-        tokensUsed: response.usage?.totalTokens ?? 0,
-        model: response.model,
-      },
+      data: result,
+      metadata: { stageName: STAGE_NAME, duration: Date.now() - startTime, tokensUsed: totalTokens, model },
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -122,14 +132,48 @@ export async function runStage2Classification(
     return {
       success: false,
       data: emptyClassificationOutput(),
-      metadata: {
-        stageName: STAGE_NAME,
-        duration: Date.now() - startTime,
-        tokensUsed: 0,
-        model: '',
-      },
+      metadata: { stageName: STAGE_NAME, duration: Date.now() - startTime, tokensUsed: 0, model: '' },
     };
   }
+}
+
+// ─── Consensus Resolution ───────────────────────────────────
+
+export function resolveConsensus(votes: readonly ClassificationOutput[]): ClassificationOutput {
+  // Count votes per category
+  const voteCounts = new Map<string, number>();
+  for (const v of votes) {
+    voteCounts.set(v.primaryCategory, (voteCounts.get(v.primaryCategory) ?? 0) + 1);
+  }
+
+  // Find winning category (most votes, tiebreak by highest confidence)
+  const sorted = [...voteCounts.entries()].sort((a, b) => b[1] - a[1]);
+  const winningCategory = sorted[0]![0];
+  const winCount = sorted[0]![1];
+
+  // Pick the highest-confidence vote that matches the winner
+  const winningVote = votes
+    .filter((v) => v.primaryCategory === winningCategory)
+    .sort((a, b) => b.confidence - a.confidence)[0]!;
+
+  // Adjust confidence by consensus strength
+  const consensusRatio = winCount / votes.length;
+  const adjustedConfidence = Math.max(0, Math.min(1, winningVote.confidence * consensusRatio));
+
+  const otherCategories = votes
+    .filter((v) => v.primaryCategory !== winningCategory)
+    .map((v) => v.primaryCategory);
+
+  const consensusNote = otherCategories.length > 0
+    ? `\n\n[Consensus: ${winCount}/${votes.length} votes for ${winningCategory}. Other votes: ${otherCategories.join(', ')}]`
+    : `\n\n[Consensus: ${winCount}/${votes.length} votes for ${winningCategory}]`;
+
+  return {
+    primaryCategory: winningVote.primaryCategory,
+    confidence: adjustedConfidence,
+    categoryConfig: winningVote.categoryConfig,
+    reasoning: winningVote.reasoning + consensusNote,
+  };
 }
 
 // ─── Comprehension Summary ──────────────────────────────────

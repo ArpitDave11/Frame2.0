@@ -189,6 +189,7 @@ async function refineSingleSection(
     () => callAI(aiConfig, {
       systemPrompt: prompt,
       userPrompt: 'Refine the section as specified and produce the JSON output.',
+      temperature: config.generationTemperature,
     }),
     `${STAGE_NAME}:${action.sectionId}`,
     3,

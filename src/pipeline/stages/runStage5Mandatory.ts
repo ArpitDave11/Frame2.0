@@ -64,6 +64,7 @@ export async function runStage5Mandatory(
       () => callAI(aiConfig, {
         systemPrompt: prompt,
         userPrompt: 'Generate the mandatory sections and produce the JSON output as specified.',
+        temperature: config.generationTemperature,
       }),
       STAGE_NAME,
       3,

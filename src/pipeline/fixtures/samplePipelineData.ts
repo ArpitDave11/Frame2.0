@@ -186,6 +186,9 @@ export const sampleConfig: PipelineConfig = {
   maxIterations: 3,
   passingScore: 80,
   storyCountRange: [10, 15],
+  generationTemperature: 0.3,
+  validationTemperature: 0.7,
+  classificationTemperature: 0.5,
 };
 
 export const sampleProgress: PipelineProgress = {
