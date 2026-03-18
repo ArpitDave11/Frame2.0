@@ -152,12 +152,12 @@ export function getDefaultScoringConfig(complexity: ComplexityLevel): ScoringCon
 // ─── Section-Level Scoring ──────────────────────────────────
 
 export interface SectionQualityScore {
-  readonly completeness: number;
-  readonly clarity: number;
-  readonly specificity: number;
-  readonly actionability: number;
-  readonly technicalDepth: number;
-  readonly overall: number;
+  readonly completeness: number;     // 0–1
+  readonly clarity: number;          // 0–1
+  readonly specificity: number;      // 0–1
+  readonly actionability: number;    // 0–1
+  readonly technicalDepth: number;   // 0–1
+  readonly overall: number;          // 0–100 (note: different scale from dimensions)
 }
 
 export function scoreSection(
