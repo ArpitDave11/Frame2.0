@@ -407,3 +407,26 @@
 - Format instruction interpolated: ✅
 - Complexity scaling: ✅
 - All PipelineRefinedSection fields: ✅
+
+#### T-4.6 Stage 5 Prompt: Mandatory Sections — Complete
+- `src/pipeline/prompts/mandatoryPrompt.ts` — prompt builder
+- `src/pipeline/prompts/mandatoryPrompt.test.ts` — 23 tests
+
+##### Architecture:
+- **buildMandatoryPrompt(vars)** — generates Mermaid diagram + user stories + assembled epic
+- Two major sub-tasks: architecture diagram (Mermaid syntax with graph/flowchart/sequence guidance) + user stories (As a/I want/So that, 3-5 AC, priority, requirement traceability)
+- Story count from storyCountMin–storyCountMax (from getScaledStoryCount)
+- Entities listed for diagram node generation
+- Output JSON matches MandatoryOutput (architectureDiagram, userStories, assembledEpic)
+
+[SIMPLIFY] No changes needed — single template literal function
+[REVIEW] Approved — Critical: 0, Important: 0, Minor: 2 (empty entities edge case, metadata type tightening)
+
+##### Verification:
+- `npx tsc --noEmit` → zero errors
+- `npx vitest run src/pipeline/prompts/mandatoryPrompt.test.ts` → 23 tests passed
+- Mermaid syntax guidance: ✅
+- User story template (As a/I want/So that): ✅
+- Story count scales with complexity: ✅
+- Requirement traceability: ✅
+- All MandatoryOutput fields: ✅
