@@ -509,3 +509,25 @@ All 6 stage prompts built (T-4.2 through T-4.7): comprehension, classification, 
 - Malformed JSON → success: false: ✅
 - Network error → graceful return: ✅
 - Progress callbacks: ✅
+
+#### T-4.10 Stage 2 Implementation: Category Classification — Complete
+- `src/pipeline/stages/runStage2Classification.ts` — stage + summarizeComprehension helper
+- `src/pipeline/stages/runStage2Classification.test.ts` — 22 tests
+
+##### Architecture:
+- **runStage2Classification(input, config, aiConfig, onProgress?)** — classifies into 1 of 7 categories
+- **summarizeComprehension(comp)** — readable text serialization (entities, requirements, gaps, risks, sections)
+- Validates primaryCategory against EpicCategory enum, defaults to 'technical_design'
+- Clamps confidence 0-1, defaults non-numeric to 0.5
+- Same JSON parsing + withRetry + progress pattern as Stage 1
+
+[SIMPLIFY] No changes needed
+[REVIEW] Approved — Critical: 0, Important: 0, Minor: 3 (shared JSON utils, reasoning-only test, VALID_CATEGORIES derivation)
+
+##### Verification:
+- `npx tsc --noEmit` → zero errors
+- `npx vitest run src/pipeline/stages/runStage2Classification.test.ts` → 22 tests passed
+- All 7 categories accepted: ✅
+- Invalid category → default: ✅
+- Confidence clamping: ✅
+- Readable comprehension summary (not JSON): ✅
