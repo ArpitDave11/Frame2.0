@@ -1,0 +1,212 @@
+/*
+ * Generated from src/theme/tokens.ts — do not add colors directly.
+ *
+ * This file defines CSS custom properties (variables) that mirror
+ * the TypeScript design tokens. All color, spacing, radius, and
+ * shadow values must come from tokens.ts and be referenced here
+ * as --ubs-* variables.
+ *
+ * NO component-specific styles belong in this file.
+ */
+
+/* ─── :root — Design Token Variables ──────────────────────── */
+
+:root {
+  /* Brand Colors */
+  --ubs-color-red: #E60000;
+  --ubs-color-bordeaux-i: #BD000C;
+  --ubs-color-black: #000000;
+  --ubs-color-white: #FFFFFF;
+  --ubs-color-gray-i: #CCCABC;
+  --ubs-color-gray-iii: #8E8D83;
+  --ubs-color-gray-v: #5A5D5C;
+  --ubs-color-pastel-i: #ECEBE4;
+  --ubs-color-pastel-ii: #F5F0E1;
+  --ubs-color-neutral-50: #FAFAFA;
+  --ubs-color-neutral-200: #E5E5E5;
+
+  /* CSS Variable Colors (UBS Theme Instructions) */
+  --ubs-color-background-brand: #E60000;
+  --ubs-color-text-primary: #000000;
+  --ubs-color-text-subtle: #666666;
+  --ubs-color-text-inverted: #FFFFFF;
+  --ubs-color-background-primary: #000000;
+  --ubs-color-background-ui-10: #FFFFFF;
+  --ubs-color-border-illustrative: #E0E0E0;
+  --ubs-color-border-inverted: #FFFFFF;
+  --ubs-color-link-text-brand: #E60000;
+  --ubs-color-link-text-brand-visited: #B30000;
+  --ubs-color-link-text-brand-hovered: #CC0000;
+  --ubs-color-link-text-primary: #000000;
+  --ubs-color-link-text-inverted: #FFFFFF;
+  --ubs-color-link-text-inverted-hovered: #CCCCCC;
+  --ubs-color-link-text-subtle: #666666;
+
+  /* UI Surface Colors */
+  --ubs-color-background: #FFFFFF;
+  --ubs-color-primary: #030213;
+  --ubs-color-muted: #ECECF0;
+  --ubs-color-muted-foreground: #717182;
+  --ubs-color-accent: #E9EBEF;
+  --ubs-color-destructive: #D4183D;
+  --ubs-color-input-background: #F3F3F5;
+  --ubs-color-switch-background: #CBCED4;
+  --ubs-color-border: rgba(0,0,0,0.1);
+
+  /* Semantic Colors */
+  --ubs-color-error: #E60000;
+  --ubs-color-warning: #E60000;
+  --ubs-color-success: #5A5D5C;
+  --ubs-color-info: #5A5D5C;
+  --ubs-color-error-light: #ECEBE4;
+  --ubs-color-warning-light: #ECEBE4;
+  --ubs-color-success-light: #F5F0E1;
+  --ubs-color-info-light: #ECEBE4;
+
+  /* Component Colors */
+  --ubs-color-header-bg: #FFFFFF;
+  --ubs-color-header-border: #E5E7EB;
+  --ubs-color-header-nav-link: #374151;
+  --ubs-color-header-nav-link-hover: #111827;
+  --ubs-color-header-cta-bg: #DC2626;
+  --ubs-color-header-cta-bg-hover: #B91C1C;
+  --ubs-color-page-bg: #F9FAFB;
+  --ubs-color-card-bg: #FFFFFF;
+  --ubs-color-card-text: #4B5563;
+  --ubs-color-hero-bg: #000000;
+  --ubs-color-hero-text-overlay: rgba(255,255,255,0.85);
+
+  /* Focus */
+  --ubs-focus-ring: 0 0 0 3px rgba(230, 0, 0, 0.12);
+  --ubs-focus-border-color: rgba(230, 0, 0, 0.35);
+  --ubs-focus-glow: rgba(230, 0, 0, 0.12);
+
+  /* Spacing (8px grid) */
+  --ubs-spacing-0: 0px;
+  --ubs-spacing-0-5: 4px;
+  --ubs-spacing-1: 8px;
+  --ubs-spacing-1-5: 12px;
+  --ubs-spacing-2: 16px;
+  --ubs-spacing-3: 24px;
+  --ubs-spacing-4: 32px;
+  --ubs-spacing-5: 40px;
+  --ubs-spacing-6: 48px;
+  --ubs-spacing-8: 64px;
+
+  /* Border Radius */
+  --ubs-radius-sm: 6px;
+  --ubs-radius-md: 8px;
+  --ubs-radius-lg: 10px;
+  --ubs-radius-xl: 14px;
+  --ubs-radius-full: 9999px;
+  --ubs-radius-button: 4px;
+
+  /* Shadows */
+  --ubs-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02), 0 0 1px rgba(0, 0, 0, 0.03);
+  --ubs-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --ubs-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --ubs-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --ubs-shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.10), 0 12px 24px rgba(0, 0, 0, 0.06);
+  --ubs-shadow-focus: 0 0 0 3px rgba(230, 0, 0, 0.12);
+
+  /* Typography */
+  --ubs-font-sans: Frutiger, Arial, Helvetica, sans-serif;
+  --ubs-font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  --ubs-font-size-base: 1rem;
+
+  /* Grid */
+  --ubs-grid-gutter: 20px;
+  --ubs-grid-col-width: 60px;
+  --ubs-grid-cols: 24;
+  --ubs-grid-container-width: 1920px;
+  --ubs-grid-container-padding: 32px;
+}
+
+/* ─── Base Styles ─────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--ubs-font-sans);
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--ubs-color-text-primary);
+  background: linear-gradient(
+    180deg,
+    var(--ubs-color-background) 0%,
+    var(--ubs-color-neutral-50) 100%
+  );
+  min-height: 100vh;
+}
+
+/* ─── Scrollbar Customization ─────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ubs-color-gray-i);
+  border-radius: var(--ubs-radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ubs-color-gray-iii);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ubs-color-gray-i) transparent;
+}
+
+/* ─── Animation Keyframes ─────────────────────────────────── */
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes progressShrink {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+@keyframes skeleton {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}

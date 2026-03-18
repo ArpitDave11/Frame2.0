@@ -1,0 +1,185 @@
+{
+  "_meta": {
+    "version": "5.0.0",
+    "globalDefaults": {
+      "statusEmoji": {
+        "draft": "📝",
+        "in_progress": "🔄",
+        "review": "👀",
+        "approved": "✅",
+        "archived": "📦"
+      },
+      "markdownFeatures": {
+        "collapsibleSections": true,
+        "mermaidDiagrams": true,
+        "tables": true,
+        "taskLists": true,
+        "admonitions": false
+      },
+      "maxTitleLength": 100,
+      "defaultPerPage": 20
+    }
+  },
+  "technical_design": {
+    "description": "Technical design documents for engineering teams — architecture, APIs, data models, and implementation plans",
+    "tone": "precise and technical",
+    "storyStyle": "engineering-focused with clear acceptance criteria",
+    "architectureFocus": "system architecture and component design",
+    "expertRole": "senior software architect",
+    "totalWordTarget": { "min": 2000, "max": 5000 },
+    "requiredSections": {
+      "Objective": { "target": 150, "max": 300, "format": "prose", "hint": "Clear problem statement and goals" },
+      "Architecture Overview": { "target": 400, "max": 800, "format": "prose", "diagram": "flowchart", "hint": "High-level system design" },
+      "Technical Requirements": { "target": 300, "max": 600, "format": "bullet-list", "hint": "Specific technical constraints and requirements" },
+      "Data Model": { "target": 250, "max": 500, "format": "schema-table", "hint": "Entity definitions and relationships" },
+      "API Design": { "target": 300, "max": 600, "format": "endpoint-blocks", "hint": "API endpoints, request/response formats" },
+      "Implementation Plan": { "target": 300, "max": 600, "format": "phase-table", "hint": "Phased rollout with milestones" },
+      "User Stories": { "target": 400, "max": 800, "format": "mixed", "hint": "Detailed user stories with acceptance criteria", "count": { "min": 8, "max": 20 }, "fields": ["title", "description", "acceptance_criteria", "story_points"] }
+    },
+    "optionalSections": {
+      "Non-Functional Requirements": { "target": 200, "max": 400, "format": "table", "hint": "Performance, security, scalability targets" },
+      "Sequence Diagrams": { "target": 150, "max": 300, "format": "mermaid-sequence", "diagram": "sequence", "hint": "Key interaction flows" },
+      "Error Handling": { "target": 200, "max": 400, "format": "error-table", "hint": "Error codes, recovery strategies" },
+      "Migration Strategy": { "target": 200, "max": 400, "format": "numbered-procedure", "hint": "Data migration steps if applicable" },
+      "Testing Strategy": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Test approach and coverage targets" },
+      "Deployment Plan": { "target": 150, "max": 300, "format": "numbered-procedure", "hint": "Deployment steps and rollback plan" }
+    }
+  },
+  "business_requirement": {
+    "description": "Business requirement documents for stakeholders — objectives, KPIs, process flows, and RACI matrices",
+    "tone": "professional and business-oriented",
+    "storyStyle": "business-value focused with measurable outcomes",
+    "architectureFocus": "business process and organizational impact",
+    "expertRole": "senior business analyst",
+    "totalWordTarget": { "min": 1500, "max": 4000 },
+    "requiredSections": {
+      "Executive Summary": { "target": 200, "max": 400, "format": "prose", "hint": "High-level overview for leadership" },
+      "Business Objective": { "target": 250, "max": 500, "format": "prose", "hint": "Clear business goals and success metrics" },
+      "Scope": { "target": 200, "max": 400, "format": "bullet-list", "hint": "In-scope and out-of-scope items" },
+      "Stakeholder Analysis": { "target": 200, "max": 400, "format": "raci-table", "columns": ["Role", "Responsible", "Accountable", "Consulted", "Informed"], "hint": "RACI matrix for key stakeholders" },
+      "Requirements": { "target": 300, "max": 600, "format": "numbered-list", "hint": "Prioritized business requirements" },
+      "Process Flow": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "Current vs proposed process" },
+      "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Business-focused user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
+    },
+    "optionalSections": {
+      "Risk Assessment": { "target": 200, "max": 400, "format": "risk-heat-map", "hint": "Risk probability and impact analysis" },
+      "Cost-Benefit Analysis": { "target": 200, "max": 400, "format": "table", "hint": "Expected costs and ROI" },
+      "Timeline": { "target": 150, "max": 300, "format": "phase-table", "hint": "Key milestones and deadlines" },
+      "Success Metrics": { "target": 150, "max": 300, "format": "slo-table", "hint": "KPIs and measurement criteria" },
+      "Dependencies": { "target": 100, "max": 200, "format": "bullet-list", "hint": "External dependencies and assumptions" }
+    }
+  },
+  "feature_specification": {
+    "description": "Feature specification documents — detailed feature design with UX flows, edge cases, and acceptance criteria",
+    "tone": "clear and detail-oriented",
+    "storyStyle": "user-centric with detailed acceptance criteria",
+    "architectureFocus": "feature behavior and user experience",
+    "expertRole": "senior product manager",
+    "totalWordTarget": { "min": 1500, "max": 4000 },
+    "requiredSections": {
+      "Feature Overview": { "target": 200, "max": 400, "format": "prose", "hint": "What the feature does and why" },
+      "User Personas": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Target user segments" },
+      "Functional Requirements": { "target": 300, "max": 600, "format": "numbered-list", "hint": "Detailed functional requirements" },
+      "User Flows": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "Primary and secondary user flows" },
+      "Edge Cases": { "target": 200, "max": 400, "format": "table", "hint": "Edge cases and expected behavior" },
+      "User Stories": { "target": 400, "max": 800, "format": "mixed", "hint": "Detailed user stories", "count": { "min": 8, "max": 20 }, "fields": ["title", "description", "acceptance_criteria", "story_points"] }
+    },
+    "optionalSections": {
+      "UI/UX Guidelines": { "target": 200, "max": 400, "format": "prose", "hint": "Design principles and constraints" },
+      "Analytics Requirements": { "target": 150, "max": 300, "format": "table", "hint": "Events and metrics to track" },
+      "Accessibility": { "target": 100, "max": 200, "format": "bullet-list", "hint": "WCAG compliance requirements" },
+      "Internationalization": { "target": 100, "max": 200, "format": "bullet-list", "hint": "i18n considerations" }
+    }
+  },
+  "api_specification": {
+    "description": "API specification documents — endpoints, schemas, authentication, rate limits, and versioning",
+    "tone": "precise and specification-driven",
+    "storyStyle": "API-consumer focused with contract clarity",
+    "architectureFocus": "API contract and integration patterns",
+    "expertRole": "senior API architect",
+    "totalWordTarget": { "min": 2000, "max": 5000 },
+    "requiredSections": {
+      "API Overview": { "target": 200, "max": 400, "format": "prose", "hint": "Purpose, versioning, base URL" },
+      "Authentication": { "target": 200, "max": 400, "format": "prose", "hint": "Auth methods and token management" },
+      "Endpoints": { "target": 500, "max": 1000, "format": "endpoint-blocks", "hint": "All endpoints with request/response schemas" },
+      "Data Models": { "target": 300, "max": 600, "format": "schema-table", "hint": "Request/response schemas" },
+      "Error Handling": { "target": 200, "max": 400, "format": "error-table", "hint": "Error codes and messages" },
+      "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "API consumer stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
+    },
+    "optionalSections": {
+      "Rate Limiting": { "target": 150, "max": 300, "format": "table", "hint": "Rate limits per endpoint/tier" },
+      "Pagination": { "target": 100, "max": 200, "format": "prose", "hint": "Pagination strategy" },
+      "Webhooks": { "target": 150, "max": 300, "format": "endpoint-blocks", "hint": "Webhook events and payloads" },
+      "SDK Examples": { "target": 200, "max": 400, "format": "code-block", "hint": "Usage examples in common languages" },
+      "Migration Guide": { "target": 150, "max": 300, "format": "numbered-procedure", "hint": "Version migration steps" }
+    }
+  },
+  "infrastructure_design": {
+    "description": "Infrastructure design documents — cloud architecture, networking, CI/CD, monitoring, and disaster recovery",
+    "tone": "operational and infrastructure-focused",
+    "storyStyle": "operations-focused with SLO targets",
+    "architectureFocus": "infrastructure topology and operations",
+    "expertRole": "senior infrastructure architect",
+    "totalWordTarget": { "min": 2000, "max": 5000 },
+    "requiredSections": {
+      "Infrastructure Overview": { "target": 200, "max": 400, "format": "prose", "hint": "High-level infrastructure goals" },
+      "Architecture Diagram": { "target": 300, "max": 600, "format": "mermaid", "diagram": "flowchart", "hint": "Infrastructure topology" },
+      "Compute & Storage": { "target": 250, "max": 500, "format": "table", "hint": "Resource specifications" },
+      "Networking": { "target": 200, "max": 400, "format": "prose", "hint": "Network design, VPCs, load balancing" },
+      "CI/CD Pipeline": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "Build and deploy pipeline" },
+      "Monitoring & Alerting": { "target": 200, "max": 400, "format": "slo-table", "hint": "SLOs, metrics, alerting rules" },
+      "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Infrastructure user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
+    },
+    "optionalSections": {
+      "Disaster Recovery": { "target": 200, "max": 400, "format": "numbered-procedure", "hint": "DR plan with RTO/RPO" },
+      "Security": { "target": 200, "max": 400, "format": "bullet-list", "hint": "Security controls and compliance" },
+      "Cost Estimation": { "target": 150, "max": 300, "format": "table", "hint": "Monthly/annual cost breakdown" },
+      "Scaling Strategy": { "target": 150, "max": 300, "format": "prose", "hint": "Auto-scaling policies" }
+    }
+  },
+  "migration_plan": {
+    "description": "Migration plan documents — data migration, system migration, cutover planning, and rollback strategies",
+    "tone": "methodical and risk-aware",
+    "storyStyle": "migration-step focused with rollback criteria",
+    "architectureFocus": "migration process and data integrity",
+    "expertRole": "senior migration architect",
+    "totalWordTarget": { "min": 1500, "max": 4000 },
+    "requiredSections": {
+      "Migration Overview": { "target": 200, "max": 400, "format": "prose", "hint": "What is being migrated and why" },
+      "Current State": { "target": 200, "max": 400, "format": "prose", "hint": "Source system description" },
+      "Target State": { "target": 200, "max": 400, "format": "prose", "hint": "Destination system description" },
+      "Data Mapping": { "target": 300, "max": 600, "format": "mapping-table", "hint": "Source-to-target field mapping" },
+      "Migration Steps": { "target": 300, "max": 600, "format": "numbered-procedure", "hint": "Step-by-step migration procedure" },
+      "Rollback Plan": { "target": 200, "max": 400, "format": "numbered-procedure", "hint": "Rollback steps and criteria" },
+      "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Migration user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
+    },
+    "optionalSections": {
+      "Risk Assessment": { "target": 200, "max": 400, "format": "risk-heat-map", "hint": "Migration risks and mitigations" },
+      "Testing Strategy": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Validation and smoke tests" },
+      "Communication Plan": { "target": 100, "max": 200, "format": "table", "hint": "Stakeholder communications schedule" },
+      "Cutover Checklist": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Pre/during/post cutover tasks" }
+    }
+  },
+  "integration_spec": {
+    "description": "Integration specification documents — system integration points, data flows, protocols, and SLAs",
+    "tone": "integration-focused and contract-driven",
+    "storyStyle": "integration-point focused with contract clarity",
+    "architectureFocus": "system integration and data exchange",
+    "expertRole": "senior integration architect",
+    "totalWordTarget": { "min": 1500, "max": 4000 },
+    "requiredSections": {
+      "Integration Overview": { "target": 200, "max": 400, "format": "prose", "hint": "Systems being integrated and purpose" },
+      "System Landscape": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "Integration topology" },
+      "Data Flows": { "target": 300, "max": 600, "format": "mermaid-sequence", "diagram": "sequence", "hint": "Data exchange sequences" },
+      "Interface Contracts": { "target": 300, "max": 600, "format": "endpoint-blocks", "hint": "API contracts between systems" },
+      "Error Handling": { "target": 200, "max": 400, "format": "error-table", "hint": "Error scenarios and recovery" },
+      "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Integration user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
+    },
+    "optionalSections": {
+      "SLA Definition": { "target": 150, "max": 300, "format": "slo-table", "hint": "Service level agreements" },
+      "Security": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Auth, encryption, data handling" },
+      "Monitoring": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Integration health monitoring" },
+      "Comparison of Approaches": { "target": 200, "max": 400, "format": "comparison-table-and-prose", "hint": "Alternative integration patterns evaluated" }
+    }
+  }
+}
