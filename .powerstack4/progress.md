@@ -531,3 +531,23 @@ All 6 stage prompts built (T-4.2 through T-4.7): comprehension, classification, 
 - Invalid category → default: ✅
 - Confidence clamping: ✅
 - Readable comprehension summary (not JSON): ✅
+
+#### T-4.11 Stage 3 Implementation: Structural Assessment — Complete
+- `src/pipeline/stages/runStage3Structural.ts` — integrates sectionDiscovery + templateLoader
+- `src/pipeline/stages/runStage3Structural.test.ts` — 11 tests
+- Scores clamped 1-10, actions validated, missing sections detected, fallback local assessment
+
+[SIMPLIFY] No changes needed
+[REVIEW] Approved — Critical: 0, Important: 0 (fixed: success tracking, merge test), Minor: 4 (noted)
+
+#### T-4.12 Stage 4 Implementation: Content Refinement — Complete
+- `src/pipeline/stages/runStage4Refinement.ts` — per-section AI rewriting with 5 action types
+- `src/pipeline/stages/runStage4Refinement.test.ts` — 11 tests
+- All 5 actions handled (keep/restructure/merge/split/add), feedback filtering, partial failure, token aggregation
+
+[SIMPLIFY] No changes needed
+[REVIEW] Approved — Critical: 0, Important: 2 (fixed: success=false when all fail, added merge test), Minor: 3 (noted)
+
+##### Verification:
+- `npx tsc --noEmit` → zero errors
+- 22 tests passed (11+11)
