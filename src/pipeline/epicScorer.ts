@@ -168,15 +168,15 @@ export function scoreSection(
   const words = content.split(/\s+/).filter((w) => w.length > 0);
   const wordCount = words.length;
 
-  // Completeness: BM25-style length saturation relative to average
+  // Completeness: k=100 so avg-length section (~500 words) scores ~0.83
   const lengthNorm = 1 - config.b + config.b * (wordCount / config.avgSectionLength);
-  const completeness = saturate(wordCount / Math.max(lengthNorm, 0.01), config.k1 * config.avgSectionLength);
+  const completeness = saturate(wordCount / Math.max(lengthNorm, 0.01), 100);
 
   // Clarity: inverse of filler ratio
   const filler = detectFiller(content);
   const clarity = filler.densityScore;
 
-  // Specificity: BM25 term coverage — what fraction of expected terms appear?
+  // Specificity: k=3 so 80% term coverage scores ~0.73
   const lowerContent = content.toLowerCase();
   const matchedTerms = expectedTerms.filter((term) =>
     lowerContent.includes(term.toLowerCase()),
@@ -184,9 +184,9 @@ export function scoreSection(
   const termCoverage = expectedTerms.length > 0
     ? matchedTerms.length / expectedTerms.length
     : 1;
-  const specificity = saturate(termCoverage * 10, config.k1 * 5);
+  const specificity = saturate(termCoverage * 10, 3);
 
-  // Actionability: presence of action verbs, numbers, concrete patterns
+  // Actionability: k=5 so 10 action matches scores ~0.67
   const actionPatterns = [
     /\b(must|shall|will|should|requires?)\b/gi,
     /\b\d+(\.\d+)?(%|ms|s|gb|mb|kb|rpm|tps|req\/s)\b/gi,
@@ -196,9 +196,9 @@ export function scoreSection(
     (count, pattern) => count + (content.match(pattern)?.length ?? 0),
     0,
   );
-  const actionability = saturate(actionMatches, config.k1 * 8);
+  const actionability = saturate(actionMatches, 5);
 
-  // Technical depth: presence of technical indicators
+  // Technical depth: k=8 so 12 tech matches scores ~0.60
   const techPatterns = [
     /\b(api|rest|graphql|grpc|http|https|tcp|udp|websocket)\b/gi,
     /\b(database|schema|index|query|migration|transaction)\b/gi,
@@ -210,7 +210,7 @@ export function scoreSection(
     (count, pattern) => count + (content.match(pattern)?.length ?? 0),
     0,
   );
-  const technicalDepth = saturate(techMatches, config.k1 * 12);
+  const technicalDepth = saturate(techMatches, 8);
 
   // Overall: weighted geometric mean, scaled to 0-100
   const dimensions = [
