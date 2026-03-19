@@ -13,6 +13,7 @@ import { WorkspaceSidebar } from '@/components/layout/WorkspaceSidebar';
 import { ViewRouter } from '@/components/layout/ViewRouter';
 import { PlaceholderView } from '@/components/layout/PlaceholderView';
 import { ModalHost } from '@/components/layout/ModalHost';
+import { ToastContainer } from '@/components/shared/ToastContainer';
 
 // ─── Layouts ────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ export default function App() {
       }}
     >
       {activeView === 'welcome' ? <WelcomeLayout /> : <WorkspaceLayout />}
+      <ToastContainer />
     </div>
   );
 }
