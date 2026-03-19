@@ -29,7 +29,7 @@ describe('ViewRouter', () => {
     useUiStore.setState({ activeTab: 'blueprint' });
     render(<ViewRouter />);
     expect(screen.getByTestId('blueprint-view')).toBeDefined();
-    expect(screen.getByText(/Blueprints/)).toBeDefined();
+    expect(screen.getByTestId('blueprint-empty')).toBeDefined();
   });
 
   it('analytics tab renders AnalyticsPanel', () => {

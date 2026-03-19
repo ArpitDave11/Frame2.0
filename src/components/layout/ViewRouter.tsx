@@ -8,7 +8,7 @@
  */
 
 import { useUiStore } from '@/stores/uiStore';
-import { PlaceholderView } from '@/components/layout/PlaceholderView';
+import { BlueprintView as BlueprintViewComponent } from '@/components/blueprint/BlueprintView';
 import { AnalyticsPanel } from '@/components/views/AnalyticsPanel';
 import { IssueManagerView } from '@/components/issues/IssueManagerView';
 import { WorkspaceHeader } from '@/components/editor/WorkspaceHeader';
@@ -48,7 +48,7 @@ function IssueManagerViewWrapper() {
 function BlueprintView() {
   return (
     <div data-testid="blueprint-view" style={{ flex: 1, overflow: 'auto' }}>
-      <PlaceholderView name="Blueprints — coming in Phase 16" />
+      <BlueprintViewComponent />
     </div>
   );
 }
