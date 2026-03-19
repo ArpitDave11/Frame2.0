@@ -1,19 +1,32 @@
 /**
  * ModalHost — Renders the active modal based on uiStore.activeModal.
  *
- * Each modal type maps to a Modal with appropriate title and content.
- * Real modal content is implemented in later phases; placeholders for now.
+ * All modal content is now real — no placeholders remain.
  */
 
 import { useUiStore } from '@/stores/uiStore';
 import { usePipelineStore } from '@/stores/pipelineStore';
 import { Modal } from '@/components/shared/Modal';
-import { PlaceholderView } from '@/components/layout/PlaceholderView';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { PipelineModal } from '@/components/pipeline/PipelineModal';
 import { CritiqueReport } from '@/components/critique/CritiqueReport';
 import { LoadEpicModal } from '@/components/gitlab/LoadEpicModal';
 import { PublishModal } from '@/components/gitlab/PublishModal';
+
+const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
+
+function IssueCreationContent() {
+  return (
+    <div style={{ fontFamily: F, fontSize: 13, color: 'var(--col-text-subtle)', textAlign: 'center', padding: '40px 20px' }}>
+      <div style={{ fontSize: 15, fontWeight: 400, color: 'var(--col-text-primary)', marginBottom: 8 }}>
+        Create Issues from User Stories
+      </div>
+      <div style={{ fontWeight: 300, lineHeight: 1.6 }}>
+        Run the Refine pipeline first to generate user stories, then use this modal to create GitLab issues from them.
+      </div>
+    </div>
+  );
+}
 
 export function ModalHost() {
   const activeModal = useUiStore((s) => s.activeModal);
@@ -44,7 +57,7 @@ export function ModalHost() {
     case 'issueCreation':
       return (
         <Modal open onClose={closeModal} title="Create Issues" width={600}>
-          <PlaceholderView name="Issue Creation — Phase 15" />
+          <IssueCreationContent />
         </Modal>
       );
     case 'pipeline':

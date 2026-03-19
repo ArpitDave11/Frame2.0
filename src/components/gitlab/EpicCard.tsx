@@ -44,7 +44,7 @@ export function EpicCard({ title, iid, state, onClick }: EpicCardProps) {
       <span
         style={{
           fontSize: 11,
-          color: 'var(--muted-foreground)',
+          color: 'var(--col-muted-foreground)',
         }}
       >
         {state}

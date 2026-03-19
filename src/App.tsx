@@ -11,7 +11,6 @@ import { font } from '@/theme/tokens';
 import { WelcomeSidebar } from '@/components/layout/WelcomeSidebar';
 import { WorkspaceSidebar } from '@/components/layout/WorkspaceSidebar';
 import { ViewRouter } from '@/components/layout/ViewRouter';
-import { PlaceholderView } from '@/components/layout/PlaceholderView';
 import { WelcomeScreen } from '@/components/views/WelcomeScreen';
 import { ModalHost } from '@/components/layout/ModalHost';
 import { ChatPanel } from '@/components/chat/ChatPanel';
