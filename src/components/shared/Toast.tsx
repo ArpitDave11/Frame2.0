@@ -5,7 +5,7 @@
  * X button for immediate dismiss. ubsFade entry animation.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from '@phosphor-icons/react';
 import type { Toast as ToastType } from '@/stores/uiStore';
 
@@ -25,10 +25,14 @@ interface ToastProps {
 }
 
 export function Toast({ toast, onDismiss, duration = 4000 }: ToastProps) {
+  // Ref stabilizes onDismiss so timer doesn't reset when parent re-renders
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
   useEffect(() => {
-    const timer = setTimeout(onDismiss, duration);
+    const timer = setTimeout(() => onDismissRef.current(), duration);
     return () => clearTimeout(timer);
-  }, [onDismiss, duration]);
+  }, [duration]);
 
   const barColor = COLOR_MAP[toast.type];
 
