@@ -69,7 +69,11 @@
   --col-border-illustrative: #E0E0E0;
   --col-text-primary: #000000;
   --col-text-subtle: #666666;
+  --col-text-inverted: #FFFFFF;
   --input-background: #F3F3F5;
+  --col-muted: #ECECF0;
+  --col-switch-background: #CBCED4;
+  --col-muted-foreground: #717182;
   --radius: 0.625rem;
 
   /* Component Colors */

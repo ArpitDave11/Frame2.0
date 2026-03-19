@@ -14,6 +14,7 @@ import { ViewRouter } from '@/components/layout/ViewRouter';
 import { PlaceholderView } from '@/components/layout/PlaceholderView';
 import { WelcomeScreen } from '@/components/views/WelcomeScreen';
 import { ModalHost } from '@/components/layout/ModalHost';
+import { ChatPanel } from '@/components/chat/ChatPanel';
 import { ToastContainer } from '@/components/shared/ToastContainer';
 
 // ─── Layouts ────────────────────────────────────────────────
@@ -34,7 +35,7 @@ function WorkspaceLayout() {
         <WorkspaceSidebar />
         <ViewRouter />
       </div>
-      {/* ChatPanel — Phase 13 */}
+      <ChatPanel />
       <ModalHost />
     </>
   );
