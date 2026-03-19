@@ -65,6 +65,7 @@
 
   /* Prototype-compatible aliases (match UI_Prototype variable names) */
   --col-background-ui-10: #FFFFFF;
+  --col-background-brand: #E60000;
   --col-border-illustrative: #E0E0E0;
   --col-text-primary: #000000;
   --col-text-subtle: #666666;

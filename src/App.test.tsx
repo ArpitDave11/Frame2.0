@@ -58,7 +58,7 @@ describe('App', () => {
   it('workspace shows planner view by default', () => {
     useUiStore.setState({ activeView: 'workspace' });
     render(<App />);
-    expect(screen.getByText('Planner — coming soon')).toBeDefined();
+    expect(screen.getByTestId('planner-view')).toBeDefined();
   });
 
   it('workspace sidebar has all 4 nav items', () => {
