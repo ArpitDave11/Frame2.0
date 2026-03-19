@@ -21,6 +21,7 @@ import type { Icon } from '@phosphor-icons/react';
 import { useUiStore } from '@/stores/uiStore';
 import type { TabId } from '@/stores/uiStore';
 import ubsLogo from '@/assets/00ac1239b9b421f7eee8b4e260132b1ac860676a.png';
+import { UserMenu } from '@/components/auth/UserMenu';
 
 // ─── Navigation Config ──────────────────────────────────────
 
@@ -188,6 +189,9 @@ export function WorkspaceSidebar() {
           );
         })}
       </div>
+
+      {/* User Menu */}
+      <UserMenu />
     </nav>
   );
 }

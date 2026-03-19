@@ -16,6 +16,7 @@ import { WelcomeScreen } from '@/components/views/WelcomeScreen';
 import { ModalHost } from '@/components/layout/ModalHost';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { ToastContainer } from '@/components/shared/ToastContainer';
+import { AuthGuard } from '@/components/auth/AuthGuard';
 
 // ─── Layouts ────────────────────────────────────────────────
 
@@ -47,21 +48,23 @@ export default function App() {
   const activeView = useUiStore((s) => s.activeView);
 
   return (
-    <div
-      data-testid="app-root"
-      style={{
-        fontFamily: font.sans,
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        background: '#f7f7f5',
-        overflow: activeView === 'welcome' ? 'auto' : 'hidden',
-        position: 'relative',
-        color: 'var(--ubs-color-text-primary)',
-      }}
-    >
-      {activeView === 'welcome' ? <WelcomeLayout /> : <WorkspaceLayout />}
-      <ToastContainer />
-    </div>
+    <AuthGuard>
+      <div
+        data-testid="app-root"
+        style={{
+          fontFamily: font.sans,
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          background: '#f7f7f5',
+          overflow: activeView === 'welcome' ? 'auto' : 'hidden',
+          position: 'relative',
+          color: 'var(--ubs-color-text-primary)',
+        }}
+      >
+        {activeView === 'welcome' ? <WelcomeLayout /> : <WorkspaceLayout />}
+        <ToastContainer />
+      </div>
+    </AuthGuard>
   );
 }
