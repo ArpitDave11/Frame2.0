@@ -12,6 +12,8 @@ import { PlaceholderView } from '@/components/layout/PlaceholderView';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { PipelineModal } from '@/components/pipeline/PipelineModal';
 import { CritiqueReport } from '@/components/critique/CritiqueReport';
+import { LoadEpicModal } from '@/components/gitlab/LoadEpicModal';
+import { PublishModal } from '@/components/gitlab/PublishModal';
 
 export function ModalHost() {
   const activeModal = useUiStore((s) => s.activeModal);
@@ -30,13 +32,13 @@ export function ModalHost() {
     case 'publish':
       return (
         <Modal open onClose={closeModal} title="Publish to GitLab" width={480}>
-          <PlaceholderView name="Publish — Phase 14" />
+          <PublishModal />
         </Modal>
       );
     case 'loadEpic':
       return (
         <Modal open onClose={closeModal} title="Load from GitLab" width={540}>
-          <PlaceholderView name="Load Epic — Phase 14" />
+          <LoadEpicModal />
         </Modal>
       );
     case 'issueCreation':
