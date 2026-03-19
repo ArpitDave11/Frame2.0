@@ -137,21 +137,21 @@ const STATS = [
   { label: '7', sublabel: 'ready-made', description: 'templates' },
 ];
 
-// Gradient placeholders for action card images (replacing Unsplash/Figma images)
-const ACTION_GRADIENTS = [
-  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+// Unsplash images from the prototype for primary action cards
+const ACTION_IMAGES = [
+  'https://images.unsplash.com/photo-1769731738826-a51acd5bddc7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmbG93Y2hhcnQlMjBkaWFncmFtJTIwd2hpdGVib2FyZCUyMHBsYW5uaW5nfGVufDF8fHx8MTc3Mzc3NDI4NHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+  'https://images.unsplash.com/photo-1763568258226-3e3f67a6577e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2RlJTIwZWRpdG9yJTIwc29mdHdhcmUlMjBkZXZlbG9wbWVudHxlbnwxfHx8fDE3NzM3OTc1MTR8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+  'https://images.unsplash.com/photo-1753715613388-7e03410b1dce?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhcmNoaXRlY3R1cmUlMjBkaWFncmFtJTIwc3lzdGVtJTIwZGVzaWdufGVufDF8fHx8MTc3Mzc5NzUxNHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
 ];
 
-// Gradient placeholders for template card images
-const TEMPLATE_GRADIENTS = [
-  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
-  'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
-  'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)',
-  'linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%)',
-  'linear-gradient(135deg, #f5576c 0%, #ff6a88 100%)',
-  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+// Unsplash images from the prototype for template cards
+const TEMPLATE_IMAGES = [
+  'https://images.unsplash.com/photo-1759884247142-028abd1e8ac2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjB3b3Jrc3BhY2UlMjBjb2xsYWJvcmF0aW9uJTIwdGVjaG5vbG9neXxlbnwxfHx8fDE3NzM3ODExMjB8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+  'https://images.unsplash.com/photo-1748609160056-7b95f30041f0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXNpbmVzcyUyMGFuYWx5dGljcyUyMGRhc2hib2FyZCUyMGRhdGF8ZW58MXx8fHwxNzczNzQ1OTg4fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+  'https://images.unsplash.com/photo-1763739532819-401f6a041b54?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0ZWFtJTIwcGxhbm5pbmclMjBzdHJhdGVneSUyMG1lZXRpbmd8ZW58MXx8fHwxNzczNzgxMTIxfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+  'https://images.unsplash.com/photo-1612886652368-3dfdfa8c4cbe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkaWdpdGFsJTIwdHJhbnNmb3JtYXRpb24lMjB3b3JrZmxvd3xlbnwxfHx8fDE3NzM3ODExMjF8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+  'https://images.unsplash.com/photo-1616161560065-4bbfa1103fde?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhaSUyMGFydGlmaWNpYWwlMjBpbnRlbGxpZ2VuY2UlMjB0ZWNobm9sb2d5fGVufDF8fHx8MTc3MzcyMzQ4NHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
+  'https://images.unsplash.com/photo-1773517459502-54c3a9b103a4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9qZWN0JTIwbWFuYWdlbWVudCUyMGRpYWdyYW0lMjBibHVlcHJpbnR8ZW58MXx8fHwxNzczNzgxMTIyfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
 ];
 
 // ─── Component ─────────────────────────────────────────────────
@@ -204,7 +204,7 @@ export function WelcomeScreen() {
         fontFamily: F,
       }}
     >
-      {/* ═══ Hero Section ═══ */}
+      {/* Hero Section */}
       <section
         id="home"
         style={{
@@ -253,11 +253,12 @@ export function WelcomeScreen() {
               maxWidth: 440,
             }}
           >
-            Stop writing epics from scratch — get consistent quality across every team
+            Stop writing epics from scratch — get consistent quality across
+            every team
           </p>
         </div>
 
-        {/* Right: Stats Cards */}
+        {/* Right: Stats Cards - Horizontal Layout */}
         <div style={{ display: 'flex', gap: 16 }}>
           {STATS.map((stat, i) => (
             <div
@@ -334,7 +335,7 @@ export function WelcomeScreen() {
         </div>
       </section>
 
-      {/* ═══ What You Can Do Section ═══ */}
+      {/* What You Can Do Section */}
       <section
         id="actions"
         style={{
@@ -393,6 +394,7 @@ export function WelcomeScreen() {
           {/* Top Row: Primary Actions (Large Cards) */}
           {ACTION_CARDS.filter((a) => a.primary).map((action, idx) => {
             const Icon = action.icon;
+
             return (
               <button
                 key={action.id}
@@ -421,15 +423,30 @@ export function WelcomeScreen() {
                   e.currentTarget.style.borderColor = 'var(--col-border-illustrative)';
                 }}
               >
-                {/* Image Header — gradient placeholder */}
+                {/* Image Header */}
                 <div
                   style={{
                     position: 'relative',
                     height: 160,
                     overflow: 'hidden',
-                    background: ACTION_GRADIENTS[idx % ACTION_GRADIENTS.length],
                   }}
                 >
+                  <img
+                    src={ACTION_IMAGES[idx]}
+                    alt={action.label}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transition: 'transform 0.5s ease',
+                    }}
+                    onMouseEnter={(e: React.MouseEvent<HTMLImageElement>) => {
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={(e: React.MouseEvent<HTMLImageElement>) => {
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  />
                   {/* Icon Badge */}
                   <div
                     style={{
@@ -553,7 +570,7 @@ export function WelcomeScreen() {
         </div>
       </section>
 
-      {/* ═══ Epic Lifecycle Section ═══ */}
+      {/* Epic Lifecycle Section */}
       <section
         id="lifecycle"
         style={{
@@ -607,6 +624,7 @@ export function WelcomeScreen() {
                   key={stage.id}
                   style={{ flex: 1, position: 'relative', display: 'flex' }}
                 >
+                  {/* Stage Card */}
                   <button
                     data-testid={`lifecycle-${stage.id}`}
                     onClick={() => setSelectedStage(stage.id)}
@@ -633,9 +651,11 @@ export function WelcomeScreen() {
                     }}
                     onMouseEnter={(e) => {
                       if (!isSelected) {
-                        e.currentTarget.style.borderColor = 'var(--col-background-brand)';
+                        e.currentTarget.style.borderColor =
+                          'var(--col-background-brand)';
                         e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+                        e.currentTarget.style.boxShadow =
+                          '0 4px 12px rgba(0,0,0,0.08)';
                       }
                     }}
                     onMouseLeave={(e) => {
@@ -715,7 +735,11 @@ export function WelcomeScreen() {
                         zIndex: 3,
                       }}
                     >
-                      <CaretRight size={12} color="var(--col-text-subtle)" weight="bold" />
+                      <CaretRight
+                        size={12}
+                        color="var(--col-text-subtle)"
+                        weight="bold"
+                      />
                     </div>
                   )}
                 </div>
@@ -733,6 +757,7 @@ export function WelcomeScreen() {
                 borderLeft: '6px solid var(--col-background-brand)',
                 borderRadius: 8,
                 padding: '28px 32px',
+                animation: 'ubsFade 0.3s ease-out',
               }}
             >
               <div
@@ -785,7 +810,7 @@ export function WelcomeScreen() {
         </div>
       </section>
 
-      {/* ═══ Template Catalog Section ═══ */}
+      {/* Template Catalog Section */}
       <section
         id="templates"
         style={{
@@ -827,6 +852,7 @@ export function WelcomeScreen() {
         >
           {EPIC_CATEGORIES.map((cat, idx) => {
             const isHovered = hoveredTemplate === cat.id;
+
             return (
               <button
                 key={cat.id}
@@ -848,20 +874,36 @@ export function WelcomeScreen() {
                   position: 'relative',
                   overflow: 'hidden',
                   minHeight: 280,
-                  boxShadow: isHovered ? '0 8px 24px rgba(0,0,0,0.12)' : 'none',
+                  boxShadow: isHovered
+                    ? '0 8px 24px rgba(0,0,0,0.12)'
+                    : 'none',
                   transform: isHovered ? 'translateY(-4px)' : 'translateY(0)',
                 }}
               >
-                {/* Image Header — gradient placeholder */}
+                {/* Image Header */}
                 <div
                   style={{
                     position: 'relative',
                     height: 140,
                     overflow: 'hidden',
-                    background: TEMPLATE_GRADIENTS[idx % TEMPLATE_GRADIENTS.length],
-                    transition: 'transform 0.5s',
                   }}
                 >
+                  <img
+                    src={TEMPLATE_IMAGES[idx % TEMPLATE_IMAGES.length]}
+                    alt={cat.label}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transition: 'transform 0.5s',
+                    }}
+                    onMouseEnter={(e: React.MouseEvent<HTMLImageElement>) => {
+                      if (isHovered) e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={(e: React.MouseEvent<HTMLImageElement>) => {
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  />
                   <div
                     style={{
                       position: 'absolute',
@@ -935,6 +977,7 @@ export function WelcomeScreen() {
                       style={{
                         borderTop: '1px solid var(--col-border-illustrative)',
                         paddingTop: 14,
+                        animation: 'ubsFade 0.25s ease-out',
                       }}
                     >
                       <div
@@ -1003,7 +1046,7 @@ export function WelcomeScreen() {
         </div>
       </section>
 
-      {/* ═══ Quick Start CTA ═══ */}
+      {/* Quick Start CTA */}
       <section
         id="quickstart"
         style={{
@@ -1039,7 +1082,7 @@ export function WelcomeScreen() {
                 fontSize: 28,
                 fontWeight: 400,
                 marginBottom: 10,
-                color: '#ffffff',
+                color: 'var(--col-text-inverted)',
                 letterSpacing: '-0.3px',
               }}
             >
@@ -1066,7 +1109,7 @@ export function WelcomeScreen() {
                 border: 'none',
                 borderRadius: 6,
                 background: 'var(--col-background-brand)',
-                color: '#ffffff',
+                color: 'var(--col-text-inverted)',
                 fontSize: 16,
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -1099,7 +1142,7 @@ export function WelcomeScreen() {
                 border: '2px solid rgba(255,255,255,0.2)',
                 borderRadius: 6,
                 background: 'transparent',
-                color: '#ffffff',
+                color: 'var(--col-text-inverted)',
                 fontSize: 16,
                 fontWeight: 400,
                 cursor: 'pointer',
