@@ -76,12 +76,12 @@ describe('WelcomeSidebar', () => {
     render(<WelcomeSidebar />);
     const homeBtn = screen.getByTestId('welcome-nav-home');
     // Home is active by default
-    expect(homeBtn.style.background).toContain('var(--ubs-color-input-background)');
+    expect(homeBtn.style.background).toContain('var(--input-background)');
 
     // Click templates
     fireEvent.click(screen.getByTestId('welcome-nav-templates'));
     const templatesBtn = screen.getByTestId('welcome-nav-templates');
-    expect(templatesBtn.style.background).toContain('var(--ubs-color-input-background)');
+    expect(templatesBtn.style.background).toContain('var(--input-background)');
     // Home should no longer be active
     expect(homeBtn.style.background).toBe('transparent');
   });
