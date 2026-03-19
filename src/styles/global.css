@@ -63,6 +63,13 @@
   --ubs-color-success-light: #F5F0E1;
   --ubs-color-info-light: #ECEBE4;
 
+  /* Prototype-compatible aliases (match UI_Prototype variable names) */
+  --col-background-ui-10: #FFFFFF;
+  --col-border-illustrative: #E0E0E0;
+  --col-text-primary: #000000;
+  --col-text-subtle: #666666;
+  --input-background: #F3F3F5;
+
   /* Component Colors */
   --ubs-color-header-bg: #FFFFFF;
   --ubs-color-header-border: #E5E7EB;

@@ -26,11 +26,11 @@ beforeAll(() => {
 // ─── 1. Naming Convention ──────────────────────────────────
 
 describe('CSS variable naming convention', () => {
-  it('all custom properties follow --ubs-{category}-{name} pattern', () => {
+  it('all custom properties follow --ubs-* or --col-* or --input-* pattern', () => {
     const varDeclarations = css.match(/--[\w-]+(?=\s*:)/g) ?? [];
     expect(varDeclarations.length).toBeGreaterThan(0);
     for (const v of varDeclarations) {
-      expect(v).toMatch(/^--ubs-/);
+      expect(v).toMatch(/^--(ubs-|col-|input-)/);
     }
   });
 
