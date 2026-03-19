@@ -207,7 +207,7 @@ export function CritiqueReport() {
                   <div
                     style={{
                       height: '100%',
-                      width: `${(check.score / 100) * 100}%`,
+                      width: `${(check.score / 10) * 100}%`,
                       background: check.passed ? '#22c55e' : '#ef4444',
                       borderRadius: 2,
                     }}
