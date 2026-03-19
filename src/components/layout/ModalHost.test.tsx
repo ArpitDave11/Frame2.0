@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ModalHost } from './ModalHost';
 import { useUiStore } from '@/stores/uiStore';
+import { usePipelineStore } from '@/stores/pipelineStore';
 
 beforeEach(() => {
   useUiStore.setState(useUiStore.getInitialState());
@@ -35,11 +36,20 @@ describe('ModalHost', () => {
     expect(screen.getByTestId('modal-title').textContent).toBe('Load from GitLab');
   });
 
-  it('activeModal=pipeline renders Pipeline modal with preventClose', () => {
+  it('activeModal=pipeline renders Pipeline modal with preventClose when running', () => {
     useUiStore.setState({ activeModal: 'pipeline' });
+    usePipelineStore.setState({ isRunning: true });
     render(<ModalHost />);
     expect(screen.getByTestId('modal-title').textContent).toBe('Refining your epic');
-    expect(screen.queryByTestId('modal-close-btn')).toBeNull(); // preventClose
+    expect(screen.queryByTestId('modal-close-btn')).toBeNull(); // preventClose while running
+  });
+
+  it('activeModal=pipeline allows close when not running', () => {
+    useUiStore.setState({ activeModal: 'pipeline' });
+    usePipelineStore.setState({ isRunning: false });
+    render(<ModalHost />);
+    expect(screen.getByTestId('modal-title').textContent).toBe('Refining your epic');
+    expect(screen.getByTestId('modal-close-btn')).toBeDefined(); // closeable when idle
   });
 
   it('activeModal=critique renders Quality Report modal (closeable)', () => {

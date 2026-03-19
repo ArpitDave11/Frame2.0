@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FRAME — AI-Scored Epics</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #F5F3EF;
+    --bg-card: #FFFFFF;
+    --red: #E12B1E;
+    --red-light: #FFF0EF;
+    --text-primary: #1A1A1A;
+    --text-secondary: #6B6560;
+    --text-tertiary: #9B9590;
+    --border: #E8E4DF;
+    --radius: 16px;
+    --radius-sm: 12px;
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  .page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 64px 48px 80px;
+  }
+
+  /* ─── HERO ROW ─── */
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    margin-bottom: 72px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards;
+  }
+
+  .hero-text { position: relative; }
+
+  .hero-text .accent-line {
+    position: absolute;
+    left: -24px;
+    top: 6px;
+    width: 4px;
+    height: 72px;
+    background: var(--red);
+    border-radius: 2px;
+  }
+
+  .hero h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 3.2rem;
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+  }
+
+  .hero h1 em {
+    font-style: italic;
+    color: var(--red);
+  }
+
+  .hero p {
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 440px;
+  }
+
+  /* ─── STATS ROW (right side of hero) ─── */
+  .stats {
+    display: flex;
+    gap: 16px;
+  }
+
+  .stat-card {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 3px;
+    background: var(--red);
+    border-radius: 0 0 4px 4px;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.06);
+  }
+
+  .stat-number {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2.8rem;
+    font-weight: 400;
+    color: var(--red);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .stat-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .stat-sub {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+  }
+
+  /* ─── DIVIDER ─── */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.15s ease forwards;
+  }
+
+  .divider h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.7rem;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  .divider span {
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+  }
+
+  .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ─── FEATURES GRID ─── */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: auto auto;
+    gap: 20px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.3s ease forwards;
+  }
+
+  /* Large feature cards */
+  .feature-large {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    position: relative;
+  }
+
+  .feature-large:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.07);
+    border-color: var(--red);
+  }
+
+  .feature-large .img-wrap {
+    height: 160px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .feature-large .img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+  }
+
+  .feature-large:hover .img-wrap img {
+    transform: scale(1.05);
+  }
+
+  .feature-large .img-wrap .icon-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 16px;
+    width: 40px;
+    height: 40px;
+    background: var(--red);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(225,43,30,0.3);
+  }
+
+  .feature-large .icon-badge svg {
+    width: 20px;
+    height: 20px;
+    color: white;
+  }
+
+  .feature-large .content {
+    padding: 20px;
+  }
+
+  .feature-large h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .feature-large .desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+
+  /* ─── SMALL FEATURES ROW ─── */
+  .small-features {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+  }
+
+  .feature-small {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 20px 16px;
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+
+  .feature-small:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+    border-color: var(--red);
+  }
+
+  .feature-small .icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--red-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+
+  .feature-small .icon-wrap svg {
+    width: 18px;
+    height: 18px;
+    color: var(--red);
+  }
+
+  .feature-small h4 {
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+
+  .feature-small .desc {
+    font-size: 0.78rem;
+    color: var(--text-tertiary);
+  }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 900px) {
+    .page { padding: 40px 24px 60px; }
+    .hero { grid-template-columns: 1fr; gap: 32px; }
+    .hero h1 { font-size: 2.4rem; }
+    .stats { gap: 12px; }
+    .stat-number { font-size: 2.2rem; }
+    .features { grid-template-columns: 1fr 1fr; }
+    .small-features { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (max-width: 600px) {
+    .hero h1 { font-size: 2rem; }
+    .stats { flex-direction: column; gap: 10px; }
+    .stat-card { padding: 20px 16px; }
+    .features { grid-template-columns: 1fr; }
+    .small-features { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══ HERO ═══ -->
+  <section class="hero">
+    <div class="hero-text">
+      <div class="accent-line"></div>
+      <h1>FRAME turns rough ideas into structured, <em>AI&#8209;scored</em> epics</h1>
+      <p>Stop writing epics from scratch — get consistent quality across every team.</p>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-number">6x</div>
+        <div class="stat-label">Faster</div>
+        <div class="stat-sub">than manual drafting</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">8.2</div>
+        <div class="stat-label">Avg Quality</div>
+        <div class="stat-sub">score</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">7</div>
+        <div class="stat-label">Templates</div>
+        <div class="stat-sub">ready-made</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ SECTION LABEL ═══ -->
+  <div class="divider">
+    <h2>What you can do</h2>
+    <span>Choose your workflow</span>
+  </div>
+
+  <!-- ═══ FEATURES ═══ -->
+  <section class="features">
+
+    <!-- Large Cards -->
+    <div class="feature-large">
+      <div class="img-wrap">
+        <img src="https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=600&q=80" alt="Whiteboard planning">
+        <div class="icon-badge">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+        </div>
+      </div>
+      <div class="content">
+        <h3>Create parent epic</h3>
+        <div class="desc">Start from scratch with a template</div>
+      </div>
+    </div>
+
+    <div class="feature-large">
+      <div class="img-wrap">
+        <img src="https://images.unsplash.com/photo-1550439062-609e1531270e?w=600&q=80" alt="Code on screen">
+        <div class="icon-badge">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75"/></svg>
+        </div>
+      </div>
+      <div class="content">
+        <h3>Modify existing epics</h3>
+        <div class="desc">Load from GitLab and refine</div>
+      </div>
+    </div>
+
+    <div class="feature-large">
+      <div class="img-wrap">
+        <img src="https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=600&q=80" alt="Drawing diagrams">
+        <div class="icon-badge">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"/></svg>
+        </div>
+      </div>
+      <div class="content">
+        <h3>Generate diagrams</h3>
+        <div class="desc">Auto-create architecture visuals</div>
+      </div>
+    </div>
+
+    <!-- Small Cards Row -->
+    <div class="small-features">
+      <div class="feature-small">
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+        </div>
+        <h4>Create sub-epic</h4>
+        <div class="desc">Break down large initiatives</div>
+      </div>
+
+      <div class="feature-small">
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+        </div>
+        <h4>Create issues</h4>
+        <div class="desc">Convert stories to tasks</div>
+      </div>
+
+      <div class="feature-small">
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
+        </div>
+        <h4>Publish to GitLab</h4>
+        <div class="desc">One-click export</div>
+      </div>
+
+      <div class="feature-small">
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-2.54a4.5 4.5 0 0 0-1.242-7.244l4.5-4.5a4.5 4.5 0 1 1 6.364 6.364l-1.757 1.757"/></svg>
+        </div>
+        <h4>End-to-end pipeline</h4>
+        <div class="desc">Draft → Refine → Publish</div>
+      </div>
+
+      <div class="feature-small">
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
+        </div>
+        <h4>Explore all features</h4>
+        <div class="desc">Discover more capabilities</div>
+      </div>
+    </div>
+
+  </section>
+</div>
+</body>
+</html>

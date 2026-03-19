@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FRAME — Issue Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #F5F3EF;
+    --bg-sidebar: #FAFAF8;
+    --bg-card: #FFFFFF;
+    --bg-hover: #FAF8F5;
+    --red: #E12B1E;
+    --red-dark: #C42318;
+    --red-light: #FFF0EF;
+    --red-glow: rgba(225,43,30,0.08);
+    --green: #1B9E5E;
+    --green-light: #EEFBF4;
+    --amber: #D4860A;
+    --amber-light: #FEF7EC;
+    --blue: #2563EB;
+    --blue-light: #EFF4FF;
+    --purple: #7C3AED;
+    --purple-light: #F3EFFE;
+    --text-primary: #1A1A1A;
+    --text-secondary: #6B6560;
+    --text-tertiary: #9B9590;
+    --text-muted: #BDB8B2;
+    --border: #E8E4DF;
+    --border-light: #F0EDEA;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,0.08);
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-xs: 7px;
+    --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  html { font-size: 15px; height: 100%; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* ═══════════════════════════════════════════
+     LAYOUT SHELL
+     ═══════════════════════════════════════════ */
+  .app {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── TOP BAR ─── */
+  .topbar {
+    grid-column: 1 / -1;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    z-index: 10;
+  }
+
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.25rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  .logo .mark {
+    width: 28px;
+    height: 28px;
+    background: var(--red);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .logo .mark svg { width: 16px; height: 16px; color: white; }
+
+  .topbar-sep {
+    width: 1px;
+    height: 24px;
+    background: var(--border);
+  }
+
+  .breadcrumb {
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .breadcrumb .current {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .persona-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--red-light);
+    padding: 5px 12px 5px 6px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--red);
+  }
+
+  .persona-badge .avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--red);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+  }
+
+  .notif-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: var(--transition);
+  }
+
+  .notif-btn:hover { border-color: var(--red); }
+
+  .notif-btn svg { width: 16px; height: 16px; color: var(--text-secondary); }
+
+  .notif-btn .dot {
+    position: absolute;
+    top: 6px;
+    right: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--red);
+    border: 2px solid var(--bg-card);
+  }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar {
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideInLeft 0.5s ease forwards;
+  }
+
+  @keyframes slideInLeft {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .sidebar-section {
+    padding: 16px;
+  }
+
+  .sidebar-section-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    padding: 0 4px;
+  }
+
+  /* Epic Selector */
+  .epic-selector {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239B9590' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    transition: var(--transition);
+  }
+
+  .epic-selector:hover { border-color: var(--red); }
+  .epic-selector:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px var(--red-glow); }
+
+  .epic-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    padding: 0 2px;
+  }
+
+  .epic-meta-item {
+    font-size: 0.72rem;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .epic-meta-item .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .epic-meta-item .dot.green { background: var(--green); }
+  .epic-meta-item .dot.amber { background: var(--amber); }
+  .epic-meta-item .dot.red { background: var(--red); }
+
+  /* Issue List */
+  .issue-list-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 12px 12px;
+  }
+
+  .issue-list-wrap::-webkit-scrollbar { width: 4px; }
+  .issue-list-wrap::-webkit-scrollbar-track { background: transparent; }
+  .issue-list-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .issue-item {
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    border: 1px solid transparent;
+    margin-bottom: 4px;
+    position: relative;
+  }
+
+  .issue-item:hover {
+    background: var(--bg-card);
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .issue-item.active {
+    background: var(--bg-card);
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px var(--red-glow), var(--shadow-sm);
+  }
+
+  .issue-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 24px;
+    background: var(--red);
+    border-radius: 0 2px 2px 0;
+  }
+
+  .issue-item-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .issue-id {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .issue-title {
+    font-size: 0.85rem;
+    font-weight: 500;
+    line-height: 1.35;
+    margin-bottom: 8px;
+  }
+
+  .issue-item-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .status-tag.in-progress { background: var(--blue-light); color: var(--blue); }
+  .status-tag.blocked { background: var(--red-light); color: var(--red); }
+  .status-tag.review { background: var(--purple-light); color: var(--purple); }
+  .status-tag.done { background: var(--green-light); color: var(--green); }
+  .status-tag.todo { background: var(--bg); color: var(--text-tertiary); }
+
+  .priority-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  .priority-dot.high { background: var(--red); }
+  .priority-dot.medium { background: var(--amber); }
+  .priority-dot.low { background: var(--green); }
+
+  .issue-time {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  /* ─── MAIN PANEL ─── */
+  .main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: fadeIn 0.6s 0.2s ease both;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* AI Input Bar */
+  .ai-bar {
+    padding: 16px 28px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .ai-bar .ai-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--red), var(--red-dark));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(225,43,30,0.25);
+  }
+
+  .ai-bar .ai-icon svg { width: 18px; height: 18px; color: white; }
+
+  .ai-input-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  .ai-input {
+    width: 100%;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    background: var(--bg);
+    transition: var(--transition);
+  }
+
+  .ai-input::placeholder { color: var(--text-muted); }
+  .ai-input:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px var(--red-glow); background: var(--bg-card); }
+
+  .ai-generate-btn {
+    padding: 9px 18px;
+    background: var(--red);
+    color: white;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition);
+    white-space: nowrap;
+  }
+
+  .ai-generate-btn:hover { background: var(--red-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(225,43,30,0.3); }
+  .ai-generate-btn svg { width: 14px; height: 14px; }
+
+  /* AI Generated Preview */
+  .ai-preview {
+    margin: 0 28px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, var(--red-light), #FFF8F7);
+    border: 1px solid rgba(225,43,30,0.15);
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    border-top: none;
+    display: none;
+    animation: expandDown 0.3s ease;
+  }
+
+  .ai-preview.show { display: block; }
+
+  @keyframes expandDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .ai-preview-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--red);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .ai-preview-label svg { width: 12px; height: 12px; }
+
+  .ai-preview-text {
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+
+  .ai-preview-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .ai-action-btn {
+    padding: 6px 14px;
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    transition: var(--transition);
+    border: none;
+  }
+
+  .ai-action-btn.primary {
+    background: var(--red);
+    color: white;
+  }
+
+  .ai-action-btn.primary:hover { background: var(--red-dark); }
+
+  .ai-action-btn.secondary {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .ai-action-btn.secondary:hover { border-color: var(--text-secondary); }
+
+  /* ─── DETAIL + TIMELINE SCROLL AREA ─── */
+  .detail-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+  }
+
+  .detail-scroll::-webkit-scrollbar { width: 5px; }
+  .detail-scroll::-webkit-scrollbar-track { background: transparent; }
+  .detail-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* Issue Header */
+  .detail-header {
+    margin-bottom: 28px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .detail-header-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .detail-issue-id {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--red);
+    background: var(--red-light);
+    padding: 3px 10px;
+    border-radius: 5px;
+  }
+
+  .detail-header h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    line-height: 1.2;
+    margin-bottom: 14px;
+  }
+
+  .detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .meta-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+
+  .meta-chip svg { width: 14px; height: 14px; color: var(--text-tertiary); }
+
+  .meta-chip .assignee-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--red);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    font-weight: 700;
+  }
+
+  .meta-divider {
+    width: 1px;
+    height: 14px;
+    background: var(--border);
+  }
+
+  /* ─── TIMELINE ─── */
+  .timeline-section {
+    animation: fadeUp 0.5s 0.15s ease both;
+  }
+
+  .timeline-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .timeline-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-light);
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: 28px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--border-light);
+    border-radius: 1px;
+  }
+
+  .timeline-event {
+    position: relative;
+    padding-bottom: 24px;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .timeline-event:nth-child(1) { animation-delay: 0.1s; }
+  .timeline-event:nth-child(2) { animation-delay: 0.2s; }
+  .timeline-event:nth-child(3) { animation-delay: 0.3s; }
+  .timeline-event:nth-child(4) { animation-delay: 0.4s; }
+  .timeline-event:nth-child(5) { animation-delay: 0.5s; }
+
+  .timeline-event:last-child { padding-bottom: 0; }
+
+  .timeline-dot {
+    position: absolute;
+    left: -24px;
+    top: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .timeline-dot.status-change { border-color: var(--blue); }
+  .timeline-dot.comment { border-color: var(--text-tertiary); }
+  .timeline-dot.update { border-color: var(--green); }
+  .timeline-dot.blocker { border-color: var(--red); }
+  .timeline-dot.ai { border-color: var(--red); background: var(--red); }
+
+  .timeline-dot svg { width: 8px; height: 8px; }
+  .timeline-dot.ai svg { color: white; }
+
+  .timeline-event-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .timeline-author {
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .timeline-action {
+    font-size: 0.78rem;
+    color: var(--text-tertiary);
+  }
+
+  .timeline-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  .timeline-body {
+    background: var(--bg);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xs);
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    margin-top: 6px;
+  }
+
+  .timeline-body.ai-body {
+    background: var(--red-light);
+    border-color: rgba(225,43,30,0.12);
+  }
+
+  .timeline-status-change {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 0.78rem;
+  }
+
+  .timeline-status-change .arrow {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+  }
+
+  /* ─── PERSONA ACTIONS BAR ─── */
+  .persona-bar {
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideUp 0.4s 0.4s ease both;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .persona-bar-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-right: 6px;
+    white-space: nowrap;
+  }
+
+  .persona-action {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    background: var(--bg-card);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+  }
+
+  .persona-action svg { width: 14px; height: 14px; }
+
+  .persona-action:hover {
+    border-color: var(--red);
+    color: var(--red);
+    background: var(--red-light);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(225,43,30,0.1);
+  }
+
+  .persona-action.primary-action {
+    background: var(--red);
+    color: white;
+    border-color: var(--red);
+  }
+
+  .persona-action.primary-action:hover {
+    background: var(--red-dark);
+    box-shadow: 0 4px 12px rgba(225,43,30,0.3);
+  }
+
+  /* ─── EMPTY STATE ─── */
+  .empty-state {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    text-align: center;
+    padding: 60px;
+    animation: fadeIn 0.5s ease;
+  }
+
+  .empty-state .empty-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+
+  .empty-state .empty-icon svg { width: 32px; height: 32px; color: var(--text-muted); }
+
+  .empty-state h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.5rem;
+    font-weight: 400;
+    margin-bottom: 8px;
+  }
+
+  .empty-state p {
+    font-size: 0.88rem;
+    color: var(--text-tertiary);
+    max-width: 280px;
+  }
+
+  /* ─── PULSE ANIMATION for AI icon ─── */
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 2px 8px rgba(225,43,30,0.25); }
+    50% { box-shadow: 0 2px 16px rgba(225,43,30,0.45); }
+  }
+
+  .ai-bar .ai-icon { animation: pulse 3s infinite ease-in-out; }
+
+  /* ─── TYPING ANIMATION ─── */
+  .typing-dots {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    height: 18px;
+  }
+
+  .typing-dots span {
+    width: 5px;
+    height: 5px;
+    background: var(--red);
+    border-radius: 50%;
+    animation: typingBounce 1.4s infinite;
+  }
+
+  .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  /* ─── ISSUE COUNT BADGE ─── */
+  .issue-count {
+    font-size: 0.68rem;
+    font-weight: 700;
+    background: var(--red);
+    color: white;
+    padding: 1px 7px;
+    border-radius: 10px;
+    margin-left: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══ TOP BAR ═══ -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo">
+        <div class="mark">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z"/></svg>
+        </div>
+        FRAME
+      </div>
+      <div class="topbar-sep"></div>
+      <div class="breadcrumb">
+        Issue Manager <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg> <span class="current">EPIC-2048</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="persona-badge">
+        <div class="avatar">SK</div>
+        Developer
+      </div>
+      <button class="notif-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"/></svg>
+        <span class="dot"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Epic</div>
+      <select class="epic-selector" id="epicSelector">
+        <option>EPIC-2048 · User Auth Overhaul</option>
+        <option>EPIC-2031 · Payment Gateway v2</option>
+        <option>EPIC-2019 · Dashboard Redesign</option>
+      </select>
+      <div class="epic-meta">
+        <div class="epic-meta-item"><span class="dot green"></span> 4 Done</div>
+        <div class="epic-meta-item"><span class="dot amber"></span> 3 In Progress</div>
+        <div class="epic-meta-item"><span class="dot red"></span> 1 Blocked</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="padding-bottom:8px;">
+      <div class="sidebar-section-label">My Assigned Issues <span class="issue-count">6</span></div>
+    </div>
+
+    <div class="issue-list-wrap" id="issueList">
+      <!-- Issues injected by JS -->
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN PANEL ═══ -->
+  <main class="main" id="mainPanel">
+
+    <!-- AI Bar -->
+    <div class="ai-bar">
+      <div class="ai-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"/></svg>
+      </div>
+      <div class="ai-input-wrap">
+        <input class="ai-input" id="aiInput" type="text" placeholder="Type a short update — AI will structure it with Epic context…">
+      </div>
+      <button class="ai-generate-btn" id="aiGenBtn" onclick="generateAI()">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>
+        Generate Summary
+      </button>
+    </div>
+
+    <div class="ai-preview" id="aiPreview">
+      <div class="ai-preview-label">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
+        AI-Generated Summary
+      </div>
+      <div class="ai-preview-text" id="aiPreviewText"></div>
+      <div class="ai-preview-actions">
+        <button class="ai-action-btn primary" onclick="postAI()">Post Update</button>
+        <button class="ai-action-btn secondary" onclick="editAI()">Edit</button>
+        <button class="ai-action-btn secondary" onclick="dismissAI()">Dismiss</button>
+      </div>
+    </div>
+
+    <!-- Detail scroll area -->
+    <div class="detail-scroll" id="detailScroll">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Persona Action Bar -->
+    <div class="persona-bar">
+      <div class="persona-bar-label">Actions</div>
+      <button class="persona-action primary-action" onclick="handleAction('update')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+        Post Update
+      </button>
+      <button class="persona-action" onclick="handleAction('question')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z"/></svg>
+        Ask Question
+      </button>
+      <button class="persona-action" onclick="handleAction('blocker')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+        Report Blocker
+      </button>
+      <button class="persona-action" onclick="handleAction('review')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+        Request Review
+      </button>
+      <button class="persona-action" onclick="handleAction('comment')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.399-.394c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z"/></svg>
+        Comment
+      </button>
+    </div>
+  </main>
+
+</div>
+
+<script>
+// ═══ MOCK DATA ═══
+const issues = [
+  {
+    id: 'AUTH-101',
+    title: 'Implement OAuth2 PKCE flow for mobile clients',
+    status: 'in-progress',
+    statusLabel: 'In Progress',
+    priority: 'high',
+    updated: '2h ago',
+    owner: 'SK',
+    ownerName: 'Sarah Kim',
+    timeline: [
+      { type: 'update', author: 'Sarah Kim', action: 'posted an update', time: '2h ago', body: 'PKCE challenge generation is complete. Moving on to token exchange implementation. Targeting completion by EOD tomorrow.' },
+      { type: 'status-change', author: 'Sarah Kim', action: 'changed status', time: '1d ago', from: 'To Do', fromClass: 'todo', to: 'In Progress', toClass: 'in-progress' },
+      { type: 'ai', author: 'FRAME AI', action: 'generated summary', time: '2d ago', body: 'OAuth2 PKCE implementation initiated. Code verifier and challenge pair generation module has been scaffolded. Dependencies on the auth-core library (v3.2) have been confirmed compatible.' },
+      { type: 'comment', author: 'David Park', action: 'commented', time: '3d ago', body: 'Make sure we handle the edge case where the authorization server doesn\'t support S256. Should fall back to plain method per RFC 7636.' },
+      { type: 'status-change', author: 'Auto', action: 'created issue', time: '5d ago', from: 'Created', fromClass: 'todo', to: 'To Do', toClass: 'todo' },
+    ]
+  },
+  {
+    id: 'AUTH-104',
+    title: 'Session token rotation with sliding expiry',
+    status: 'blocked',
+    statusLabel: 'Blocked',
+    priority: 'high',
+    updated: '4h ago',
+    owner: 'SK',
+    ownerName: 'Sarah Kim',
+    timeline: [
+      { type: 'blocker', author: 'Sarah Kim', action: 'reported a blocker', time: '4h ago', body: 'Blocked on Redis cluster access. DevOps ticket INFRA-482 pending since Monday. Cannot test rotation logic without staging Redis.' },
+      { type: 'comment', author: 'Priya Menon', action: 'commented', time: '1d ago', body: 'I\'ve escalated the Redis access request. Should be unblocked by tomorrow morning.' },
+      { type: 'update', author: 'Sarah Kim', action: 'posted an update', time: '2d ago', body: 'Token rotation logic is drafted. Unit tests pass against in-memory mock. Need real Redis to validate TTL behavior and race conditions.' },
+    ]
+  },
+  {
+    id: 'AUTH-107',
+    title: 'Add MFA enrollment flow for TOTP authenticators',
+    status: 'in-progress',
+    statusLabel: 'In Progress',
+    priority: 'medium',
+    updated: '6h ago',
+    owner: 'SK',
+    ownerName: 'Sarah Kim',
+    timeline: [
+      { type: 'update', author: 'Sarah Kim', action: 'posted an update', time: '6h ago', body: 'QR code generation endpoint is live. Working on the verification step — validating time-window tolerance for TOTP codes.' },
+      { type: 'comment', author: 'Alex Rivera', action: 'commented', time: '1d ago', body: 'UX team confirmed the enrollment modal design. Figma link attached to the epic.' },
+    ]
+  },
+  {
+    id: 'AUTH-112',
+    title: 'Rate limiting on /auth/login endpoint',
+    status: 'review',
+    statusLabel: 'In Review',
+    priority: 'medium',
+    updated: '1d ago',
+    owner: 'SK',
+    ownerName: 'Sarah Kim',
+    timeline: [
+      { type: 'update', author: 'Sarah Kim', action: 'posted an update', time: '1d ago', body: 'PR #847 submitted. Sliding window rate limiter using Redis sorted sets. 5 attempts per 15 min window with exponential backoff.' },
+      { type: 'comment', author: 'David Park', action: 'is reviewing', time: '1d ago', body: 'Looking at this now. Initial pass looks good — want to double-check the sorted set cleanup logic.' },
+    ]
+  },
+  {
+    id: 'AUTH-115',
+    title: 'Migrate legacy password hashing to Argon2id',
+    status: 'done',
+    statusLabel: 'Done',
+    priority: 'low',
+    updated: '3d ago',
+    owner: 'SK',
+    ownerName: 'Sarah Kim',
+    timeline: [
+      { type: 'status-change', author: 'Sarah Kim', action: 'changed status', time: '3d ago', from: 'In Review', fromClass: 'review', to: 'Done', toClass: 'done' },
+      { type: 'update', author: 'Sarah Kim', action: 'posted an update', time: '4d ago', body: 'Migration script tested on 50k user subset — all hashes upgraded on next login with zero errors. Rolling out to production.' },
+    ]
+  },
+  {
+    id: 'AUTH-118',
+    title: 'Implement refresh token revocation on logout',
+    status: 'todo',
+    statusLabel: 'To Do',
+    priority: 'low',
+    updated: '5d ago',
+    owner: 'SK',
+    ownerName: 'Sarah Kim',
+    timeline: [
+      { type: 'comment', author: 'Priya Menon', action: 'commented', time: '5d ago', body: 'This is a dependency for the session management epic. Please prioritize after AUTH-104 is unblocked.' },
+    ]
+  },
+];
+
+const aiResponses = {
+  'AUTH-101': 'OAuth2 PKCE flow implementation is progressing on schedule. The code challenge generation module is complete, and work has now moved to the token exchange phase. Expected completion is by end of day tomorrow. No blockers identified at this time.',
+  'AUTH-104': 'Session token rotation logic has been fully drafted and unit-tested against an in-memory store. Progress is currently blocked pending Redis cluster access (reference: INFRA-482). The DevOps escalation is in progress with expected resolution by tomorrow morning.',
+  'AUTH-107': 'MFA TOTP enrollment flow is actively under development. The QR code generation endpoint has been deployed. Current focus is on validating TOTP time-window tolerance during the verification step. UX design has been approved per the Figma mockups.',
+  'AUTH-112': 'Rate limiting implementation for the login endpoint has been completed and submitted as PR #847. The solution uses a Redis sorted-set sliding window algorithm with exponential backoff. Currently awaiting code review.',
+  'AUTH-115': 'Password hashing migration to Argon2id has been completed and deployed. Migration script was validated on a 50k user subset with zero errors. All legacy hashes are being upgraded transparently on next login.',
+  'AUTH-118': 'Refresh token revocation on logout is queued for development. This task is dependent on AUTH-104 (session token rotation) being unblocked and completed first. No work has been started yet.',
+};
+
+// ═══ RENDER ═══
+let activeIssue = 0;
+
+function renderIssueList() {
+  const list = document.getElementById('issueList');
+  list.innerHTML = issues.map((issue, i) => `
+    <div class="issue-item ${i === activeIssue ? 'active' : ''}" onclick="selectIssue(${i})">
+      <div class="issue-item-header">
+        <span class="issue-id">${issue.id}</span>
+        <span class="status-tag ${issue.status}">${issue.statusLabel}</span>
+      </div>
+      <div class="issue-title">${issue.title}</div>
+      <div class="issue-item-footer">
+        <span class="priority-dot ${issue.priority}" title="${issue.priority} priority"></span>
+        <span class="issue-time">${issue.updated}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderDetail() {
+  const issue = issues[activeIssue];
+  const scroll = document.getElementById('detailScroll');
+
+  const timelineHTML = issue.timeline.map(ev => {
+    let dotClass = ev.type;
+    let bodyHTML = '';
+
+    if (ev.type === 'status-change') {
+      bodyHTML = `<div class="timeline-status-change">
+        <span class="status-tag ${ev.fromClass}">${ev.from}</span>
+        <span class="arrow">→</span>
+        <span class="status-tag ${ev.toClass}">${ev.to}</span>
+      </div>`;
+    } else if (ev.body) {
+      bodyHTML = `<div class="timeline-body ${ev.type === 'ai' ? 'ai-body' : ''}">${ev.body}</div>`;
+    }
+
+    return `<div class="timeline-event">
+      <div class="timeline-dot ${dotClass}">
+        ${ev.type === 'ai' ? '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>' : ''}
+      </div>
+      <div class="timeline-event-header">
+        <span class="timeline-author">${ev.author}</span>
+        <span class="timeline-action">${ev.action}</span>
+        <span class="timeline-time">${ev.time}</span>
+      </div>
+      ${bodyHTML}
+    </div>`;
+  }).join('');
+
+  scroll.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-header-top">
+        <span class="detail-issue-id">${issue.id}</span>
+        <span class="status-tag ${issue.status}">${issue.statusLabel}</span>
+      </div>
+      <h1>${issue.title}</h1>
+      <div class="detail-meta">
+        <div class="meta-chip">
+          <span class="assignee-avatar">${issue.owner}</span>
+          ${issue.ownerName}
+        </div>
+        <div class="meta-divider"></div>
+        <div class="meta-chip">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"/></svg>
+          <span class="priority-dot ${issue.priority}" style="width:8px;height:8px;border-radius:2px;display:inline-block;"></span>
+          ${issue.priority.charAt(0).toUpperCase() + issue.priority.slice(1)} Priority
+        </div>
+        <div class="meta-divider"></div>
+        <div class="meta-chip">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+          Updated ${issue.updated}
+        </div>
+      </div>
+    </div>
+
+    <div class="timeline-section">
+      <div class="timeline-label">Activity Timeline</div>
+      <div class="timeline">
+        ${timelineHTML}
+      </div>
+    </div>
+  `;
+
+  dismissAI();
+}
+
+function selectIssue(index) {
+  activeIssue = index;
+  renderIssueList();
+  renderDetail();
+  document.getElementById('aiInput').value = '';
+}
+
+// ═══ AI FUNCTIONS ═══
+function generateAI() {
+  const input = document.getElementById('aiInput');
+  const preview = document.getElementById('aiPreview');
+  const previewText = document.getElementById('aiPreviewText');
+  const btn = document.getElementById('aiGenBtn');
+
+  const userText = input.value.trim();
+  if (!userText) {
+    input.focus();
+    input.style.borderColor = 'var(--red)';
+    setTimeout(() => { input.style.borderColor = ''; }, 1500);
+    return;
+  }
+
+  btn.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span> Generating…';
+  btn.style.pointerEvents = 'none';
+
+  setTimeout(() => {
+    const issue = issues[activeIssue];
+    previewText.textContent = aiResponses[issue.id] || `Based on your input and the context of ${issue.id}: ${userText}. The AI has correlated this with the Epic description and previous activity to produce a structured summary.`;
+    preview.classList.add('show');
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg> Generate Summary';
+    btn.style.pointerEvents = '';
+  }, 1800);
+}
+
+function postAI() {
+  const preview = document.getElementById('aiPreview');
+  const text = document.getElementById('aiPreviewText').textContent;
+  const issue = issues[activeIssue];
+
+  issue.timeline.unshift({
+    type: 'ai',
+    author: 'FRAME AI',
+    action: 'generated summary',
+    time: 'Just now',
+    body: text
+  });
+
+  dismissAI();
+  renderDetail();
+  document.getElementById('aiInput').value = '';
+}
+
+function editAI() {
+  const text = document.getElementById('aiPreviewText').textContent;
+  document.getElementById('aiInput').value = text;
+  document.getElementById('aiInput').focus();
+  dismissAI();
+}
+
+function dismissAI() {
+  document.getElementById('aiPreview').classList.remove('show');
+}
+
+function handleAction(action) {
+  const issue = issues[activeIssue];
+  const labels = {
+    update: 'Post Update',
+    question: 'Ask Question',
+    blocker: 'Report Blocker',
+    review: 'Request Review',
+    comment: 'Comment'
+  };
+  const placeholders = {
+    update: `Write your progress update for ${issue.id}…`,
+    question: `What do you need clarification on for ${issue.id}?`,
+    blocker: `Describe the blocker for ${issue.id}…`,
+    review: `Who should review ${issue.id} and what specifically?`,
+    comment: `Add a comment on ${issue.id}…`
+  };
+  const input = document.getElementById('aiInput');
+  input.placeholder = placeholders[action] || input.placeholder;
+  input.focus();
+}
+
+// ═══ INIT ═══
+renderIssueList();
+renderDetail();
+
+// Keyboard shortcut: Enter to generate
+document.getElementById('aiInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') generateAI();
+});
+</script>
+
+</body>
+</html>

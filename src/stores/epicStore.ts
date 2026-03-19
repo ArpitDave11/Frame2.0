@@ -27,6 +27,7 @@ interface EpicActions {
   updateSection: (title: string, content: string) => void;
   trackUserEdit: (sectionTitle: string) => void;
   applyRefinedEpic: (md: string) => void;
+  setQualityScore: (score: number) => void;
   undo: () => void;
   reset: () => void;
 }
@@ -94,6 +95,32 @@ export const useEpicStore = create<EpicStore>()((set, get) => ({
       isDirty: true,
       userEditedSections: [],
     });
+  },
+
+  setQualityScore: (score) => {
+    const { document } = get();
+    if (document) {
+      set({
+        document: {
+          ...document,
+          metadata: { ...document.metadata, qualityScore: score },
+        },
+      });
+    } else {
+      // Create a minimal document to hold the score
+      set({
+        document: {
+          title: 'Untitled Epic',
+          sections: [],
+          metadata: {
+            createdAt: Date.now(),
+            lastRefined: null,
+            complexity: 'moderate',
+            qualityScore: score,
+          },
+        },
+      });
+    }
   },
 
   undo: () => {

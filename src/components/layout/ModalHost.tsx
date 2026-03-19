@@ -6,13 +6,16 @@
  */
 
 import { useUiStore } from '@/stores/uiStore';
+import { usePipelineStore } from '@/stores/pipelineStore';
 import { Modal } from '@/components/shared/Modal';
 import { PlaceholderView } from '@/components/layout/PlaceholderView';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { PipelineModal } from '@/components/pipeline/PipelineModal';
 
 export function ModalHost() {
   const activeModal = useUiStore((s) => s.activeModal);
   const closeModal = useUiStore((s) => s.closeModal);
+  const pipelineRunning = usePipelineStore((s) => s.isRunning);
 
   if (!activeModal) return null;
 
@@ -43,8 +46,8 @@ export function ModalHost() {
       );
     case 'pipeline':
       return (
-        <Modal open onClose={closeModal} title="Refining your epic" preventClose>
-          <PlaceholderView name="Pipeline Progress — Phase 8" />
+        <Modal open onClose={closeModal} title="Refining your epic" preventClose={pipelineRunning}>
+          <PipelineModal />
         </Modal>
       );
     case 'critique':

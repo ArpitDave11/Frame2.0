@@ -1,0 +1,105 @@
+.privacysettings__banner {
+    background-color: var(--col-background-primary);
+    bottom: 0;
+    position: fixed;
+    width: 100%;
+    z-index: 99999;
+    inset-inline: 0
+}
+
+.privacysettings__banner--hidden {
+    display: none
+}
+
+.privacysettings__banner--layoutOnly {
+    visibility: hidden;
+    position: static
+}
+
+.privacysettings__bannerDisclaimer::after {
+    content: " "
+}
+
+.privacysettings__bannerWrapper {
+    padding-block:1.25rem;gap: 1.25rem 40px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: var(--grid-container-width);
+    margin: 0 auto
+}
+
+@media(min-width: 1280px) {
+    .privacysettings__bannerWrapper {
+        align-items:center;
+        flex-direction: row;
+        justify-content: space-between
+    }
+}
+
+.privacysettings__bannerText {
+    font: 300 0.875rem / 1.375rem Frutiger, Arial, Helvetica, sans-serif
+}
+
+@media(min-width: 1280px) {
+    .privacysettings__bannerText {
+        font-size:1rem;
+        line-height: 1.5rem
+    }
+}
+
+.privacysettings__bannerText {
+    color: var(--col-text-inverted)
+}
+
+.privacysettings__bannerText a {
+    color: var(--col-link-text-inverted);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-thickness: 0.0625rem;
+    text-underline-offset: 0.125rem
+}
+
+.privacysettings__bannerText a:visited,.privacysettings__bannerText a:hover,.privacysettings__bannerText a:focus,.privacysettings__bannerText a:active {
+    color: var(--col-link-text-inverted-hovered)
+}
+
+.privacysettings__bannerText p {
+    display: inline
+}
+
+.privacysettings__bannerButtonsWrapper {
+    gap: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0
+}
+
+@media(min-width: 768px) {
+    .privacysettings__bannerButtonsWrapper {
+        flex-direction:row
+    }
+}
+
+.privacysettings__bannerButtonsWrapper .actionbtn__link {
+    margin-bottom: 0;
+    margin-right: 0
+}
+
+@media(max-width: 767px) {
+    .privacysettings__bannerButtonsWrapper .actionbtn__link {
+        width:100%
+    }
+}
+
+.privacysettings__bannerButton {
+    --color-border-inverted: var(--col-border-inverted);
+    padding: 0.5rem 16px;
+    height: unset
+}
+
+.privacysettings__bannerButton .actionbtn__title {
+    font: 500 0.75rem / 0.99rem Frutiger, Arial, Helvetica, sans-serif;
+    text-align: center;
+    --color-text-inverted: var(--col-text-inverted)
+}

@@ -21,6 +21,7 @@ import { usePipelineStore } from '@/stores/pipelineStore';
 import { useBlueprintStore } from '@/stores/blueprintStore';
 import { EPIC_CATEGORIES } from '@/domain/categoryConstants';
 import { ComplexitySelector } from '@/components/editor/ComplexitySelector';
+import { refinePipelineAction } from '@/pipeline/refinePipelineAction';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
@@ -47,7 +48,10 @@ export function WorkspaceHeader() {
 
   // ─── Handlers ───────────────────────────────────────────────
   const handleLoad = () => openModal('loadEpic');
-  const handleRefine = () => openModal('pipeline');
+  const handleRefine = () => {
+    openModal('pipeline');
+    refinePipelineAction(); // fire-and-forget
+  };
   const handlePublish = () => openModal('publish');
   const handleSettings = () => openModal('settings');
 

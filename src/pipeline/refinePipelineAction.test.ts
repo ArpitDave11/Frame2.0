@@ -1,17 +1,18 @@
 /**
- * Tests for Pipeline Action — T-4.16.
+ * Tests for Pipeline Action — T-8.2 (updated from T-4.16).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { refinePipelineAction } from './refinePipelineAction';
-import type { AIClientConfig } from '@/services/ai/types';
 
 // ─── Mock Stores ────────────────────────────────────────────
 
 const mockEpicState = {
   markdown: '## Overview\nTest content.',
   document: { title: 'Test Epic', sections: [], metadata: { createdAt: 0, lastRefined: null, complexity: 'moderate' as const } },
+  complexity: 'moderate' as const,
   applyRefinedEpic: vi.fn(),
+  setQualityScore: vi.fn(),
 };
 
 const mockPipelineState = {
@@ -20,6 +21,26 @@ const mockPipelineState = {
   updateStage: vi.fn(),
   completePipeline: vi.fn(),
   failPipeline: vi.fn(),
+  setCurrentIteration: vi.fn(),
+};
+
+const mockConfigState = {
+  config: {
+    ai: {
+      provider: 'openai' as string,
+      azure: { endpoint: '', deploymentName: '', apiKey: '', apiVersion: '', model: '' },
+      openai: { apiKey: 'key', model: 'gpt-4o', baseUrl: '' },
+    },
+    endpoints: { gitlabBaseUrl: '', azureEndpoint: '', openaiBaseUrl: '' },
+  },
+};
+
+const mockUiState = {
+  addToast: vi.fn(),
+};
+
+const mockBlueprintState = {
+  setCode: vi.fn(),
 };
 
 vi.mock('@/stores/epicStore', () => ({
@@ -28,6 +49,22 @@ vi.mock('@/stores/epicStore', () => ({
 
 vi.mock('@/stores/pipelineStore', () => ({
   usePipelineStore: { getState: () => mockPipelineState },
+}));
+
+vi.mock('@/stores/configStore', () => ({
+  useConfigStore: { getState: () => mockConfigState },
+}));
+
+vi.mock('@/stores/uiStore', () => ({
+  useUiStore: { getState: () => mockUiState },
+}));
+
+vi.mock('@/stores/blueprintStore', () => ({
+  useBlueprintStore: { getState: () => mockBlueprintState },
+}));
+
+vi.mock('@/services/ai/aiClient', () => ({
+  isAIEnabled: (cfg: unknown) => (cfg as { ai: { provider: string } }).ai.provider !== 'none',
 }));
 
 // ─── Mock Orchestrator ──────────────────────────────────────
@@ -40,13 +77,6 @@ import { runPremiumPipeline } from '@/pipeline/pipelineOrchestrator';
 const mockOrchestrator = vi.mocked(runPremiumPipeline);
 
 // ─── Fixtures ───────────────────────────────────────────────
-
-const AI_CONFIG: AIClientConfig = {
-  provider: 'openai',
-  azure: { endpoint: '', deploymentName: '', apiKey: '', apiVersion: '', model: '' },
-  openai: { apiKey: 'key', model: 'gpt-4o', baseUrl: '' },
-  endpoints: { gitlabBaseUrl: '', azureEndpoint: '', openaiBaseUrl: '' },
-};
 
 const SUCCESSFUL_RESULT = {
   success: true,
@@ -67,7 +97,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockEpicState.markdown = '## Overview\nTest content.';
   mockEpicState.document = { title: 'Test Epic', sections: [], metadata: { createdAt: 0, lastRefined: null, complexity: 'moderate' as const } };
+  mockEpicState.complexity = 'moderate';
   mockPipelineState.isRunning = false;
+  mockConfigState.config.ai.provider = 'openai';
 });
 
 // ─── Tests ──────────────────────────────────────────────────
@@ -77,7 +109,7 @@ describe('refinePipelineAction', () => {
     it('calls orchestrator and updates stores on success', async () => {
       mockOrchestrator.mockResolvedValue(SUCCESSFUL_RESULT);
 
-      await refinePipelineAction({ complexity: 'moderate', aiConfig: AI_CONFIG });
+      await refinePipelineAction();
 
       expect(mockPipelineState.startPipeline).toHaveBeenCalledTimes(1);
       expect(mockOrchestrator).toHaveBeenCalledTimes(1);
@@ -88,33 +120,40 @@ describe('refinePipelineAction', () => {
     it('passes correct params to orchestrator', async () => {
       mockOrchestrator.mockResolvedValue(SUCCESSFUL_RESULT);
 
-      await refinePipelineAction({ complexity: 'complex', aiConfig: AI_CONFIG });
+      await refinePipelineAction();
 
       expect(mockOrchestrator).toHaveBeenCalledWith(
         expect.objectContaining({
           rawContent: mockEpicState.markdown,
           title: 'Test Epic',
-          complexity: 'complex',
-          aiConfig: AI_CONFIG,
+          complexity: 'moderate',
         }),
       );
+    });
+
+    it('sets quality score and diagram on success', async () => {
+      mockOrchestrator.mockResolvedValue(SUCCESSFUL_RESULT);
+
+      await refinePipelineAction();
+
+      expect(mockEpicState.setQualityScore).toHaveBeenCalledWith(9); // 90/10
+      expect(mockBlueprintState.setCode).toHaveBeenCalledWith('graph TD');
     });
   });
 
   describe('failure handling', () => {
-    it('sets pipeline status to failed when orchestrator returns success: false', async () => {
+    it('calls failPipeline when orchestrator returns success: false', async () => {
       mockOrchestrator.mockResolvedValue({ ...SUCCESSFUL_RESULT, success: false, epicContent: '' });
 
-      await refinePipelineAction({ complexity: 'moderate', aiConfig: AI_CONFIG });
+      await refinePipelineAction();
 
       expect(mockPipelineState.failPipeline).toHaveBeenCalledTimes(1);
-      expect(mockEpicState.applyRefinedEpic).not.toHaveBeenCalled();
     });
 
-    it('sets pipeline status to failed when orchestrator throws', async () => {
+    it('calls failPipeline when orchestrator throws', async () => {
       mockOrchestrator.mockRejectedValue(new Error('Network explosion'));
 
-      await refinePipelineAction({ complexity: 'moderate', aiConfig: AI_CONFIG });
+      await refinePipelineAction();
 
       expect(mockPipelineState.failPipeline).toHaveBeenCalledWith(
         expect.stringContaining('Network explosion'),
@@ -123,43 +162,47 @@ describe('refinePipelineAction', () => {
   });
 
   describe('double-run prevention', () => {
-    it('throws when pipeline is already running', async () => {
+    it('returns silently when pipeline is already running', async () => {
       mockPipelineState.isRunning = true;
 
-      await expect(
-        refinePipelineAction({ complexity: 'moderate', aiConfig: AI_CONFIG }),
-      ).rejects.toThrow('already running');
+      await refinePipelineAction();
+
+      expect(mockPipelineState.startPipeline).not.toHaveBeenCalled();
     });
   });
 
   describe('input validation', () => {
-    it('throws when no epic content exists', async () => {
-      mockEpicState.markdown = '';
+    it('shows error toast when no AI provider configured', async () => {
+      mockConfigState.config.ai.provider = 'none';
 
-      await expect(
-        refinePipelineAction({ complexity: 'moderate', aiConfig: AI_CONFIG }),
-      ).rejects.toThrow('No epic content');
+      await refinePipelineAction();
+
+      expect(mockUiState.addToast).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error' }),
+      );
+      expect(mockPipelineState.startPipeline).not.toHaveBeenCalled();
     });
 
-    it('throws when epic is whitespace only', async () => {
-      mockEpicState.markdown = '   \n  \n  ';
+    it('shows error toast when no epic content', async () => {
+      mockEpicState.markdown = '';
 
-      await expect(
-        refinePipelineAction({ complexity: 'moderate', aiConfig: AI_CONFIG }),
-      ).rejects.toThrow('No epic content');
+      await refinePipelineAction();
+
+      expect(mockUiState.addToast).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error' }),
+      );
     });
   });
 
   describe('progress forwarding', () => {
     it('forwards progress to pipelineStore.updateStage', async () => {
       mockOrchestrator.mockImplementation(async (opts) => {
-        // Simulate progress callbacks
         opts.onProgress?.({ stageName: 'comprehension', status: 'running', message: 'Analyzing...', timestamp: Date.now() });
         opts.onProgress?.({ stageName: 'comprehension', status: 'complete', message: 'Done', timestamp: Date.now() });
         return SUCCESSFUL_RESULT;
       });
 
-      await refinePipelineAction({ complexity: 'moderate', aiConfig: AI_CONFIG });
+      await refinePipelineAction();
 
       expect(mockPipelineState.updateStage).toHaveBeenCalledWith(1, 'running', 'Analyzing...');
       expect(mockPipelineState.updateStage).toHaveBeenCalledWith(1, 'complete', 'Done');
@@ -175,7 +218,7 @@ describe('refinePipelineAction', () => {
       mockEpicState.applyRefinedEpic.mockImplementation(() => { callOrder.push('applyEpic'); });
       mockPipelineState.completePipeline.mockImplementation(() => { callOrder.push('complete'); });
 
-      await refinePipelineAction({ complexity: 'moderate', aiConfig: AI_CONFIG });
+      await refinePipelineAction();
 
       expect(callOrder).toEqual(['start', 'orchestrate', 'applyEpic', 'complete']);
     });

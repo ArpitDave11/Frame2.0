@@ -54,6 +54,8 @@ interface PipelineState {
   result: PipelineResult | null;
   error: string | null;
   showPanel: boolean;
+  currentIteration: number;
+  maxIterations: number;
 }
 
 interface PipelineActions {
@@ -62,6 +64,8 @@ interface PipelineActions {
   completePipeline: (result: PipelineResult) => void;
   failPipeline: (error: string) => void;
   setShowPanel: (show: boolean) => void;
+  setCurrentIteration: (n: number) => void;
+  setMaxIterations: (n: number) => void;
   reset: () => void;
 }
 
@@ -75,6 +79,8 @@ const INITIAL_STATE: PipelineState = {
   result: null,
   error: null,
   showPanel: false,
+  currentIteration: 0,
+  maxIterations: 3,
 };
 
 // ─── Store ──────────────────────────────────────────────────
@@ -90,6 +96,8 @@ export const usePipelineStore = create<PipelineStore>()((set, get) => ({
       result: null,
       error: null,
       showPanel: true,
+      currentIteration: 0,
+      maxIterations: 3,
     });
   },
 
@@ -111,6 +119,14 @@ export const usePipelineStore = create<PipelineStore>()((set, get) => ({
 
   setShowPanel: (show) => {
     set({ showPanel: show });
+  },
+
+  setCurrentIteration: (n) => {
+    set({ currentIteration: n });
+  },
+
+  setMaxIterations: (n) => {
+    set({ maxIterations: n });
   },
 
   reset: () => {
