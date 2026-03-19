@@ -96,5 +96,6 @@ Use these signals to identify each category:
 - Confidence must be a number between 0 and 1, not a percentage.
 - Reasoning must reference specific content from the document, not generic statements.
 - categoryConfig must be internally consistent with the chosen category.
+
 </instructions>"
 `;

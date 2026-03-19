@@ -157,5 +157,6 @@ Follow these instructions precisely:
 - The overall score must be mathematically consistent with the dimension scores.
 - Transformation details must be specific and actionable, not generic.
 - Missing sections must reference actual template section titles.
+
 </instructions>"
 `;

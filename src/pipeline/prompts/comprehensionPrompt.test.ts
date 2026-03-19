@@ -141,6 +141,23 @@ describe('comprehensionPrompt', () => {
       expect(lineCount).toBeLessThanOrEqual(250);
     });
 
+    it('includes example_output block when fewShotExample is provided', () => {
+      const result = buildComprehensionPrompt({
+        ...FIXTURE_VARS,
+        fewShotExample: '{"keyEntities":[]}',
+      });
+      expect(result).toContain('<example_output>');
+      expect(result).toContain('HIGH QUALITY output');
+      expect(result).toContain('{"keyEntities":[]}');
+      expect(result).toContain('</example_output>');
+    });
+
+    it('does NOT include example_output block when fewShotExample is omitted', () => {
+      const result = buildComprehensionPrompt(FIXTURE_VARS);
+      expect(result).not.toContain('<example_output>');
+      expect(result).not.toContain('</example_output>');
+    });
+
     it('snapshot test — detects unintended prompt changes', () => {
       const fixedVars: ComprehensionPromptVars = {
         rawContent: 'Fixed content for snapshot stability.',

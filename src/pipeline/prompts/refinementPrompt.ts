@@ -25,6 +25,7 @@ export interface RefinementPromptVars {
   readonly wordTarget: number;
   readonly previousFeedback?: string;
   readonly iterationNumber: number;
+  readonly fewShotExample?: string;
 }
 
 // ─── Complexity Scaling ─────────────────────────────────────
@@ -188,5 +189,11 @@ Follow these instructions precisely:
 - The section must be self-contained — avoid forward references to "see below" without context.
 - Word count must be within ±20% of the target (${Math.round(wordTarget * 0.8)}–${Math.round(wordTarget * 1.2)} words).
 - Format must match the format instruction. If the instruction says "table", use a table. If it says "prose", write paragraphs.
+${vars.fewShotExample ? `
+<example_output>
+The following is an example of HIGH QUALITY output for a different document. Use it as a reference for the level of detail and structure expected.
+
+${vars.fewShotExample}
+</example_output>` : ''}
 </instructions>`;
 }

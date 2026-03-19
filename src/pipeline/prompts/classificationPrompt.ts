@@ -19,6 +19,7 @@ export interface ClassificationPromptVars {
   readonly rawContent: string;
   readonly availableCategories: readonly EpicCategory[];
   readonly complexityLevel: ComplexityLevel;
+  readonly fewShotExample?: string;
 }
 
 // ─── Category Descriptions ──────────────────────────────────
@@ -155,5 +156,11 @@ Use these signals to identify each category:
 - Confidence must be a number between 0 and 1, not a percentage.
 - Reasoning must reference specific content from the document, not generic statements.
 - categoryConfig must be internally consistent with the chosen category.
+${vars.fewShotExample ? `
+<example_output>
+The following is an example of HIGH QUALITY output for a different document. Use it as a reference for the level of detail and structure expected.
+
+${vars.fewShotExample}
+</example_output>` : ''}
 </instructions>`;
 }

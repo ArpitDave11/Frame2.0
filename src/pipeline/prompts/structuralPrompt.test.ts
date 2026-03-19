@@ -150,6 +150,23 @@ describe('structuralPrompt', () => {
       expect(result).toContain('```json');
     });
 
+    it('includes example_output block when fewShotExample is provided', () => {
+      const result = buildStructuralPrompt({
+        ...FIXTURE_VARS,
+        fewShotExample: '{"sectionScores":[]}',
+      });
+      expect(result).toContain('<example_output>');
+      expect(result).toContain('HIGH QUALITY output');
+      expect(result).toContain('{"sectionScores":[]}');
+      expect(result).toContain('</example_output>');
+    });
+
+    it('does NOT include example_output block when fewShotExample is omitted', () => {
+      const result = buildStructuralPrompt(FIXTURE_VARS);
+      expect(result).not.toContain('<example_output>');
+      expect(result).not.toContain('</example_output>');
+    });
+
     it('snapshot test — detects unintended prompt changes', () => {
       const fixedVars: StructuralPromptVars = {
         comprehensionSummary: '{}',

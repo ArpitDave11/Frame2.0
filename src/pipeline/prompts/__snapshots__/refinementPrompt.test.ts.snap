@@ -86,6 +86,7 @@ Follow these instructions precisely:
 - The section must be self-contained — avoid forward references to "see below" without context.
 - Word count must be within ±20% of the target (160–240 words).
 - Format must match the format instruction. If the instruction says "table", use a table. If it says "prose", write paragraphs.
+
 </instructions>"
 `;
 
@@ -183,5 +184,6 @@ Follow these instructions precisely:
 - The section must be self-contained — avoid forward references to "see below" without context.
 - Word count must be within ±20% of the target (160–240 words).
 - Format must match the format instruction. If the instruction says "table", use a table. If it says "prose", write paragraphs.
+
 </instructions>"
 `;

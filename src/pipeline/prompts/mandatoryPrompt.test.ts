@@ -170,6 +170,23 @@ describe('mandatoryPrompt', () => {
       expect(result).toContain('Core functionality');
     });
 
+    it('includes example_output block when fewShotExample is provided', () => {
+      const result = buildMandatoryPrompt({
+        ...FIXTURE_VARS,
+        fewShotExample: '{"architectureDiagram":"graph TD"}',
+      });
+      expect(result).toContain('<example_output>');
+      expect(result).toContain('HIGH QUALITY output');
+      expect(result).toContain('{"architectureDiagram":"graph TD"}');
+      expect(result).toContain('</example_output>');
+    });
+
+    it('does NOT include example_output block when fewShotExample is omitted', () => {
+      const result = buildMandatoryPrompt(FIXTURE_VARS);
+      expect(result).not.toContain('<example_output>');
+      expect(result).not.toContain('</example_output>');
+    });
+
     it('snapshot test — detects unintended prompt changes', () => {
       const fixedVars: MandatoryPromptVars = {
         refinedSections: '{}',

@@ -143,5 +143,6 @@ Follow these instructions precisely:
 - Every extracted requirement should be covered by at least one story.
 - The assembled epic must include ALL refined sections plus the generated sections.
 - Metadata must be accurate (correct counts, correct diagram type).
+
 </instructions>"
 `;

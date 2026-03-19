@@ -208,6 +208,23 @@ describe('validationPrompt', () => {
       expect(result).toContain('```json');
     });
 
+    it('includes example_output block when fewShotExample is provided', () => {
+      const result = buildValidationPrompt({
+        ...FIXTURE_VARS,
+        fewShotExample: '{"overallScore":85,"passed":true}',
+      });
+      expect(result).toContain('<example_output>');
+      expect(result).toContain('HIGH QUALITY output');
+      expect(result).toContain('{"overallScore":85,"passed":true}');
+      expect(result).toContain('</example_output>');
+    });
+
+    it('does NOT include example_output block when fewShotExample is omitted', () => {
+      const result = buildValidationPrompt(FIXTURE_VARS);
+      expect(result).not.toContain('<example_output>');
+      expect(result).not.toContain('</example_output>');
+    });
+
     it('snapshot test — detects unintended prompt changes', () => {
       const fixedVars: ValidationPromptVars = {
         assembledEpic: 'Fixed epic content.',

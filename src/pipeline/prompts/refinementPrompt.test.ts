@@ -187,6 +187,23 @@ describe('refinementPrompt', () => {
       expect(result).toContain('</current_section>');
     });
 
+    it('includes example_output block when fewShotExample is provided', () => {
+      const result = buildRefinementPrompt({
+        ...FIRST_ATTEMPT_VARS,
+        fewShotExample: '{"sectionId":"error-handling"}',
+      });
+      expect(result).toContain('<example_output>');
+      expect(result).toContain('HIGH QUALITY output');
+      expect(result).toContain('{"sectionId":"error-handling"}');
+      expect(result).toContain('</example_output>');
+    });
+
+    it('does NOT include example_output block when fewShotExample is omitted', () => {
+      const result = buildRefinementPrompt(FIRST_ATTEMPT_VARS);
+      expect(result).not.toContain('<example_output>');
+      expect(result).not.toContain('</example_output>');
+    });
+
     it('snapshot test — first attempt', () => {
       const fixedVars: RefinementPromptVars = {
         sectionTitle: 'Snapshot Section',

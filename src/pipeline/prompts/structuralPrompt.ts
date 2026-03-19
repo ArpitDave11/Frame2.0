@@ -21,6 +21,7 @@ export interface StructuralPromptVars {
   readonly sectionList: readonly string[];
   readonly complexityLevel: ComplexityLevel;
   readonly categoryTemplateSections: readonly string[];
+  readonly fewShotExample?: string;
 }
 
 // ─── Complexity Scaling ─────────────────────────────────────
@@ -214,5 +215,11 @@ Follow these instructions precisely:
 - The overall score must be mathematically consistent with the dimension scores.
 - Transformation details must be specific and actionable, not generic.
 - Missing sections must reference actual template section titles.
+${vars.fewShotExample ? `
+<example_output>
+The following is an example of HIGH QUALITY output for a different document. Use it as a reference for the level of detail and structure expected.
+
+${vars.fewShotExample}
+</example_output>` : ''}
 </instructions>`;
 }

@@ -19,6 +19,7 @@ export interface ComprehensionPromptVars {
   readonly title: string;
   readonly complexityLevel: ComplexityLevel;
   readonly wordTarget: number;
+  readonly fewShotExample?: string;
 }
 
 // ─── Complexity Scaling ─────────────────────────────────────
@@ -159,5 +160,11 @@ Follow these instructions precisely:
 - Requirement IDs must be unique and sequential.
 - Gap analysis must reference valid requirement IDs or use "GENERAL".
 - Risks must not duplicate gaps — they address different concerns.
+${vars.fewShotExample ? `
+<example_output>
+The following is an example of HIGH QUALITY output for a different document. Use it as a reference for the level of detail and structure expected.
+
+${vars.fewShotExample}
+</example_output>` : ''}
 </instructions>`;
 }

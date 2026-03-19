@@ -147,6 +147,23 @@ describe('classificationPrompt', () => {
       expect(result).toContain('message queues');          // integration_spec signals
     });
 
+    it('includes example_output block when fewShotExample is provided', () => {
+      const result = buildClassificationPrompt({
+        ...FIXTURE_VARS,
+        fewShotExample: '{"primaryCategory":"technical_design"}',
+      });
+      expect(result).toContain('<example_output>');
+      expect(result).toContain('HIGH QUALITY output');
+      expect(result).toContain('{"primaryCategory":"technical_design"}');
+      expect(result).toContain('</example_output>');
+    });
+
+    it('does NOT include example_output block when fewShotExample is omitted', () => {
+      const result = buildClassificationPrompt(FIXTURE_VARS);
+      expect(result).not.toContain('<example_output>');
+      expect(result).not.toContain('</example_output>');
+    });
+
     it('snapshot test — detects unintended prompt changes', () => {
       const fixedVars: ClassificationPromptVars = {
         comprehensionSummary: '{"keyEntities":[],"detectedGaps":[],"implicitRisks":[],"semanticSections":[],"extractedRequirements":[],"gapAnalysis":[]}',

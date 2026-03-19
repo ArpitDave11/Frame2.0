@@ -24,6 +24,7 @@ export interface ValidationPromptVars {
   readonly passingScore: number;
   readonly complexityLevel: ComplexityLevel;
   readonly iterationNumber: number;
+  readonly fewShotExample?: string;
 }
 
 // ─── Complexity Scaling ─────────────────────────────────────
@@ -261,5 +262,11 @@ Follow these instructions precisely:
 - Detected failures must cite specific locations in the document.
 - Feedback must be actionable — see examples above.
 - Do not inflate scores to pass the threshold. Be honest and rigorous.
+${vars.fewShotExample ? `
+<example_output>
+The following is an example of HIGH QUALITY output for a different document. Use it as a reference for the level of detail and structure expected.
+
+${vars.fewShotExample}
+</example_output>` : ''}
 </instructions>`;
 }

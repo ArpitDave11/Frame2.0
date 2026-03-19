@@ -112,5 +112,6 @@ Follow these instructions precisely:
 - Requirement IDs must be unique and sequential.
 - Gap analysis must reference valid requirement IDs or use "GENERAL".
 - Risks must not duplicate gaps — they address different concerns.
+
 </instructions>"
 `;

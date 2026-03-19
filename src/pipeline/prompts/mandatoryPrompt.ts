@@ -23,6 +23,7 @@ export interface MandatoryPromptVars {
   readonly storyCountMax: number;
   readonly complexityLevel: ComplexityLevel;
   readonly existingEntities: readonly string[];
+  readonly fewShotExample?: string;
 }
 
 // ─── Complexity Scaling ─────────────────────────────────────
@@ -199,5 +200,11 @@ Follow these instructions precisely:
 - Every extracted requirement should be covered by at least one story.
 - The assembled epic must include ALL refined sections plus the generated sections.
 - Metadata must be accurate (correct counts, correct diagram type).
+${vars.fewShotExample ? `
+<example_output>
+The following is an example of HIGH QUALITY output for a different document. Use it as a reference for the level of detail and structure expected.
+
+${vars.fewShotExample}
+</example_output>` : ''}
 </instructions>`;
 }
