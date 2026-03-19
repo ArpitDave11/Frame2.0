@@ -35,6 +35,7 @@ export function WorkspaceHeader() {
   const diagramReady = useBlueprintStore((s) => !!s.code);
 
   // ─── Store writes ───────────────────────────────────────────
+  const setMarkdown = useEpicStore((s) => s.setMarkdown);
   const setComplexity = useEpicStore((s) => s.setComplexity);
   const undo = useEpicStore((s) => s.undo);
   const openModal = useUiStore((s) => s.openModal);
@@ -94,8 +95,13 @@ export function WorkspaceHeader() {
         <select
           value={category}
           onChange={(e) => {
-            // Category is set via document metadata — for now just track selection
-            void e;
+            const catId = e.target.value;
+            if (!catId) return;
+            const cat = EPIC_CATEGORIES.find((c) => c.id === catId);
+            if (cat) {
+              const md = cat.secs.map((s) => `## ${s}\n\n_Your content here..._\n`).join('\n');
+              setMarkdown(md);
+            }
           }}
           data-testid="category-select"
           style={{
