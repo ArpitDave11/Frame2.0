@@ -10,6 +10,10 @@
 import { useUiStore } from '@/stores/uiStore';
 import { PlaceholderView } from '@/components/layout/PlaceholderView';
 import { AnalyticsPanel } from '@/components/views/AnalyticsPanel';
+import { WorkspaceHeader } from '@/components/editor/WorkspaceHeader';
+import { SplitPane } from '@/components/layout/SplitPane';
+import { EditorPane } from '@/components/editor/EditorPane';
+import { PreviewPane } from '@/components/editor/PreviewPane';
 
 // ─── Planner View ───────────────────────────────────────────
 
@@ -19,9 +23,11 @@ function PlannerView() {
       data-testid="planner-view"
       style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
     >
-      {/* WorkspaceHeader — Phase 6, T-6.2 */}
-      <PlaceholderView name="WorkspaceHeader" />
-      {/* SplitPane(Editor | Preview) — Phase 6, T-6.3/T-6.4 */}
+      <WorkspaceHeader />
+      <SplitPane
+        left={<EditorPane />}
+        right={<PreviewPane />}
+      />
     </div>
   );
 }
