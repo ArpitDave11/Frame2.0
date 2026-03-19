@@ -10,6 +10,7 @@
 import { useUiStore } from '@/stores/uiStore';
 import { PlaceholderView } from '@/components/layout/PlaceholderView';
 import { AnalyticsPanel } from '@/components/views/AnalyticsPanel';
+import { IssueManagerView } from '@/components/issues/IssueManagerView';
 import { WorkspaceHeader } from '@/components/editor/WorkspaceHeader';
 import { SplitPane } from '@/components/layout/SplitPane';
 import { EditorPane } from '@/components/editor/EditorPane';
@@ -34,10 +35,10 @@ function PlannerView() {
 
 // ─── Issue Manager View ─────────────────────────────────────
 
-function IssueManagerView() {
+function IssueManagerViewWrapper() {
   return (
-    <div data-testid="issues-view" style={{ flex: 1, overflow: 'auto' }}>
-      <PlaceholderView name="Issue Manager — coming in Phase 15" />
+    <div data-testid="issues-view" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <IssueManagerView />
     </div>
   );
 }
@@ -71,7 +72,7 @@ export function ViewRouter() {
     case 'planner':
       return <PlannerView />;
     case 'issues':
-      return <IssueManagerView />;
+      return <IssueManagerViewWrapper />;
     case 'blueprint':
       return <BlueprintView />;
     case 'analytics':

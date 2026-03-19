@@ -22,7 +22,7 @@ describe('ViewRouter', () => {
     useUiStore.setState({ activeTab: 'issues' });
     render(<ViewRouter />);
     expect(screen.getByTestId('issues-view')).toBeDefined();
-    expect(screen.getByText(/Issue Manager/)).toBeDefined();
+    expect(screen.getByTestId('issue-manager-view')).toBeDefined();
   });
 
   it('blueprint tab renders BlueprintView', () => {
