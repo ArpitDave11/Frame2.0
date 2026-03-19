@@ -17,6 +17,7 @@ interface EpicState {
   isDirty: boolean;
   previousMarkdown: string | null;
   complexity: ComplexityLevel;
+  userEditedSections: string[];
 }
 
 interface EpicActions {
@@ -24,6 +25,7 @@ interface EpicActions {
   setDocument: (doc: EpicDocument) => void;
   setComplexity: (level: ComplexityLevel) => void;
   updateSection: (title: string, content: string) => void;
+  trackUserEdit: (sectionTitle: string) => void;
   applyRefinedEpic: (md: string) => void;
   undo: () => void;
   reset: () => void;
@@ -39,6 +41,7 @@ const INITIAL_STATE: EpicState = {
   isDirty: false,
   previousMarkdown: null,
   complexity: 'moderate',
+  userEditedSections: [],
 };
 
 // ─── Store ──────────────────────────────────────────────────
@@ -74,6 +77,13 @@ export const useEpicStore = create<EpicStore>()((set, get) => ({
     set({ markdown: updated, document: doc, isDirty: true });
   },
 
+  trackUserEdit: (sectionTitle) => {
+    const { userEditedSections } = get();
+    if (!userEditedSections.includes(sectionTitle)) {
+      set({ userEditedSections: [...userEditedSections, sectionTitle] });
+    }
+  },
+
   applyRefinedEpic: (md) => {
     const { markdown: current } = get();
     const doc = markdownToEpic(md);
@@ -82,6 +92,7 @@ export const useEpicStore = create<EpicStore>()((set, get) => ({
       markdown: md,
       document: doc,
       isDirty: true,
+      userEditedSections: [],
     });
   },
 

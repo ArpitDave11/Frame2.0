@@ -160,6 +160,7 @@ export interface PipelineConfig {
   readonly generationTemperature: number;      // Stages 1, 3, 4, 5 — default 0.3
   readonly validationTemperature: number;      // Stage 6 — default 0.7
   readonly classificationTemperature: number;  // Stage 2 — default 0.5
+  readonly userApprovedSections: readonly string[];  // section IDs the user has manually edited
 }
 
 export interface PipelineProgress {

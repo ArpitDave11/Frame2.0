@@ -38,6 +38,7 @@ const SAMPLE_CONFIG: PipelineConfig = {
   generationTemperature: 0.3,
   validationTemperature: 0.7,
   classificationTemperature: 0.5,
+  userApprovedSections: [],
 };
 
 const SAMPLE_AI_CONFIG: AIClientConfig = {

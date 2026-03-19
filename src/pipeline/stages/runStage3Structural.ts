@@ -104,16 +104,25 @@ export async function runStage3Structural(
       };
     }
 
+    // Override transformation plan for user-approved sections → force 'keep'
+    const finalPlan = parsed.transformationPlan.map((action) => {
+      if (config.userApprovedSections.includes(action.sectionId)) {
+        return { ...action, action: 'keep' as const, details: 'User-approved section — preserving manual edits' };
+      }
+      return action;
+    });
+    const finalOutput = { ...parsed, transformationPlan: finalPlan };
+
     onProgress?.({
       stageName: STAGE_NAME,
       status: 'complete',
-      message: `Assessed ${parsed.sectionScores.length} sections, ${parsed.missingSections.length} missing`,
+      message: `Assessed ${finalOutput.sectionScores.length} sections, ${finalOutput.missingSections.length} missing`,
       timestamp: Date.now(),
     });
 
     return {
       success: true,
-      data: parsed,
+      data: finalOutput,
       metadata: {
         stageName: STAGE_NAME,
         duration: Date.now() - startTime,

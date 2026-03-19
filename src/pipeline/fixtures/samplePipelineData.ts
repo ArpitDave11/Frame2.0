@@ -189,6 +189,7 @@ export const sampleConfig: PipelineConfig = {
   generationTemperature: 0.3,
   validationTemperature: 0.7,
   classificationTemperature: 0.5,
+  userApprovedSections: [],
 };
 
 export const sampleProgress: PipelineProgress = {

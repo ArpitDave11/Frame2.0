@@ -13,6 +13,7 @@ import { runStage1Comprehension } from '@/pipeline/stages/runStage1Comprehension
 import { runStage2Classification } from '@/pipeline/stages/runStage2Classification';
 import { runStage3Structural } from '@/pipeline/stages/runStage3Structural';
 import { runStage4Refinement } from '@/pipeline/stages/runStage4Refinement';
+import { runStage4bCoherence } from '@/pipeline/stages/runStage4bCoherence';
 import { runStage5Mandatory } from '@/pipeline/stages/runStage5Mandatory';
 import { runStage6Validation } from '@/pipeline/stages/runStage6Validation';
 import type {
@@ -39,7 +40,10 @@ export interface PipelineOrchestratorOptions {
 
 // ─── Config Builder ─────────────────────────────────────────
 
-export function buildPipelineConfig(complexity: ComplexityLevel): PipelineConfig {
+export function buildPipelineConfig(
+  complexity: ComplexityLevel,
+  userApprovedSections: readonly string[] = [],
+): PipelineConfig {
   const cc = getComplexityConfig(complexity);
   const storyRange = getScaledStoryCount(complexity);
   return {
@@ -50,6 +54,7 @@ export function buildPipelineConfig(complexity: ComplexityLevel): PipelineConfig
     generationTemperature: 0.3,
     validationTemperature: 0.7,
     classificationTemperature: 0.5,
+    userApprovedSections,
   };
 }
 
@@ -121,10 +126,19 @@ export async function runPremiumPipeline(
       );
       refinement = s4.data;
 
+      // Stage 4b: Cross-section coherence
+      const s4b = await runStage4bCoherence(
+        { refinement: s4.data, classification: s2.data },
+        config, aiConfig, onProgress,
+      );
+      if (s4b.success && s4b.data.fixes.length > 0) {
+        refinement = { refinedSections: s4b.data.refinedSections };
+      }
+
       // Stage 5: Mandatory (even if refinement partially failed)
       const s5 = await runStage5Mandatory(
         {
-          refinement: s4.data,
+          refinement,
           classification: s2.data,
           comprehension: s1.data,
           config,

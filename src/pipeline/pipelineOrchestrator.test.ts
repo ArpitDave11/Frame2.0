@@ -13,6 +13,7 @@ vi.mock('@/pipeline/stages/runStage1Comprehension', () => ({ runStage1Comprehens
 vi.mock('@/pipeline/stages/runStage2Classification', () => ({ runStage2Classification: vi.fn() }));
 vi.mock('@/pipeline/stages/runStage3Structural', () => ({ runStage3Structural: vi.fn() }));
 vi.mock('@/pipeline/stages/runStage4Refinement', () => ({ runStage4Refinement: vi.fn() }));
+vi.mock('@/pipeline/stages/runStage4bCoherence', () => ({ runStage4bCoherence: vi.fn() }));
 vi.mock('@/pipeline/stages/runStage5Mandatory', () => ({ runStage5Mandatory: vi.fn() }));
 vi.mock('@/pipeline/stages/runStage6Validation', () => ({ runStage6Validation: vi.fn() }));
 
@@ -20,6 +21,7 @@ import { runStage1Comprehension } from '@/pipeline/stages/runStage1Comprehension
 import { runStage2Classification } from '@/pipeline/stages/runStage2Classification';
 import { runStage3Structural } from '@/pipeline/stages/runStage3Structural';
 import { runStage4Refinement } from '@/pipeline/stages/runStage4Refinement';
+import { runStage4bCoherence } from '@/pipeline/stages/runStage4bCoherence';
 import { runStage5Mandatory } from '@/pipeline/stages/runStage5Mandatory';
 import { runStage6Validation } from '@/pipeline/stages/runStage6Validation';
 
@@ -27,6 +29,7 @@ const mockS1 = vi.mocked(runStage1Comprehension);
 const mockS2 = vi.mocked(runStage2Classification);
 const mockS3 = vi.mocked(runStage3Structural);
 const mockS4 = vi.mocked(runStage4Refinement);
+const mockS4b = vi.mocked(runStage4bCoherence);
 const mockS5 = vi.mocked(runStage5Mandatory);
 const mockS6 = vi.mocked(runStage6Validation);
 
@@ -56,6 +59,7 @@ function setupSuccessfulStages(validationPassed = true) {
   mockS2.mockResolvedValue({ success: true, data: CLASS_DATA, metadata: META });
   mockS3.mockResolvedValue({ success: true, data: STRUCT_DATA, metadata: META });
   mockS4.mockResolvedValue({ success: true, data: REFINE_DATA, metadata: META });
+  mockS4b.mockResolvedValue({ success: true, data: { refinedSections: REFINE_DATA.refinedSections, fixes: [] }, metadata: META });
   mockS5.mockResolvedValue({ success: true, data: MANDATORY_DATA, metadata: META });
   mockS6.mockResolvedValue({ success: true, data: makeValidation(validationPassed ? 90 : 70, validationPassed), metadata: META });
 }
