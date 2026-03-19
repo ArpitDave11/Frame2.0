@@ -12,6 +12,7 @@ import { WelcomeSidebar } from '@/components/layout/WelcomeSidebar';
 import { WorkspaceSidebar } from '@/components/layout/WorkspaceSidebar';
 import { ViewRouter } from '@/components/layout/ViewRouter';
 import { PlaceholderView } from '@/components/layout/PlaceholderView';
+import { WelcomeScreen } from '@/components/views/WelcomeScreen';
 import { ModalHost } from '@/components/layout/ModalHost';
 import { ToastContainer } from '@/components/shared/ToastContainer';
 
@@ -21,7 +22,7 @@ function WelcomeLayout() {
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
       <WelcomeSidebar />
-      <PlaceholderView name="Welcome Screen" />
+      <WelcomeScreen />
     </div>
   );
 }
