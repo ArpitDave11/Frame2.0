@@ -36,16 +36,16 @@ describe('SettingsPanel', () => {
     expect(screen.queryByTestId('gitlab-config')).toBeNull();
   });
 
-  it('active tab has red underline', () => {
+  it('active tab has brand underline, inactive has transparent', () => {
     render(<SettingsPanel />);
     const aiTab = screen.getByTestId('settings-tab-ai');
     const gitlabTab = screen.getByTestId('settings-tab-gitlab');
 
-    expect(aiTab.style.borderBottom).toContain('red');
+    expect(aiTab.style.borderBottom).toContain('var(--col-background-brand)');
     expect(gitlabTab.style.borderBottom).toContain('transparent');
 
     fireEvent.click(gitlabTab);
-    expect(gitlabTab.style.borderBottom).toContain('red');
+    expect(gitlabTab.style.borderBottom).toContain('var(--col-background-brand)');
     expect(aiTab.style.borderBottom).toContain('transparent');
   });
 
