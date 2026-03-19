@@ -9,9 +9,11 @@ import { create } from 'zustand';
 
 // ─── Types ─────────────────────────────────────────────────
 
-export type TabId = 'editor' | 'blueprint' | 'settings';
+export type TabId = 'planner' | 'issues' | 'blueprint' | 'analytics';
 
-export type ModalId = 'publish' | 'loadEpic' | 'issueCreation' | 'critique';
+export type ModalId = 'publish' | 'loadEpic' | 'issueCreation' | 'critique' | 'settings';
+
+export type ActiveView = 'welcome' | 'workspace';
 
 export interface Toast {
   id: string;
@@ -23,6 +25,8 @@ export interface Toast {
 
 interface UiState {
   activeTab: TabId;
+  activeView: ActiveView;
+  editorWidth: number;
   sidebarCollapsed: boolean;
   activeModal: ModalId | null;
   toasts: Toast[];
@@ -30,6 +34,8 @@ interface UiState {
 
 interface UiActions {
   setActiveTab: (tab: TabId) => void;
+  setActiveView: (view: ActiveView) => void;
+  setEditorWidth: (width: number) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   openModal: (modal: ModalId) => void;
@@ -43,7 +49,9 @@ export type UiStore = UiState & UiActions;
 // ─── Initial State ──────────────────────────────────────────
 
 const INITIAL_STATE: UiState = {
-  activeTab: 'editor',
+  activeTab: 'planner',
+  activeView: 'welcome',
+  editorWidth: 50,
   sidebarCollapsed: false,
   activeModal: null,
   toasts: [],
@@ -56,6 +64,14 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 
   setActiveTab: (tab) => {
     set({ activeTab: tab });
+  },
+
+  setActiveView: (view) => {
+    set({ activeView: view });
+  },
+
+  setEditorWidth: (width) => {
+    set({ editorWidth: Math.max(20, Math.min(80, width)) });
   },
 
   toggleSidebar: () => {

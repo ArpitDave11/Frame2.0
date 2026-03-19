@@ -8,8 +8,16 @@ beforeEach(() => {
 // ─── Initial State ──────────────────────────────────────────
 
 describe('initial state', () => {
-  it('activeTab is editor', () => {
-    expect(useUiStore.getState().activeTab).toBe('editor');
+  it('activeTab is planner', () => {
+    expect(useUiStore.getState().activeTab).toBe('planner');
+  });
+
+  it('activeView is welcome', () => {
+    expect(useUiStore.getState().activeView).toBe('welcome');
+  });
+
+  it('editorWidth is 50', () => {
+    expect(useUiStore.getState().editorWidth).toBe(50);
   });
 
   it('sidebarCollapsed is false', () => {
@@ -33,9 +41,14 @@ describe('setActiveTab', () => {
     expect(useUiStore.getState().activeTab).toBe('blueprint');
   });
 
-  it('switches to settings', () => {
-    useUiStore.getState().setActiveTab('settings');
-    expect(useUiStore.getState().activeTab).toBe('settings');
+  it('switches to issues', () => {
+    useUiStore.getState().setActiveTab('issues');
+    expect(useUiStore.getState().activeTab).toBe('issues');
+  });
+
+  it('switches to analytics', () => {
+    useUiStore.getState().setActiveTab('analytics');
+    expect(useUiStore.getState().activeTab).toBe('analytics');
   });
 });
 
@@ -115,5 +128,39 @@ describe('toasts', () => {
     const remaining = useUiStore.getState().toasts;
     expect(remaining).toHaveLength(1);
     expect(remaining[0].title).toBe('Keep');
+  });
+});
+
+// ─── activeView ────────────────────────────────────────────
+
+describe('activeView', () => {
+  it('setActiveView switches to workspace', () => {
+    useUiStore.getState().setActiveView('workspace');
+    expect(useUiStore.getState().activeView).toBe('workspace');
+  });
+
+  it('setActiveView switches back to welcome', () => {
+    useUiStore.getState().setActiveView('workspace');
+    useUiStore.getState().setActiveView('welcome');
+    expect(useUiStore.getState().activeView).toBe('welcome');
+  });
+});
+
+// ─── editorWidth ───────────────────────────────────────────
+
+describe('editorWidth', () => {
+  it('setEditorWidth sets value', () => {
+    useUiStore.getState().setEditorWidth(65);
+    expect(useUiStore.getState().editorWidth).toBe(65);
+  });
+
+  it('clamps below 20 to 20', () => {
+    useUiStore.getState().setEditorWidth(10);
+    expect(useUiStore.getState().editorWidth).toBe(20);
+  });
+
+  it('clamps above 80 to 80', () => {
+    useUiStore.getState().setEditorWidth(95);
+    expect(useUiStore.getState().editorWidth).toBe(80);
   });
 });

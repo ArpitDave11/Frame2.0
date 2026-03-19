@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useGitlabStore } from './gitlabStore';
-import type { GitLabEpic } from './gitlabStore';
+import type { GitLabEpic, GitLabIssue } from './gitlabStore';
 
 beforeEach(() => {
   useGitlabStore.setState(useGitlabStore.getInitialState());
@@ -219,5 +219,66 @@ describe('reset', () => {
     expect(state.breadcrumb).toEqual([]);
     expect(state.loadModalOpen).toBe(false);
     expect(state.isPublishing).toBe(false);
+  });
+});
+
+// ─── Issue Management ──────────────────────────────────────
+
+const MOCK_ISSUE: GitLabIssue = {
+  id: 100,
+  iid: 1,
+  title: 'Fix login bug',
+  state: 'opened',
+  labels: ['bug'],
+  assignee: 'user1',
+  web_url: 'https://gitlab.com/issue/1',
+  created_at: '2026-01-01T00:00:00Z',
+};
+
+describe('issue management', () => {
+  it('initial issue state is empty', () => {
+    const state = useGitlabStore.getState();
+    expect(state.issues).toEqual([]);
+    expect(state.selectedIssueId).toBeNull();
+    expect(state.issueFilter).toBe('all');
+    expect(state.issueSearchQuery).toBe('');
+  });
+
+  it('setIssues populates issues array', () => {
+    useGitlabStore.getState().setIssues([MOCK_ISSUE]);
+    expect(useGitlabStore.getState().issues).toHaveLength(1);
+    expect(useGitlabStore.getState().issues[0]!.title).toBe('Fix login bug');
+  });
+
+  it('selectIssue sets selectedIssueId', () => {
+    useGitlabStore.getState().selectIssue('100');
+    expect(useGitlabStore.getState().selectedIssueId).toBe('100');
+  });
+
+  it('selectIssue with null clears selection', () => {
+    useGitlabStore.getState().selectIssue('100');
+    useGitlabStore.getState().selectIssue(null);
+    expect(useGitlabStore.getState().selectedIssueId).toBeNull();
+  });
+
+  it('setIssueFilter changes filter', () => {
+    useGitlabStore.getState().setIssueFilter('active');
+    expect(useGitlabStore.getState().issueFilter).toBe('active');
+  });
+
+  it('setIssueSearchQuery changes query', () => {
+    useGitlabStore.getState().setIssueSearchQuery('auth');
+    expect(useGitlabStore.getState().issueSearchQuery).toBe('auth');
+  });
+
+  it('reset clears issue state', () => {
+    useGitlabStore.getState().setIssues([MOCK_ISSUE]);
+    useGitlabStore.getState().selectIssue('100');
+    useGitlabStore.getState().setIssueFilter('blocked');
+    useGitlabStore.getState().reset();
+    const state = useGitlabStore.getState();
+    expect(state.issues).toEqual([]);
+    expect(state.selectedIssueId).toBeNull();
+    expect(state.issueFilter).toBe('all');
   });
 });

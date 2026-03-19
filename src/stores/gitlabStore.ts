@@ -41,6 +41,19 @@ export interface GroupCacheEntry {
   fetchedAt: number;
 }
 
+export interface GitLabIssue {
+  id: number;
+  iid: number;
+  title: string;
+  state: 'opened' | 'closed';
+  labels: string[];
+  assignee: string | null;
+  web_url: string;
+  created_at: string;
+}
+
+export type IssueFilter = 'all' | 'active' | 'blocked';
+
 // ─── State & Actions ────────────────────────────────────────
 
 type EpicFilterState = 'opened' | 'closed' | 'all';
@@ -72,6 +85,12 @@ interface GitlabState {
   isPublishing: boolean;
   publishStatus: { type: 'success' | 'error'; message: string } | null;
 
+  // Issue management
+  issues: GitLabIssue[];
+  selectedIssueId: string | null;
+  issueFilter: IssueFilter;
+  issueSearchQuery: string;
+
   // Load modal
   loadModalOpen: boolean;
   loadSearchTerm: string;
@@ -92,6 +111,10 @@ interface GitlabActions {
   setPublishLevel: (level: 'crew' | 'pod') => void;
   setPublishTargetGroup: (groupId: string | null) => void;
   setPublishStatus: (status: { type: 'success' | 'error'; message: string } | null) => void;
+  setIssues: (issues: GitLabIssue[]) => void;
+  selectIssue: (id: string | null) => void;
+  setIssueFilter: (filter: IssueFilter) => void;
+  setIssueSearchQuery: (query: string) => void;
   openLoadModal: () => void;
   closeLoadModal: () => void;
   reset: () => void;
@@ -123,6 +146,11 @@ const INITIAL_STATE: GitlabState = {
   publishTargetGroupId: null,
   isPublishing: false,
   publishStatus: null,
+
+  issues: [],
+  selectedIssueId: null,
+  issueFilter: 'all',
+  issueSearchQuery: '',
 
   loadModalOpen: false,
   loadSearchTerm: '',
@@ -186,6 +214,22 @@ export const useGitlabStore = create<GitlabStore>()((set, get) => ({
 
   setPublishStatus: (status) => {
     set({ publishStatus: status });
+  },
+
+  setIssues: (issues) => {
+    set({ issues });
+  },
+
+  selectIssue: (id) => {
+    set({ selectedIssueId: id });
+  },
+
+  setIssueFilter: (filter) => {
+    set({ issueFilter: filter });
+  },
+
+  setIssueSearchQuery: (query) => {
+    set({ issueSearchQuery: query });
   },
 
   openLoadModal: () => {
