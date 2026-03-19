@@ -2,7 +2,7 @@
  * Tests for WorkspaceHeader — Toolbar with all action buttons.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { useUiStore } from '@/stores/uiStore';
@@ -128,5 +128,59 @@ describe('WorkspaceHeader', () => {
     render(<WorkspaceHeader />);
     fireEvent.click(screen.getByTestId('btn-load'));
     expect(useUiStore.getState().activeModal).toBe('loadEpic');
+  });
+
+  it('category change with content shows confirm dialog', () => {
+    useEpicStore.setState({ markdown: '## Existing\nSome content here' });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<WorkspaceHeader />);
+
+    const select = screen.getByTestId('category-select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'technical_design' } });
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Changing category will reset your content with the new template. Continue?',
+    );
+    confirmSpy.mockRestore();
+  });
+
+  it('cancel confirm leaves markdown unchanged', () => {
+    const originalMd = '## Existing\nSome content here';
+    useEpicStore.setState({ markdown: originalMd });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<WorkspaceHeader />);
+
+    const select = screen.getByTestId('category-select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'technical_design' } });
+
+    expect(useEpicStore.getState().markdown).toBe(originalMd);
+    confirmSpy.mockRestore();
+  });
+
+  it('confirm accepted updates markdown with new template', () => {
+    useEpicStore.setState({ markdown: '## Old\nContent' });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<WorkspaceHeader />);
+
+    const select = screen.getByTestId('category-select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'technical_design' } });
+
+    const newMd = useEpicStore.getState().markdown;
+    expect(newMd).toContain('## Objective');
+    expect(newMd).not.toContain('## Old');
+    confirmSpy.mockRestore();
+  });
+
+  it('category change without content skips confirm', () => {
+    useEpicStore.setState({ markdown: '' });
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    render(<WorkspaceHeader />);
+
+    const select = screen.getByTestId('category-select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'technical_design' } });
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(useEpicStore.getState().markdown).toContain('## Objective');
+    confirmSpy.mockRestore();
   });
 });

@@ -102,10 +102,18 @@ export function WorkspaceHeader() {
             const catId = e.target.value;
             if (!catId) return;
             const cat = EPIC_CATEGORIES.find((c) => c.id === catId);
-            if (cat) {
-              const md = cat.secs.map((s) => `## ${s}\n\n_Your content here..._\n`).join('\n');
-              setMarkdown(md);
+            if (!cat) return;
+
+            // If editor has content, confirm before replacing
+            if (markdown.trim()) {
+              const confirmed = window.confirm(
+                'Changing category will reset your content with the new template. Continue?',
+              );
+              if (!confirmed) return;
             }
+
+            const md = cat.secs.map((s) => `## ${s}\n\n_Your content here..._\n`).join('\n');
+            setMarkdown(md);
           }}
           data-testid="category-select"
           style={{
