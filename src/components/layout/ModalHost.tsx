@@ -8,6 +8,7 @@
 import { useUiStore } from '@/stores/uiStore';
 import { Modal } from '@/components/shared/Modal';
 import { PlaceholderView } from '@/components/layout/PlaceholderView';
+import { SettingsPanel } from '@/components/settings/SettingsPanel';
 
 export function ModalHost() {
   const activeModal = useUiStore((s) => s.activeModal);
@@ -19,7 +20,7 @@ export function ModalHost() {
     case 'settings':
       return (
         <Modal open onClose={closeModal} title="Settings" width={540}>
-          <PlaceholderView name="Settings — Phase 7" />
+          <SettingsPanel />
         </Modal>
       );
     case 'publish':
