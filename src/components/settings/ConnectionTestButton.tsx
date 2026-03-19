@@ -2,92 +2,93 @@
  * ConnectionTestButton — Phase 7 (T-7.4).
  *
  * Shared button for testing service connections (AI providers, GitLab).
- * Displays idle → loading → success/failure states with auto-reset.
+ * States: idle → testing → success/error → idle (auto-reset).
+ * Pixel-matched to prototype App.tsx lines 411-426.
  */
 
 import { useState } from 'react';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
-// ─── Types ─────────────────────────────────────────────────
-
-type TestState = 'idle' | 'loading' | 'success' | 'error';
+type TestState = 'idle' | 'testing' | 'success' | 'error';
 
 export interface ConnectionTestButtonProps {
   onTest: () => Promise<{ success: boolean; error?: string }>;
   label?: string;
 }
 
-// ─── Component ─────────────────────────────────────────────
-
 export function ConnectionTestButton({ onTest, label = 'Test connection' }: ConnectionTestButtonProps) {
   const [state, setState] = useState<TestState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleClick = async () => {
-    if (state === 'loading') return;
-    setState('loading');
+    if (state === 'testing') return;
+    setState('testing');
     setErrorMsg('');
 
     try {
       const result = await onTest();
       if (result.success) {
         setState('success');
-        setTimeout(() => setState('idle'), 2000);
+        setTimeout(() => setState('idle'), 3000);
       } else {
         setErrorMsg(result.error ?? 'Connection failed');
         setState('error');
-        setTimeout(() => {
-          setState('idle');
-          setErrorMsg('');
-        }, 3000);
+        setTimeout(() => { setState('idle'); setErrorMsg(''); }, 5000);
       }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
       setState('error');
-      setTimeout(() => {
-        setState('idle');
-        setErrorMsg('');
-      }, 3000);
+      setTimeout(() => { setState('idle'); setErrorMsg(''); }, 5000);
     }
   };
 
-  const baseStyle: React.CSSProperties = {
+  const base: React.CSSProperties = {
     alignSelf: 'flex-start',
     padding: '7px 18px',
-    border: '1px solid var(--col-border, #ccc)',
     borderRadius: '0.375rem',
-    fontSize: '13px',
+    fontSize: 13,
     fontFamily: F,
     fontWeight: 400,
-    cursor: state === 'loading' ? 'not-allowed' : 'pointer',
-    background: 'var(--col-bg-surface, #fff)',
-    color: 'var(--col-text, #222)',
     outline: 'none',
-    transition: 'border-color 0.15s, color 0.15s',
+    transition: 'all 0.15s ease',
   };
 
-  if (state === 'loading') {
+  if (state === 'testing') {
     return (
       <button
         type="button"
-        style={{ ...baseStyle, color: 'var(--col-text-subtle, #888)' }}
+        style={{
+          ...base,
+          border: '1px solid var(--col-border-illustrative)',
+          background: 'var(--col-background-ui-10)',
+          color: 'var(--col-text-subtle)',
+          cursor: 'not-allowed',
+        }}
         disabled
         data-testid="connection-test-btn"
       >
-        Testing...
+        Testing…
       </button>
     );
   }
 
   if (state === 'success') {
     return (
-      <span
-        style={{ ...baseStyle, color: 'green', border: '1px solid green', display: 'inline-block' }}
-        data-testid="connection-test-success"
+      <button
+        type="button"
+        style={{
+          ...base,
+          border: '1px solid #bbf7d0',
+          background: '#f0fdf4',
+          color: '#166534',
+          cursor: 'default',
+        }}
+        disabled
+        data-testid="connection-test-btn"
       >
         Connected ✓
-      </span>
+      </button>
     );
   }
 
@@ -96,15 +97,21 @@ export function ConnectionTestButton({ onTest, label = 'Test connection' }: Conn
       <div style={{ alignSelf: 'flex-start' }}>
         <button
           type="button"
-          style={{ ...baseStyle, borderColor: 'red', color: 'red' }}
+          style={{
+            ...base,
+            border: '1px solid #fecaca',
+            background: '#fef2f2',
+            color: '#991b1b',
+            cursor: 'default',
+          }}
           disabled
-          data-testid="connection-test-error"
+          data-testid="connection-test-btn"
         >
           {label}
         </button>
         {errorMsg && (
           <div
-            style={{ color: 'red', fontSize: '12px', marginTop: '4px', fontFamily: F }}
+            style={{ color: '#991b1b', fontSize: 12, marginTop: 4, fontFamily: F, fontWeight: 300 }}
             data-testid="connection-test-error-msg"
           >
             {errorMsg}
@@ -114,10 +121,17 @@ export function ConnectionTestButton({ onTest, label = 'Test connection' }: Conn
     );
   }
 
+  // Idle
   return (
     <button
       type="button"
-      style={baseStyle}
+      style={{
+        ...base,
+        border: '1px solid var(--col-border-illustrative)',
+        background: 'var(--col-background-ui-10)',
+        color: 'var(--col-text-primary)',
+        cursor: 'pointer',
+      }}
       onClick={handleClick}
       data-testid="connection-test-btn"
     >
