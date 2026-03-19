@@ -109,6 +109,9 @@ export async function refinePipelineAction(): Promise<void> {
         useBlueprintStore.getState().setCode(result.mandatory.architectureDiagram);
       }
 
+      // Store full validation output for critique UI
+      usePipelineStore.getState().setLastValidation(result.validation);
+
       // Complete pipeline with result summary
       usePipelineStore.getState().completePipeline({
         refinedMarkdown: result.epicContent,
@@ -140,6 +143,9 @@ export async function refinePipelineAction(): Promise<void> {
           useBlueprintStore.getState().setCode(result.mandatory.architectureDiagram);
         }
       }
+
+      // Store full validation output for critique UI (partial success)
+      usePipelineStore.getState().setLastValidation(result.validation);
 
       usePipelineStore.getState().completePipeline({
         refinedMarkdown: result.epicContent || '',

@@ -11,6 +11,7 @@ import { Modal } from '@/components/shared/Modal';
 import { PlaceholderView } from '@/components/layout/PlaceholderView';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { PipelineModal } from '@/components/pipeline/PipelineModal';
+import { CritiqueReport } from '@/components/critique/CritiqueReport';
 
 export function ModalHost() {
   const activeModal = useUiStore((s) => s.activeModal);
@@ -53,7 +54,7 @@ export function ModalHost() {
     case 'critique':
       return (
         <Modal open onClose={closeModal} title="Quality Report" width={600}>
-          <PlaceholderView name="Critique Report — Phase 10" />
+          <CritiqueReport />
         </Modal>
       );
     default:

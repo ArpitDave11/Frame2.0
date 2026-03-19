@@ -22,6 +22,7 @@ const mockPipelineState = {
   completePipeline: vi.fn(),
   failPipeline: vi.fn(),
   setCurrentIteration: vi.fn(),
+  setLastValidation: vi.fn(),
 };
 
 const mockConfigState = {
@@ -222,11 +223,12 @@ describe('refinePipelineAction', () => {
       mockPipelineState.startPipeline.mockImplementation(() => { callOrder.push('start'); });
       mockOrchestrator.mockImplementation(async () => { callOrder.push('orchestrate'); return SUCCESSFUL_RESULT; });
       mockEpicState.applyRefinedEpic.mockImplementation(() => { callOrder.push('applyEpic'); });
+      mockPipelineState.setLastValidation.mockImplementation(() => { callOrder.push('setValidation'); });
       mockPipelineState.completePipeline.mockImplementation(() => { callOrder.push('complete'); });
 
       await refinePipelineAction();
 
-      expect(callOrder).toEqual(['start', 'orchestrate', 'applyEpic', 'complete']);
+      expect(callOrder).toEqual(['start', 'orchestrate', 'applyEpic', 'setValidation', 'complete']);
     });
   });
 });

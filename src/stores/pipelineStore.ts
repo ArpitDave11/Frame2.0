@@ -6,6 +6,7 @@
  */
 
 import { create } from 'zustand';
+import type { ValidationOutput } from '@/pipeline/pipelineTypes';
 
 // ─── Placeholder Types (Phase 4 will provide real ones) ─────
 
@@ -56,6 +57,7 @@ interface PipelineState {
   showPanel: boolean;
   currentIteration: number;
   maxIterations: number;
+  lastValidation: ValidationOutput | null;
 }
 
 interface PipelineActions {
@@ -66,6 +68,7 @@ interface PipelineActions {
   setShowPanel: (show: boolean) => void;
   setCurrentIteration: (n: number) => void;
   setMaxIterations: (n: number) => void;
+  setLastValidation: (v: ValidationOutput | null) => void;
   reset: () => void;
 }
 
@@ -81,6 +84,7 @@ const INITIAL_STATE: PipelineState = {
   showPanel: false,
   currentIteration: 0,
   maxIterations: 3,
+  lastValidation: null,
 };
 
 // ─── Store ──────────────────────────────────────────────────
@@ -98,6 +102,7 @@ export const usePipelineStore = create<PipelineStore>()((set, get) => ({
       showPanel: true,
       currentIteration: 0,
       maxIterations: 3,
+      lastValidation: null,
     });
   },
 
@@ -127,6 +132,10 @@ export const usePipelineStore = create<PipelineStore>()((set, get) => ({
 
   setMaxIterations: (n) => {
     set({ maxIterations: n });
+  },
+
+  setLastValidation: (v) => {
+    set({ lastValidation: v });
   },
 
   reset: () => {

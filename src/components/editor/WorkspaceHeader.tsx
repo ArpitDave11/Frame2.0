@@ -275,10 +275,14 @@ export function WorkspaceHeader() {
         {/* Separator */}
         <div style={{ width: 1, height: 24, background: 'var(--col-border-illustrative)' }} />
 
-        {/* Score badge */}
+        {/* Score badge — clickable, opens critique modal */}
         {qualityScore !== null && (
           <div
             data-testid="score-badge"
+            onClick={() => openModal('critique')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openModal('critique'); }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -287,10 +291,35 @@ export function WorkspaceHeader() {
               fontSize: 12,
               fontWeight: 400,
               color: 'var(--col-text-subtle)',
+              cursor: 'pointer',
+              borderRadius: '0.375rem',
+              transition: 'background 0.15s',
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--col-border-illustrative, #e5e5e5)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
-            <Star size={12} weight="fill" color="var(--col-background-brand)" />
-            <span style={{ color: 'var(--col-text-primary)', fontWeight: 500 }}>
+            <Star
+              size={12}
+              weight="fill"
+              color={
+                qualityScore >= 7.0
+                  ? '#22c55e'
+                  : qualityScore >= 5.0
+                    ? '#f59e0b'
+                    : '#ef4444'
+              }
+            />
+            <span
+              style={{
+                color:
+                  qualityScore >= 7.0
+                    ? '#22c55e'
+                    : qualityScore >= 5.0
+                      ? '#f59e0b'
+                      : '#ef4444',
+                fontWeight: 500,
+              }}
+            >
               {qualityScore.toFixed(1)}
             </span>
           </div>
