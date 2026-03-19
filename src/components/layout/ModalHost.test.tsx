@@ -35,11 +35,18 @@ describe('ModalHost', () => {
     expect(screen.getByTestId('modal-title').textContent).toBe('Load from GitLab');
   });
 
-  it('activeModal=critique renders Pipeline modal with preventClose', () => {
-    useUiStore.setState({ activeModal: 'critique' });
+  it('activeModal=pipeline renders Pipeline modal with preventClose', () => {
+    useUiStore.setState({ activeModal: 'pipeline' });
     render(<ModalHost />);
     expect(screen.getByTestId('modal-title').textContent).toBe('Refining your epic');
     expect(screen.queryByTestId('modal-close-btn')).toBeNull(); // preventClose
+  });
+
+  it('activeModal=critique renders Quality Report modal (closeable)', () => {
+    useUiStore.setState({ activeModal: 'critique' });
+    render(<ModalHost />);
+    expect(screen.getByTestId('modal-title').textContent).toBe('Quality Report');
+    expect(screen.getByTestId('modal-close-btn')).toBeDefined(); // closeable
   });
 
   it('activeModal=issueCreation renders Issue Creation modal', () => {

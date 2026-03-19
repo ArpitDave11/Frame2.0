@@ -11,7 +11,7 @@ import { create } from 'zustand';
 
 export type TabId = 'planner' | 'issues' | 'blueprint' | 'analytics';
 
-export type ModalId = 'publish' | 'loadEpic' | 'issueCreation' | 'critique' | 'settings';
+export type ModalId = 'publish' | 'loadEpic' | 'issueCreation' | 'critique' | 'pipeline' | 'settings';
 
 export type ActiveView = 'welcome' | 'workspace';
 

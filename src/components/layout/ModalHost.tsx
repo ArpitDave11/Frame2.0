@@ -40,10 +40,16 @@ export function ModalHost() {
           <PlaceholderView name="Issue Creation — Phase 15" />
         </Modal>
       );
-    case 'critique':
+    case 'pipeline':
       return (
         <Modal open onClose={closeModal} title="Refining your epic" preventClose>
           <PlaceholderView name="Pipeline Progress — Phase 8" />
+        </Modal>
+      );
+    case 'critique':
+      return (
+        <Modal open onClose={closeModal} title="Quality Report" width={600}>
+          <PlaceholderView name="Critique Report — Phase 10" />
         </Modal>
       );
     default:
