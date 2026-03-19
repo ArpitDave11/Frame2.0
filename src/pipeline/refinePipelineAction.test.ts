@@ -142,12 +142,18 @@ describe('refinePipelineAction', () => {
   });
 
   describe('failure handling', () => {
-    it('calls failPipeline when orchestrator returns success: false', async () => {
-      mockOrchestrator.mockResolvedValue({ ...SUCCESSFUL_RESULT, success: false, epicContent: '' });
+    it('calls completePipeline (not failPipeline) on partial success', async () => {
+      mockOrchestrator.mockResolvedValue({ ...SUCCESSFUL_RESULT, success: false });
 
       await refinePipelineAction();
 
-      expect(mockPipelineState.failPipeline).toHaveBeenCalledTimes(1);
+      // Partial success → completePipeline so modal auto-closes
+      expect(mockPipelineState.completePipeline).toHaveBeenCalledTimes(1);
+      expect(mockPipelineState.failPipeline).not.toHaveBeenCalled();
+      // Warning toast shown
+      expect(mockUiState.addToast).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'warning' }),
+      );
     });
 
     it('calls failPipeline when orchestrator throws', async () => {

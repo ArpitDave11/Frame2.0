@@ -128,9 +128,10 @@ export async function refinePipelineAction(): Promise<void> {
         },
       });
     } else {
-      // Partial success — pipeline completed but did not pass validation
+      // Partial success — pipeline ran but didn't pass quality threshold.
+      // Still write content (user gets best effort) and complete (not fail)
+      // so the modal auto-closes. Warning toast tells user the score was low.
       if (result.epicContent) {
-        // Still write partial content
         useEpicStore.getState().applyRefinedEpic(result.epicContent);
         if (result.validation.overallScore > 0) {
           useEpicStore.getState().setQualityScore(result.validation.overallScore / 10);
@@ -138,15 +139,30 @@ export async function refinePipelineAction(): Promise<void> {
         if (result.mandatory.architectureDiagram) {
           useBlueprintStore.getState().setCode(result.mandatory.architectureDiagram);
         }
-        addToast({
-          type: 'warning',
-          title: `Pipeline completed with score ${result.validation.overallScore}/100 after ${result.iterations} iteration(s). Content applied.`,
-        });
       }
 
-      usePipelineStore.getState().failPipeline(
-        `Pipeline did not pass validation after ${result.iterations} iteration(s). Score: ${result.validation.overallScore}`,
-      );
+      usePipelineStore.getState().completePipeline({
+        refinedMarkdown: result.epicContent || '',
+        category: result.classification.primaryCategory,
+        categoryConfidence: result.classification.confidence,
+        sectionCount: result.mandatory.assembledEpic.sections.length,
+        storyCount: result.mandatory.userStories.length,
+        wordCount: (result.epicContent || '').split(/\s+/).length,
+        validationScore: result.validation.overallScore,
+        stages: {
+          1: { status: 'complete', message: '', durationMs: 0 },
+          2: { status: 'complete', message: '', durationMs: 0 },
+          3: { status: 'complete', message: '', durationMs: 0 },
+          4: { status: 'complete', message: '', durationMs: 0 },
+          5: { status: 'complete', message: '', durationMs: 0 },
+          6: { status: 'complete', message: `Score: ${result.validation.overallScore}`, durationMs: 0 },
+        },
+      });
+
+      addToast({
+        type: 'warning',
+        title: `Score ${result.validation.overallScore}/100 after ${result.iterations} iteration(s). Content applied — consider refining again.`,
+      });
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
