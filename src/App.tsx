@@ -12,6 +12,7 @@ import { WelcomeSidebar } from '@/components/layout/WelcomeSidebar';
 import { WorkspaceSidebar } from '@/components/layout/WorkspaceSidebar';
 import { ViewRouter } from '@/components/layout/ViewRouter';
 import { PlaceholderView } from '@/components/layout/PlaceholderView';
+import { ModalHost } from '@/components/layout/ModalHost';
 
 // ─── Layouts ────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ function WorkspaceLayout() {
         <ViewRouter />
       </div>
       {/* ChatPanel — Phase 13 */}
-      {/* ModalHost — Phase 7+ */}
+      <ModalHost />
     </>
   );
 }

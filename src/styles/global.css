@@ -70,6 +70,7 @@
   --col-text-primary: #000000;
   --col-text-subtle: #666666;
   --input-background: #F3F3F5;
+  --radius: 0.625rem;
 
   /* Component Colors */
   --ubs-color-header-bg: #FFFFFF;
@@ -194,6 +195,11 @@ body {
 }
 
 @keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ubsFade {
   from { opacity: 0; }
   to { opacity: 1; }
 }
