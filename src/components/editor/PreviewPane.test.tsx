@@ -1,5 +1,5 @@
 /**
- * Tests for PreviewPane — Live markdown rendering.
+ * Tests for PreviewPane — Live markdown rendering via react-markdown.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -27,13 +27,40 @@ describe('PreviewPane', () => {
     expect(h2?.textContent).toBe('Architecture Overview');
   });
 
-  it('_italic_ renders as italic paragraph', () => {
-    useEpicStore.setState({ markdown: '_Your content here..._' });
+  it('# Title renders as h1 element', () => {
+    useEpicStore.setState({ markdown: '# Epic Title' });
     render(<PreviewPane />);
     const content = screen.getByTestId('preview-content');
-    const italic = content.querySelector('p[style*="italic"]');
-    expect(italic).toBeDefined();
-    expect(italic?.textContent).toBe('Your content here...');
+    const h1 = content.querySelector('h1');
+    expect(h1).toBeDefined();
+    expect(h1?.textContent).toBe('Epic Title');
+  });
+
+  it('### Sub-heading renders as h3 element', () => {
+    useEpicStore.setState({ markdown: '### US-001: Login' });
+    render(<PreviewPane />);
+    const content = screen.getByTestId('preview-content');
+    const h3 = content.querySelector('h3');
+    expect(h3).toBeDefined();
+    expect(h3?.textContent).toBe('US-001: Login');
+  });
+
+  it('*italic* renders as em element', () => {
+    useEpicStore.setState({ markdown: '*Your content here*' });
+    render(<PreviewPane />);
+    const content = screen.getByTestId('preview-content');
+    const em = content.querySelector('em');
+    expect(em).toBeDefined();
+    expect(em?.textContent).toBe('Your content here');
+  });
+
+  it('**bold** renders as strong element', () => {
+    useEpicStore.setState({ markdown: '**Priority: high**' });
+    render(<PreviewPane />);
+    const content = screen.getByTestId('preview-content');
+    const strong = content.querySelector('strong');
+    expect(strong).toBeDefined();
+    expect(strong?.textContent).toBe('Priority: high');
   });
 
   it('normal text renders as paragraph', () => {
@@ -45,12 +72,27 @@ describe('PreviewPane', () => {
     expect(p?.textContent).toBe('Some regular text here');
   });
 
-  it('empty lines render as br', () => {
-    useEpicStore.setState({ markdown: 'Line 1\n\nLine 2' });
+  it('bullet list renders as ul', () => {
+    useEpicStore.setState({ markdown: '- Item one\n- Item two' });
     render(<PreviewPane />);
     const content = screen.getByTestId('preview-content');
-    const br = content.querySelector('br');
-    expect(br).toBeDefined();
+    const ul = content.querySelector('ul');
+    expect(ul).toBeDefined();
+    const items = content.querySelectorAll('li');
+    expect(items.length).toBe(2);
+  });
+
+  it('mermaid code block renders as pre (not diagram)', () => {
+    useEpicStore.setState({ markdown: '```mermaid\ngraph TD\n  A-->B\n```' });
+    render(<PreviewPane />);
+    const content = screen.getByTestId('preview-content');
+    const pre = content.querySelector('pre');
+    expect(pre).toBeDefined();
+    expect(pre?.textContent).toContain('graph TD');
+    // Should NOT have SVG diagram rendered
+    expect(content.querySelector('svg')).toBeNull();
+    // Should show "View in Blueprint tab" hint
+    expect(content.textContent).toContain('View in Blueprint tab');
   });
 
   it('content updates live when store changes', () => {
