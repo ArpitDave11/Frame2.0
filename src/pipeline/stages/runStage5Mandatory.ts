@@ -94,14 +94,15 @@ export async function runStage5Mandatory(
 
     // Validate and adjust story count
     const validatedStories = validateStoryCount(parsed.userStories, storyMin, storyMax);
-    const validatedDiagram = validateMermaidSyntax(parsed.architectureDiagram);
+    const syntaxChecked = validateMermaidSyntax(parsed.architectureDiagram);
+    const validatedDiagram = await fixMermaidWithAI(syntaxChecked, aiConfig, config.generationTemperature);
 
     // Assemble epic from refined sections + generated content
     const assembledEpic = assembleEpic(
       input.refinement.refinedSections,
       validatedDiagram,
       validatedStories,
-      input.classification.primaryCategory,
+      input.title || 'Untitled Epic',
     );
 
     const result: MandatoryOutput = {
@@ -164,6 +165,47 @@ export function validateMermaidSyntax(diagram: string): string {
   return isValid ? trimmed : `graph TD\n  A[Invalid diagram]\n  B[Original: ${firstLine.slice(0, 50)}]`;
 }
 
+/**
+ * Calls AI to fix Mermaid syntax issues — unquoted special characters,
+ * invalid node IDs, broken arrows, etc. Returns the fixed diagram.
+ */
+async function fixMermaidWithAI(
+  diagram: string,
+  aiConfig: AIClientConfig,
+  temperature: number,
+): Promise<string> {
+  // Quick check: does the diagram have labels with special chars that aren't quoted?
+  const needsFix = /\w+\[[^\]"]*[()\/&:;][^\]"]*\]/.test(diagram);
+  if (!needsFix) return diagram;
+
+  try {
+    const response = await callAI(aiConfig, {
+      systemPrompt: `You are a Mermaid diagram syntax expert. Fix the following Mermaid diagram so it renders without errors.
+
+Rules:
+- Any node label containing parentheses (), slashes /, ampersands &, colons :, or semicolons ; MUST have the label text wrapped in double quotes inside the brackets.
+- Example: A["SOC 2 / ISO 27001"] not A[SOC 2 / ISO 27001]
+- Example: B["E3 (Epic Management)"] not B[E3 (Epic Management)]
+- Do NOT change the diagram structure, nodes, edges, or subgraphs — ONLY fix the quoting.
+- Return ONLY the fixed Mermaid code, nothing else. No explanation, no markdown fences.`,
+      userPrompt: diagram,
+      temperature,
+    });
+
+    const fixed = response.content.trim();
+    // Sanity check: must still start with a valid directive
+    const firstLine = fixed.split('\n')[0]?.trim() ?? '';
+    if (VALID_MERMAID_DIRECTIVES.some((d) => firstLine.startsWith(d))) {
+      return fixed;
+    }
+    // AI returned garbage — use original
+    return diagram;
+  } catch {
+    // AI call failed — use original diagram as-is
+    return diagram;
+  }
+}
+
 // ─── Story Count Validation ─────────────────────────────────
 
 function validateStoryCount(
@@ -201,7 +243,7 @@ function assembleEpic(
   refinedSections: MandatoryInput['refinement']['refinedSections'],
   diagram: string,
   stories: readonly PipelineUserStory[],
-  category: string,
+  epicTitle: string,
 ): AssembledEpic {
   const sections: Array<{ id: string; title: string; content: string }> = [];
 
@@ -228,7 +270,7 @@ function assembleEpic(
   });
 
   return {
-    title: `${category} Epic`,
+    title: epicTitle,
     sections,
     metadata: {
       totalSections: sections.length,

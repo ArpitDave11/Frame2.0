@@ -38,6 +38,7 @@ Use prose format.
 Fixed content.
 </current_section>
 
+
 <output_format>
 Respond with a single JSON object matching this exact schema. Do not include any text outside the JSON.
 
@@ -135,6 +136,7 @@ Missing detail on error handling.
 
 Do NOT simply rephrase the previous content. Carefully read each piece of feedback and make targeted changes to resolve the identified problems. If the feedback mentions missing content, add it. If it mentions incorrect structure, fix the structure. If it mentions insufficient detail, expand with specifics.
 </previous_attempt_feedback>
+
 
 <output_format>
 Respond with a single JSON object matching this exact schema. Do not include any text outside the JSON.

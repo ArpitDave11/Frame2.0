@@ -49,6 +49,7 @@ const SAMPLE_INPUT: MandatoryInput = {
     gapAnalysis: [],
   },
   config: SAMPLE_CONFIG,
+  title: 'Test Epic Title',
 };
 
 function makeStories(count: number) {

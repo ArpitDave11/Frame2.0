@@ -25,6 +25,7 @@ export interface RefinementPromptVars {
   readonly wordTarget: number;
   readonly previousFeedback?: string;
   readonly iterationNumber: number;
+  readonly documentContext?: string;
   readonly fewShotExample?: string;
 }
 
@@ -140,6 +141,14 @@ ${formatInstruction}
 <current_section title="${sectionTitle}">
 ${sectionContent}
 </current_section>${feedbackSection}
+${vars.documentContext ? `
+<document_context>
+Below is the user's original input document. When generating or refining this section,
+derive content from this document. Do not invent information not present or clearly
+implied in this context.
+
+${vars.documentContext}
+</document_context>` : ''}
 
 <output_format>
 Respond with a single JSON object matching this exact schema. Do not include any text outside the JSON.

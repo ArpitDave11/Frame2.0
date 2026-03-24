@@ -76,6 +76,7 @@ export const sampleScore: SectionScore = {
 
 export const sampleTransformation: TransformationAction = {
   sectionId: 'sec-1',
+  displayName: 'Overview',
   action: 'restructure',
   details: 'Split into sub-sections for clarity.',
 };
@@ -264,6 +265,7 @@ export const sampleMandatoryInput: MandatoryInput = {
   classification: sampleClassification,
   comprehension: sampleComprehension,
   config: sampleConfig,
+  title: 'User Authentication Epic',
 };
 
 export const sampleValidationInput: ValidationInput = {

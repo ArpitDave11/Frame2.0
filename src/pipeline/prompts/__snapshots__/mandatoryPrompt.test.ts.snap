@@ -111,6 +111,18 @@ Follow these instructions precisely:
    - Edge labels should be concise (2–4 words)
    - Use proper Mermaid arrow syntax: \`-->\`, \`-.->>\`, \`==>>\`
    - Wrap node labels in square brackets: \`A[Service Name]\`
+   - CRITICAL: If a node label contains parentheses, slashes, ampersands, colons, or any other special characters, you MUST wrap the label text in double quotes inside the brackets. This prevents Mermaid syntax errors.
+
+     CORRECT:
+       soc["SOC 2 / ISO 27001"]
+       e3["E3 (Epic Management)"]
+       api["REST API: v2"]
+       ci["CI/CD Pipeline"]
+
+     WRONG (will break rendering):
+       soc[SOC 2 / ISO 27001]
+       e3[E3 (Epic Management)]
+       api[REST API: v2]
 
 ### User Story Generation
 1. Derive stories from the extracted requirements in the comprehension analysis.

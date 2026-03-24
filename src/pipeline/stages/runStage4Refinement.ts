@@ -63,7 +63,7 @@ export async function runStage4Refinement(
     onProgress?.({
       stageName: STAGE_NAME,
       status: 'running',
-      message: `Refining section ${sectionIndex}/${totalSections}: ${action.sectionId}`,
+      message: `Refining section ${sectionIndex}/${totalSections}: ${action.displayName || action.sectionId}`,
       timestamp: Date.now(),
     });
 
@@ -75,6 +75,7 @@ export async function runStage4Refinement(
         template,
         config,
         aiConfig,
+        input.rawContent,
         input.previousFeedback,
       );
 
@@ -88,11 +89,12 @@ export async function runStage4Refinement(
     } catch (error) {
       // Partial failure: log and continue with other sections
       const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`Stage 4: Failed to refine section "${action.displayName}":`, error);
       refinedSections.push({
         sectionId: action.sectionId,
-        title: action.sectionId,
-        content: `[Refinement failed: ${errMsg}]`,
-        formatUsed: 'prose',
+        title: action.displayName || action.sectionId,
+        content: `_Error generating this section: ${errMsg}_`,
+        formatUsed: 'error',
       });
     }
   }
@@ -135,6 +137,7 @@ async function refineSingleSection(
   template: ReturnType<typeof loadCategoryTemplate>,
   config: PipelineConfig,
   aiConfig: AIClientConfig,
+  rawContent: string,
   previousFeedback?: ValidationOutput,
 ): Promise<SectionRefinementResult> {
   const existingSection = discovered.find(
@@ -144,7 +147,7 @@ async function refineSingleSection(
   );
 
   const sectionContent = existingSection?.content ?? '';
-  const sectionTitle = existingSection?.title ?? action.sectionId;
+  const sectionTitle = action.displayName || existingSection?.title || action.sectionId;
 
   // "keep" — pass through unchanged, no AI call
   if (action.action === 'keep' && sectionContent) {
@@ -183,6 +186,7 @@ async function refineSingleSection(
     wordTarget,
     previousFeedback: sectionFeedback,
     iterationNumber,
+    documentContext: rawContent,
   });
 
   const response = await withRetry(
@@ -195,24 +199,30 @@ async function refineSingleSection(
     3,
   );
 
-  const parsed = parseRefinedSection(response.content);
+  // FIX: Use robust parseAIJson instead of old parseRefinedSection
+  const parsed = parseAIJson<{ sectionId?: string; title?: string; content?: string; formatUsed?: string }>(response.content);
 
-  if (!parsed) {
+  if (parsed && parsed.content) {
     return {
       sections: [{
         sectionId: action.sectionId,
-        title: sectionTitle,
-        content: sectionContent || '[AI produced unparseable output]',
-        formatUsed: sectionConfig?.format ?? 'prose',
+        title: sectionTitle,              // ALWAYS use displayName-derived title
+        content: parsed.content,
+        formatUsed: parsed.formatUsed ?? 'prose',
       }],
       tokensUsed: response.usage?.totalTokens ?? 0,
       model: response.model,
     };
   }
 
-  // Handle "split": AI returns one section, but we tag it as the focused sub-section
+  // Parse failed — use raw AI text as content. NEVER use '[AI produced unparseable output]'
   return {
-    sections: [parsed],
+    sections: [{
+      sectionId: action.sectionId,
+      title: sectionTitle,
+      content: response.content || sectionContent || `_Content for ${sectionTitle} could not be generated._`,
+      formatUsed: 'raw',
+    }],
     tokensUsed: response.usage?.totalTokens ?? 0,
     model: response.model,
   };
@@ -232,33 +242,32 @@ function extractSectionFeedback(
   return relevantItems.join('\n');
 }
 
-// ─── JSON Parsing ───────────────────────────────────────────
+// ─── Robust JSON Parsing ────────────────────────────────────
 
-function parseRefinedSection(content: string): PipelineRefinedSection | null {
-  const json = tryParseJSON(content) ?? tryExtractFromCodeBlock(content);
-  if (!json || typeof json !== 'object') return null;
+/**
+ * Robust JSON extraction from AI responses.
+ * AI models frequently wrap JSON in markdown code blocks.
+ * Tries 3 strategies. Returns parsed object or null (never throws).
+ */
+function parseAIJson<T = unknown>(raw: string): T | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
 
-  const obj = json as Record<string, unknown>;
-  const sectionId = typeof obj['sectionId'] === 'string' ? obj['sectionId'] : '';
-  const title = typeof obj['title'] === 'string' ? obj['title'] : '';
-  const sectionContent = typeof obj['content'] === 'string' ? obj['content'] : '';
-  const formatUsed = typeof obj['formatUsed'] === 'string' ? obj['formatUsed'] : 'prose';
+  // Strategy 1: Direct parse
+  try { return JSON.parse(trimmed) as T; } catch { /* continue */ }
 
-  if (!sectionId && !title && !sectionContent) return null;
-
-  return { sectionId: sectionId || title, title: title || sectionId, content: sectionContent, formatUsed };
-}
-
-function tryParseJSON(text: string): unknown {
-  try {
-    return JSON.parse(text.trim());
-  } catch {
-    return null;
+  // Strategy 2: Strip markdown code block wrappers
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+  if (codeBlockMatch?.[1]) {
+    try { return JSON.parse(codeBlockMatch[1].trim()) as T; } catch { /* continue */ }
   }
-}
 
-function tryExtractFromCodeBlock(text: string): unknown {
-  const match = /```(?:json)?\s*\n?([\s\S]*?)```/.exec(text);
-  if (!match?.[1]) return null;
-  return tryParseJSON(match[1]);
+  // Strategy 3: Extract between first { and last }
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try { return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1)) as T; } catch { /* continue */ }
+  }
+
+  return null;
 }

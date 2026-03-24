@@ -63,9 +63,9 @@ const VALID_STRUCTURAL_JSON = JSON.stringify({
     { sectionId: 'deployment', completeness: 4, relevance: 7, placement: 7, overall: 6 },
   ],
   transformationPlan: [
-    { sectionId: 'overview', action: 'keep', details: 'Good as is' },
-    { sectionId: 'architecture', action: 'restructure', details: 'Reorder subsections' },
-    { sectionId: 'deployment', action: 'add', details: 'Needs CI/CD details' },
+    { sectionId: 'overview', displayName: 'Overview', action: 'keep', details: 'Good as is' },
+    { sectionId: 'architecture', displayName: 'Architecture', action: 'restructure', details: 'Reorder subsections' },
+    { sectionId: 'deployment', displayName: 'Deployment', action: 'add', details: 'Needs CI/CD details' },
   ],
   missingSections: ['Security', 'Testing Strategy'],
 });
@@ -112,7 +112,7 @@ describe('runStage3Structural', () => {
     it('clamps out-of-range scores', async () => {
       const outOfRange = JSON.stringify({
         sectionScores: [{ sectionId: 'x', completeness: 0, relevance: 11, placement: -5, overall: 15 }],
-        transformationPlan: [{ sectionId: 'x', action: 'keep', details: '' }],
+        transformationPlan: [{ sectionId: 'x', displayName: 'X', action: 'keep', details: '' }],
         missingSections: [],
       });
       mockCallAI.mockResolvedValue({ content: outOfRange, model: 'gpt-4o' });

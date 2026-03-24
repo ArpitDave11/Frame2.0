@@ -46,7 +46,7 @@ const META = { stageName: 'test', duration: 100, tokensUsed: 500, model: 'gpt-4o
 
 const COMP_DATA = { keyEntities: [{ name: 'Svc', type: 'service', relationships: [] }], detectedGaps: [], implicitRisks: [], semanticSections: [], extractedRequirements: [{ id: 'REQ-001', description: 'x', priority: 'high' as const, source: 'S1' }], gapAnalysis: [] };
 const CLASS_DATA = { primaryCategory: 'technical_design' as const, confidence: 0.9, categoryConfig: {}, reasoning: 'tech' };
-const STRUCT_DATA = { sectionScores: [], transformationPlan: [{ sectionId: 'overview', action: 'keep' as const, details: '' }], missingSections: [] };
+const STRUCT_DATA = { sectionScores: [], transformationPlan: [{ sectionId: 'overview', displayName: 'Overview', action: 'keep' as const, details: '' }], missingSections: [] };
 const REFINE_DATA = { refinedSections: [{ sectionId: 'overview', title: 'Overview', content: 'Refined content.', formatUsed: 'prose' }] };
 const MANDATORY_DATA = { architectureDiagram: 'graph TD\n  A-->B', userStories: [{ id: 'US-001', title: 'Login', asA: 'user', iWant: 'login', soThat: 'access', acceptanceCriteria: ['AC1'], priority: 'high' as const }], assembledEpic: { title: 'Epic', sections: [{ id: 'overview', title: 'Overview', content: 'Content' }], metadata: {} } };
 

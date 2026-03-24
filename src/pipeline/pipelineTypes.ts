@@ -47,6 +47,7 @@ export interface SectionScore {
 
 export interface TransformationAction {
   readonly sectionId: string;
+  readonly displayName: string;
   readonly action: 'keep' | 'restructure' | 'merge' | 'split' | 'add';
   readonly details: string;
 }
@@ -224,6 +225,7 @@ export interface MandatoryInput {
   readonly classification: ClassificationOutput;
   readonly comprehension: ComprehensionOutput;
   readonly config: PipelineConfig;
+  readonly title: string;
 }
 
 export interface ValidationInput {

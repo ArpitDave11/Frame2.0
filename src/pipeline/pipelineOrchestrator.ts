@@ -142,6 +142,7 @@ export async function runPremiumPipeline(
           classification: s2.data,
           comprehension: s1.data,
           config,
+          title,
         },
         config, aiConfig, onProgress,
       );

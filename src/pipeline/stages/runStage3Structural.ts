@@ -220,8 +220,15 @@ function normalizeAction(raw: unknown): TransformationAction {
     ? (rawAction as TransformationAction['action'])
     : 'restructure';
 
+  const sectionId = typeof obj['sectionId'] === 'string' ? obj['sectionId'] : 'unknown';
+  // displayName: prefer explicit field from AI, fall back to un-slugifying the sectionId
+  const displayName = typeof obj['displayName'] === 'string'
+    ? obj['displayName']
+    : sectionId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
   return {
-    sectionId: typeof obj['sectionId'] === 'string' ? obj['sectionId'] : 'unknown',
+    sectionId,
+    displayName,
     action,
     details: typeof obj['details'] === 'string' ? obj['details'] : '',
   };
@@ -254,9 +261,20 @@ function buildFallbackOutput(
 
   const transformationPlan: TransformationAction[] = discovered.map((s) => ({
     sectionId: s.normalizedTitle.replace(/\s+/g, '-'),
+    displayName: s.title,
     action: s.wordCount < 30 ? 'add' as const : 'restructure' as const,
     details: s.wordCount < 30 ? 'Section is a stub — needs substantial content' : 'Restructure for category alignment',
   }));
+
+  // Add 'add' actions for missing template sections
+  for (const name of missing) {
+    transformationPlan.push({
+      sectionId: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      displayName: name,
+      action: 'add',
+      details: `Generate ${name} section`,
+    });
+  }
 
   return { sectionScores, transformationPlan, missingSections: missing };
 }

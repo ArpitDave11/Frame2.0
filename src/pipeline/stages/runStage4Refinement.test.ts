@@ -43,6 +43,7 @@ const makeInput = (actions: Array<{ sectionId: string; action: string; details: 
     sectionScores: [],
     transformationPlan: actions.map((a) => ({
       sectionId: a.sectionId,
+      displayName: a.sectionId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
       action: a.action as 'keep' | 'restructure' | 'merge' | 'split' | 'add',
       details: a.details,
     })),
@@ -268,7 +269,7 @@ describe('runStage4Refinement', () => {
 
       expect(result.success).toBe(true);
       expect(result.data.refinedSections).toHaveLength(2);
-      expect(result.data.refinedSections[0]!.content).toContain('Refinement failed');
+      expect(result.data.refinedSections[0]!.content).toContain('Error generating this section');
       expect(result.data.refinedSections[1]!.content).toContain('Refined overview content');
     });
   });
@@ -281,7 +282,7 @@ describe('runStage4Refinement', () => {
       const result = await runStage4Refinement(input, SAMPLE_CONFIG, SAMPLE_AI_CONFIG);
 
       expect(result.success).toBe(false);
-      expect(result.data.refinedSections[0]!.content).toContain('Refinement failed');
+      expect(result.data.refinedSections[0]!.content).toContain('Error generating this section');
     });
   });
 });
