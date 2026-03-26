@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
 export default defineConfig({
+  base: '/frame/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -13,7 +14,7 @@ export default defineConfig({
     port: 3002,
     proxy: {
       '/gitlab-api': {
-        target: process.env.VITE_GITLAB_BASE_URL || 'https://gitlab.com/api/v4',
+        target: process.env.VITE_GITLAB_BASE_URL || 'https://devcloud.ubs.net/api/v4',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/gitlab-api/, ''),
         secure: false,

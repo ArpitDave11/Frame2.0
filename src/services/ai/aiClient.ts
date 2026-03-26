@@ -79,7 +79,12 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
 
 function buildAzureRequest(config: AIClientConfig): { url: string; headers: Record<string, string> } {
   const { azure } = config;
-  const base = azure.endpoint.replace(/\/$/, '');
+  // Use azure.endpoint if set, otherwise fall back to endpoints.azureEndpoint
+  // (Settings UI writes to endpoints.azureEndpoint, not azure.endpoint)
+  const base = (azure.endpoint || config.endpoints.azureEndpoint).replace(/\/$/, '');
+  if (!base) {
+    throw new Error('Azure OpenAI endpoint is not configured. Please set it in Settings.');
+  }
   const url = `${base}/openai/deployments/${azure.deploymentName}/chat/completions?api-version=${azure.apiVersion}`;
   return { url, headers: { 'api-key': azure.apiKey } };
 }
