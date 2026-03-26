@@ -62,11 +62,32 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`AI request failed (${response.status}): ${text}`);
+    const { status } = response;
+
+    // Actionable error messages for common failures
+    if (status === 429) {
+      const retryAfter = response.headers.get('Retry-After');
+      throw new Error(`Rate limit exceeded (429). ${retryAfter ? `Retry after ${retryAfter}s.` : 'Wait and try again.'}`);
+    }
+    if (status === 401) {
+      throw new Error('Authentication failed (401). Check your API key in Settings.');
+    }
+    if (text.includes('max_tokens')) {
+      throw new Error(`Token limit error: ${text}. Try reducing Max Tokens in Settings.`);
+    }
+    if (text.includes('temperature')) {
+      throw new Error(`Temperature error: ${text}. Reasoning models (GPT-5) do not support temperature.`);
+    }
+    throw new Error(`AI request failed (${status}): ${text}`);
   }
 
   const data = await response.json();
   const choice = data.choices?.[0]?.message?.content ?? '';
+
+  if (!choice || choice.trim().length === 0) {
+    const finishReason = data.choices?.[0]?.finish_reason ?? 'unknown';
+    throw new Error(`AI returned an empty response (finish_reason: ${finishReason}). The model may have run out of tokens or content was filtered.`);
+  }
 
   return {
     content: choice,
@@ -136,7 +157,7 @@ export function getSafeModelParams(config: AppConfig): { maxTokens: number; defa
     ? config.ai.azure.model
     : config.ai.provider === 'openai'
       ? config.ai.openai.model
-      : 'gpt-4';
+      : 'gpt-4.1';
 
   return MODEL_LIMITS[detectModelFamily(model)];
 }

@@ -139,8 +139,9 @@ describe('callAI', () => {
       status: 429,
       statusText: 'Too Many Requests',
       text: async () => 'Rate limited',
+      headers: { get: () => null },
     });
-    await expect(callAI(AZURE_CONFIG, REQUEST)).rejects.toThrow('AI request failed (429)');
+    await expect(callAI(AZURE_CONFIG, REQUEST)).rejects.toThrow('Rate limit exceeded (429)');
   });
 });
 
