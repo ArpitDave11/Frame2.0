@@ -37,10 +37,16 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
     bodyObj.model = config.openai.model;
   }
 
+  // Use requested tokens, fall back to safe default, cap at model ceiling
+  const effectiveMaxTokens = Math.min(
+    request.maxTokens ?? limits.defaultTokens,
+    limits.maxTokens,
+  );
+
   if (limits.isReasoning) {
-    bodyObj.max_completion_tokens = request.maxTokens ?? limits.maxTokens;
+    bodyObj.max_completion_tokens = effectiveMaxTokens;
   } else {
-    bodyObj.max_tokens = request.maxTokens ?? limits.maxTokens;
+    bodyObj.max_tokens = effectiveMaxTokens;
     if (request.temperature != null) {
       bodyObj.temperature = request.temperature;
     }
@@ -125,7 +131,7 @@ export function detectModelFamily(modelName: string): ModelFamily {
   return 'gpt-4.1';
 }
 
-export function getSafeModelParams(config: AppConfig): { maxTokens: number; temperature: number; isReasoning: boolean } {
+export function getSafeModelParams(config: AppConfig): { maxTokens: number; defaultTokens: number; temperature: number; isReasoning: boolean } {
   const model = config.ai.provider === 'azure'
     ? config.ai.azure.model
     : config.ai.provider === 'openai'
