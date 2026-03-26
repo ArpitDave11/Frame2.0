@@ -14,6 +14,7 @@ import type {
   GitLabEpicChild,
   GitLabLabel,
   GitLabIssue,
+  GitLabNote,
   GitLabGroupMetadata,
   GitLabSubgroup,
   GitLabBranch,
@@ -23,6 +24,8 @@ import type {
   GitLabLabelResult,
   GitLabEpicChildrenResult,
   GitLabIssueResult,
+  GitLabNoteResult,
+  GitLabNoteListResult,
   GitLabPublishResult,
   GitLabGroupMetadataResult,
   GitLabSubgroupResult,
@@ -276,6 +279,29 @@ export async function fetchEpicIssues(
   epicIid: number,
 ): Promise<{ success: boolean; data?: GitLabIssue[]; error?: string }> {
   const result = await gitlabGet<GitLabIssue[]>(config, `/groups/${groupId}/epics/${epicIid}/issues`);
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
+// ─── Issue Notes ─────────────────────────────────────────────
+
+export async function fetchIssueNotes(
+  config: GitLabConfig,
+  projectId: number,
+  issueIid: number,
+): Promise<GitLabNoteListResult> {
+  const result = await gitlabGet<GitLabNote[]>(config, `/projects/${projectId}/issues/${issueIid}/notes?sort=asc&per_page=50`);
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
+export async function addIssueNote(
+  config: GitLabConfig,
+  projectId: number,
+  issueIid: number,
+  body: string,
+): Promise<GitLabNoteResult> {
+  const result = await gitlabPost<GitLabNote>(config, `/projects/${projectId}/issues/${issueIid}/notes`, { body });
   if (!result.ok) return { success: false, error: result.error };
   return { success: true, data: result.data };
 }

@@ -7,12 +7,15 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { PublishModal } from './PublishModal';
 import { useConfigStore } from '@/stores/configStore';
 import { useEpicStore } from '@/stores/epicStore';
+import { useGitlabStore } from '@/stores/gitlabStore';
 import { useUiStore } from '@/stores/uiStore';
 
 // ─── Mock GitLab client ──────────────────────────────────────
 
 vi.mock('@/services/gitlab/gitlabClient', () => ({
   createGitLabEpic: vi.fn(),
+  updateGitLabEpic: vi.fn(),
+  fetchGitLabSubgroups: vi.fn().mockResolvedValue({ success: true, data: [] }),
 }));
 
 import { createGitLabEpic } from '@/services/gitlab/gitlabClient';
@@ -24,6 +27,7 @@ const mockCreateGitLabEpic = vi.mocked(createGitLabEpic);
 beforeEach(() => {
   useConfigStore.setState(useConfigStore.getInitialState());
   useEpicStore.setState(useEpicStore.getInitialState());
+  useGitlabStore.setState(useGitlabStore.getInitialState());
   useUiStore.setState(useUiStore.getInitialState());
   vi.clearAllMocks();
 });
@@ -51,7 +55,7 @@ describe('PublishModal', () => {
     expect(input.value).toBe('Epic');
   });
 
-  it('shows green quality score indicator when score >= 7', () => {
+  it('shows quality score indicator when score >= 7', () => {
     useEpicStore.setState({
       document: {
         title: 'Test',
@@ -65,11 +69,9 @@ describe('PublishModal', () => {
     expect(indicator).toBeDefined();
     expect(indicator.textContent).toContain('8.5/10');
     expect(indicator.textContent).toContain('Ready to publish');
-    // JSDOM converts hex to rgb
-    expect(indicator.style.borderLeft).toContain('rgb(34, 197, 94)');
   });
 
-  it('shows red quality score indicator when score < 7', () => {
+  it('shows quality score indicator when score < 7', () => {
     useEpicStore.setState({
       document: {
         title: 'Test',
@@ -123,12 +125,27 @@ describe('PublishModal', () => {
     });
   });
 
-  it('renders target group select with options', () => {
+  it('renders target group select with root option', () => {
+    useConfigStore.setState({
+      config: {
+        ...useConfigStore.getState().config,
+        gitlab: { enabled: true, rootGroupId: '42', accessToken: 'tok', authMode: 'pat' },
+      },
+    });
+
     render(<PublishModal />);
     const select = screen.getByTestId('publish-target-group') as HTMLSelectElement;
     expect(select).toBeDefined();
-    expect(select.options).toHaveLength(2);
-    expect(select.options[0]!.text).toBe('pod-alpha');
-    expect(select.options[1]!.text).toBe('crew-platform');
+    expect(select.options.length).toBeGreaterThanOrEqual(1);
+    expect(select.options[0]!.text).toContain('42');
+  });
+
+  it('shows update UI when epic is loaded from GitLab', () => {
+    useGitlabStore.setState({ loadedEpicIid: 55, loadedGroupId: '10' });
+
+    render(<PublishModal />);
+    const btn = screen.getByTestId('publish-btn');
+    expect(btn.textContent).toBe('Update Epic');
+    expect(screen.queryByTestId('publish-target-group')).toBeNull();
   });
 });

@@ -67,12 +67,12 @@ describe('WelcomeScreen', () => {
     expect(useUiStore.getState().activeModal).toBe('loadEpic');
   });
 
-  it('all 7 template cards rendered', () => {
+  it('all 8 template cards rendered', () => {
     render(<WelcomeScreen />);
     for (const cat of EPIC_CATEGORIES) {
       expect(screen.getByTestId(`template-${cat.id}`)).toBeDefined();
     }
-    expect(EPIC_CATEGORIES).toHaveLength(7);
+    expect(EPIC_CATEGORIES).toHaveLength(8);
   });
 
   it('lifecycle shows 5 stages', () => {

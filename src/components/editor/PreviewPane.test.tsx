@@ -82,17 +82,12 @@ describe('PreviewPane', () => {
     expect(items.length).toBe(2);
   });
 
-  it('mermaid code block renders as pre (not diagram)', () => {
+  it('mermaid code block renders MermaidBlock component', () => {
     useEpicStore.setState({ markdown: '```mermaid\ngraph TD\n  A-->B\n```' });
     render(<PreviewPane />);
     const content = screen.getByTestId('preview-content');
-    const pre = content.querySelector('pre');
-    expect(pre).toBeDefined();
-    expect(pre?.textContent).toContain('graph TD');
-    // Should NOT have SVG diagram rendered
-    expect(content.querySelector('svg')).toBeNull();
-    // Should show "View in Blueprint tab" hint
-    expect(content.textContent).toContain('View in Blueprint tab');
+    // In test environment, mermaid.render is async — shows "Rendering diagram..." loading state initially
+    expect(content.textContent).toContain('Rendering diagram');
   });
 
   it('content updates live when store changes', () => {

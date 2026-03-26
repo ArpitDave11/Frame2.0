@@ -25,6 +25,8 @@ export interface ClassificationPromptVars {
 // ─── Category Descriptions ──────────────────────────────────
 
 const CATEGORY_DESCRIPTIONS: Record<EpicCategory, string> = {
+  general:
+    'General-purpose documents that do not fit a specific category. The AI pipeline will analyze the content and apply the most appropriate structure.',
   business_requirement:
     'Business requirement documents for stakeholders — objectives, KPIs, process flows, and RACI matrices. Tone: professional and business-oriented.',
   technical_design:

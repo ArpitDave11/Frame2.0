@@ -18,6 +18,7 @@ interface EpicState {
   previousMarkdown: string | null;
   complexity: ComplexityLevel;
   userEditedSections: string[];
+  sla: number | null;
 }
 
 interface EpicActions {
@@ -28,6 +29,8 @@ interface EpicActions {
   trackUserEdit: (sectionTitle: string) => void;
   applyRefinedEpic: (md: string) => void;
   setQualityScore: (score: number) => void;
+  setCategory: (category: string) => void;
+  setSla: (days: number | null) => void;
   undo: () => void;
   reset: () => void;
 }
@@ -43,6 +46,7 @@ const INITIAL_STATE: EpicState = {
   previousMarkdown: null,
   complexity: 'moderate',
   userEditedSections: [],
+  sla: null,
 };
 
 // ─── Store ──────────────────────────────────────────────────
@@ -121,6 +125,17 @@ export const useEpicStore = create<EpicStore>()((set, get) => ({
         },
       });
     }
+  },
+
+  setCategory: (category) => {
+    const { document } = get();
+    if (document) {
+      set({ document: { ...document, category: category as EpicDocument['category'] } });
+    }
+  },
+
+  setSla: (days) => {
+    set({ sla: days });
   },
 
   undo: () => {

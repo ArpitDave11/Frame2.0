@@ -42,6 +42,17 @@ export interface GitLabIssue {
   state: string;
   web_url: string;
   labels: string[];
+  assignee?: string | null;
+  created_at?: string;
+  project_id?: number;
+}
+
+export interface GitLabNote {
+  id: number;
+  body: string;
+  author: { name: string; username: string; avatar_url?: string };
+  created_at: string;
+  system: boolean;
 }
 
 export interface GitLabGroupMetadata {
@@ -126,6 +137,18 @@ export interface GitLabSubgroupResult {
 
 export interface GitLabConnectionResult {
   success: boolean;
+  error?: string;
+}
+
+export interface GitLabNoteResult {
+  success: boolean;
+  data?: GitLabNote;
+  error?: string;
+}
+
+export interface GitLabNoteListResult {
+  success: boolean;
+  data?: GitLabNote[];
   error?: string;
 }
 

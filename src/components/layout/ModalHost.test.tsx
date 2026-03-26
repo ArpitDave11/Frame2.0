@@ -62,6 +62,6 @@ describe('ModalHost', () => {
   it('activeModal=issueCreation renders Issue Creation modal', () => {
     useUiStore.setState({ activeModal: 'issueCreation' });
     render(<ModalHost />);
-    expect(screen.getByTestId('modal-title').textContent).toBe('Create Issues');
+    expect(screen.getByTestId('modal-title').textContent).toBe('Create Issues from User Stories');
   });
 });

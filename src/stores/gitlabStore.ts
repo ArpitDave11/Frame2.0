@@ -6,50 +6,14 @@
  */
 
 import { create } from 'zustand';
+import type { GitLabEpic, GitLabEpicChild, GitLabLabel, GitLabIssue } from '@/services/gitlab/types';
 
-// ─── GitLab API Types (placeholder — Phase 14 will provide full definitions) ──
-
-export interface GitLabEpic {
-  id: number;
-  iid: number;
-  title: string;
-  description: string;
-  state: string;
-  web_url: string;
-  labels: string[];
-  created_at: string;
-  updated_at: string;
-  group_id: number;
-}
-
-export interface GitLabEpicChild {
-  id: number;
-  iid: number;
-  title: string;
-  type: 'epic' | 'issue';
-}
-
-export interface GitLabLabel {
-  id: number;
-  name: string;
-  color: string;
-  description?: string;
-}
+// Re-export so existing imports from '@/stores/gitlabStore' still work
+export type { GitLabEpic, GitLabEpicChild, GitLabLabel, GitLabIssue };
 
 export interface GroupCacheEntry {
   subgroups: { id: string; name: string; full_path: string }[];
   fetchedAt: number;
-}
-
-export interface GitLabIssue {
-  id: number;
-  iid: number;
-  title: string;
-  state: 'opened' | 'closed';
-  labels: string[];
-  assignee: string | null;
-  web_url: string;
-  created_at: string;
 }
 
 export type IssueFilter = 'all' | 'active' | 'blocked';
@@ -91,6 +55,10 @@ interface GitlabState {
   issueFilter: IssueFilter;
   issueSearchQuery: string;
 
+  // Loaded epic context (set when user loads an epic from GitLab)
+  loadedEpicIid: number | null;
+  loadedGroupId: string | null;
+
   // Load modal
   loadModalOpen: boolean;
   loadSearchTerm: string;
@@ -115,6 +83,8 @@ interface GitlabActions {
   selectIssue: (id: string | null) => void;
   setIssueFilter: (filter: IssueFilter) => void;
   setIssueSearchQuery: (query: string) => void;
+  setLoadedEpicContext: (epicIid: number, groupId: string) => void;
+  clearLoadedEpicContext: () => void;
   openLoadModal: () => void;
   closeLoadModal: () => void;
   reset: () => void;
@@ -151,6 +121,9 @@ const INITIAL_STATE: GitlabState = {
   selectedIssueId: null,
   issueFilter: 'all',
   issueSearchQuery: '',
+
+  loadedEpicIid: null,
+  loadedGroupId: null,
 
   loadModalOpen: false,
   loadSearchTerm: '',
@@ -197,7 +170,7 @@ export const useGitlabStore = create<GitlabStore>()((set, get) => ({
     const { breadcrumb } = get();
     if (breadcrumb.length === 0) return;
     const newBreadcrumb = breadcrumb.slice(0, -1);
-    const parentId = newBreadcrumb.length > 0 ? newBreadcrumb[newBreadcrumb.length - 1].id : '';
+    const parentId = newBreadcrumb.length > 0 ? newBreadcrumb[newBreadcrumb.length - 1]!.id : '';
     set({
       breadcrumb: newBreadcrumb,
       currentGroupId: parentId,
@@ -230,6 +203,14 @@ export const useGitlabStore = create<GitlabStore>()((set, get) => ({
 
   setIssueSearchQuery: (query) => {
     set({ issueSearchQuery: query });
+  },
+
+  setLoadedEpicContext: (epicIid, groupId) => {
+    set({ loadedEpicIid: epicIid, loadedGroupId: groupId });
+  },
+
+  clearLoadedEpicContext: () => {
+    set({ loadedEpicIid: null, loadedGroupId: null, issues: [] });
   },
 
   openLoadModal: () => {

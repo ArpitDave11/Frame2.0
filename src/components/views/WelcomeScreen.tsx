@@ -172,8 +172,13 @@ export function WelcomeScreen() {
     if (categoryId) {
       const cat = EPIC_CATEGORIES.find((c) => c.id === categoryId);
       if (cat) {
-        const md = cat.secs.map((s) => `## ${s}\n\n_Your content here..._\n`).join('\n');
-        setMarkdown(md);
+        if (cat.secs.length > 0) {
+          const md = cat.secs.map((s) => `## ${s}\n\n_Your content here..._\n`).join('\n');
+          setMarkdown(md);
+        } else {
+          // General category: set minimal prompt so editor enters active mode
+          setMarkdown('# \n\n_Start writing your epic here..._\n');
+        }
       }
     }
     setActiveView('workspace');

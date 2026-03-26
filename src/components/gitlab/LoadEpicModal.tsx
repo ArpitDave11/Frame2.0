@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useConfigStore } from '@/stores/configStore';
 import { useEpicStore } from '@/stores/epicStore';
+import { useGitlabStore } from '@/stores/gitlabStore';
 import { useUiStore } from '@/stores/uiStore';
 import { fetchGroupEpics, fetchEpicDetails } from '@/services/gitlab/gitlabClient';
 import type { GitLabEpic } from '@/services/gitlab/types';
@@ -35,7 +36,7 @@ export function LoadEpicModal() {
     let cancelled = false;
     setLoading(true);
 
-    fetchGroupEpics(config.gitlab, config.gitlab.rootGroupId).then((result) => {
+    fetchGroupEpics(config.gitlab, config.gitlab.rootGroupId, { include_descendant_groups: true }).then((result) => {
       if (cancelled) return;
       setLoading(false);
       if (result.success && result.data) {
@@ -53,11 +54,12 @@ export function LoadEpicModal() {
   const handleEpicClick = useCallback(
     async (epic: GitLabEpic) => {
       setLoading(true);
-      const result = await fetchEpicDetails(config.gitlab, config.gitlab.rootGroupId, epic.iid);
+      const result = await fetchEpicDetails(config.gitlab, String(epic.group_id || config.gitlab.rootGroupId), epic.iid);
       setLoading(false);
 
       if (result.success && result.data) {
         setMarkdown(result.data.description ?? '');
+        useGitlabStore.getState().setLoadedEpicContext(epic.iid, String(epic.group_id || config.gitlab.rootGroupId));
         closeModal();
         setActiveView('workspace');
         addToast({ type: 'success', title: `Loaded epic: ${epic.title}` });

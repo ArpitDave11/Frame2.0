@@ -67,6 +67,8 @@ export interface PipelineUserStory {
   readonly soThat: string;
   readonly acceptanceCriteria: readonly string[];
   readonly priority: 'high' | 'medium' | 'low';
+  readonly storyPoints?: number;           // Fibonacci: 1, 2, 3, or 5
+  readonly testCases?: readonly string[];  // functional test cases for this story
 }
 
 export interface AssembledEpic {
@@ -162,6 +164,7 @@ export interface PipelineConfig {
   readonly validationTemperature: number;      // Stage 6 — default 0.7
   readonly classificationTemperature: number;  // Stage 2 — default 0.5
   readonly userApprovedSections: readonly string[];  // section IDs the user has manually edited
+  readonly sla?: number;  // optional SLA in business days (= total story point capacity)
 }
 
 export interface PipelineProgress {

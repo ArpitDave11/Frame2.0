@@ -17,6 +17,7 @@ const FIXTURE_VARS: MandatoryPromptVars = {
   storyCountMax: 15,
   complexityLevel: 'moderate',
   existingEntities: ['AuthService', 'Database', 'APIGateway', 'NotificationService'],
+  includeStoryPoints: true,
 };
 
 describe('mandatoryPrompt', () => {
@@ -196,6 +197,7 @@ describe('mandatoryPrompt', () => {
         storyCountMax: 8,
         complexityLevel: 'simple',
         existingEntities: ['ServiceA', 'ServiceB'],
+        includeStoryPoints: false,
       };
       expect(buildMandatoryPrompt(fixedVars)).toMatchSnapshot();
     });

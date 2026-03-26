@@ -58,6 +58,8 @@ export async function runStage5Mandatory(
       storyCountMax: storyMax,
       complexityLevel: config.complexity,
       existingEntities: entityNames,
+      sla: config.sla,
+      includeStoryPoints: config.sla !== undefined || config.complexity !== 'simple',
     });
 
     const response = await withRetry(
@@ -96,17 +98,18 @@ export async function runStage5Mandatory(
     const validatedStories = validateStoryCount(parsed.userStories, storyMin, storyMax);
     const syntaxChecked = validateMermaidSyntax(parsed.architectureDiagram);
     const validatedDiagram = await fixMermaidWithAI(syntaxChecked, aiConfig, config.generationTemperature);
+    const themedDiagram = applyDiagramTheme(validatedDiagram);
 
     // Assemble epic from refined sections + generated content
     const assembledEpic = assembleEpic(
       input.refinement.refinedSections,
-      validatedDiagram,
+      themedDiagram,
       validatedStories,
-      input.title || 'Untitled Epic',
+      input.title || parsed.generatedTitle,
     );
 
     const result: MandatoryOutput = {
-      architectureDiagram: validatedDiagram,
+      architectureDiagram: themedDiagram,
       userStories: validatedStories,
       assembledEpic,
     };
@@ -234,6 +237,8 @@ function validateStory(raw: PipelineUserStory): PipelineUserStory {
       ? raw.acceptanceCriteria.slice(0, 5)
       : ['Acceptance criteria not specified'],
     priority: raw.priority || 'medium',
+    ...(raw.storyPoints !== undefined ? { storyPoints: raw.storyPoints } : {}),
+    ...(raw.testCases !== undefined && raw.testCases.length > 0 ? { testCases: raw.testCases } : {}),
   };
 }
 
@@ -260,9 +265,17 @@ function assembleEpic(
   });
 
   // Add user stories section
-  const storyLines = stories.map((s) =>
-    `### ${s.id}: ${s.title}\n**As a** ${s.asA}, **I want** ${s.iWant}, **So that** ${s.soThat}\n\n**Acceptance Criteria:**\n${s.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}\n\n**Priority:** ${s.priority}`,
-  );
+  const storyLines = stories.map((s) => {
+    let md = `### ${s.id}: ${s.title}`;
+    if (s.storyPoints) md += `\n**Story Points:** ${s.storyPoints}`;
+    md += `\n**As a** ${s.asA}, **I want** ${s.iWant}, **So that** ${s.soThat}`;
+    md += `\n\n**Acceptance Criteria:**\n${s.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}`;
+    md += `\n\n**Priority:** ${s.priority}`;
+    if (s.testCases && s.testCases.length > 0) {
+      md += `\n\n**Test Cases:**\n${s.testCases.map((tc, i) => `${i + 1}. ${tc}`).join('\n')}`;
+    }
+    return md;
+  });
   sections.push({
     id: 'user-stories',
     title: 'User Stories',
@@ -295,17 +308,38 @@ function parseMandatoryResponse(content: string): ParsedMandatory | null {
 
   const stories: PipelineUserStory[] = rawStories.map(normalizeStory);
 
-  return { architectureDiagram: diagram, userStories: stories };
+  // Extract AI-generated title from assembledEpic (used when no title provided)
+  const asmEpic = typeof obj['assembledEpic'] === 'object' && obj['assembledEpic'] !== null
+    ? obj['assembledEpic'] as Record<string, unknown>
+    : {};
+  const generatedTitle = typeof asmEpic['title'] === 'string' && asmEpic['title'].length > 0
+    ? asmEpic['title']
+    : 'Untitled Epic';
+
+  return { architectureDiagram: diagram, userStories: stories, generatedTitle };
 }
 
 interface ParsedMandatory {
   architectureDiagram: string;
   userStories: PipelineUserStory[];
+  generatedTitle: string;
 }
 
 function normalizeStory(raw: unknown): PipelineUserStory {
   const obj = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
   const priority = typeof obj['priority'] === 'string' ? obj['priority'] : '';
+
+  // Parse storyPoints (optional)
+  const rawPoints = typeof obj['storyPoints'] === 'number' ? obj['storyPoints'] : undefined;
+  const storyPoints = rawPoints !== undefined
+    ? ([1, 2, 3, 5].includes(rawPoints) ? rawPoints : Math.min(5, Math.max(1, Math.round(rawPoints))))
+    : undefined;
+
+  // Parse testCases (optional)
+  const testCases = Array.isArray(obj['testCases'])
+    ? (obj['testCases'] as unknown[]).filter((v): v is string => typeof v === 'string')
+    : undefined;
+
   return {
     id: typeof obj['id'] === 'string' ? obj['id'] : `US-fallback-${++storyIdCounter}`,
     title: typeof obj['title'] === 'string' ? obj['title'] : 'Untitled',
@@ -316,6 +350,8 @@ function normalizeStory(raw: unknown): PipelineUserStory {
       ? (obj['acceptanceCriteria'] as unknown[]).filter((v): v is string => typeof v === 'string')
       : [],
     priority: (priority === 'high' || priority === 'medium' || priority === 'low') ? priority : 'medium',
+    ...(storyPoints !== undefined ? { storyPoints } : {}),
+    ...(testCases !== undefined && testCases.length > 0 ? { testCases } : {}),
   };
 }
 
@@ -327,6 +363,34 @@ function tryExtractFromCodeBlock(text: string): unknown {
   const match = /```(?:json)?\s*\n?([\s\S]*?)```/.exec(text);
   if (!match?.[1]) return null;
   return tryParseJSON(match[1]);
+}
+
+// ─── Diagram Theme Injection (colorblind-safe palette) ──────
+
+function applyDiagramTheme(diagramCode: string): string {
+  if (diagramCode.includes('%%{init:')) return diagramCode;
+
+  const themeInit = `%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#0072B2',
+  'primaryTextColor': '#ffffff',
+  'primaryBorderColor': '#005A8C',
+  'secondaryColor': '#56B4E9',
+  'secondaryTextColor': '#ffffff',
+  'secondaryBorderColor': '#0072B2',
+  'tertiaryColor': '#E69F00',
+  'tertiaryTextColor': '#000000',
+  'tertiaryBorderColor': '#CC8800',
+  'lineColor': '#64748B',
+  'textColor': '#1F2937',
+  'mainBkg': '#FAFAFA',
+  'nodeBorder': '#E5E7EB',
+  'clusterBkg': '#F0F9FF',
+  'clusterBorder': '#BAE6FD',
+  'edgeLabelBackground': 'transparent',
+  'fontSize': '14px'
+}}}%%
+`;
+  return themeInit + diagramCode;
 }
 
 // ─── Empty Output ───────────────────────────────────────────

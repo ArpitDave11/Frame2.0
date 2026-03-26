@@ -11,8 +11,10 @@ import {
   CornersOut,
   CornersIn,
   DownloadSimple,
+  ArrowsClockwise,
 } from '@phosphor-icons/react';
 import { useBlueprintStore } from '@/stores/blueprintStore';
+import { regenerateBlueprintAction } from '@/actions/regenerateBlueprintAction';
 
 const BTN: React.CSSProperties = {
   width: 28,
@@ -64,6 +66,7 @@ export function DiagramControls() {
   const isFullscreen = useBlueprintStore((s) => s.isFullscreen);
   const toggleFullscreen = useBlueprintStore((s) => s.toggleFullscreen);
   const svgContent = useBlueprintStore((s) => s.svgContent);
+  const isGenerating = useBlueprintStore((s) => s.isGenerating);
 
   function handleExportSvg() {
     if (!svgContent) return;
@@ -121,6 +124,16 @@ export function DiagramControls() {
         zIndex: 20,
       }}
     >
+      <CtrlButton
+        label="Regenerate diagram"
+        testId="regenerate"
+        onClick={() => { if (!isGenerating) regenerateBlueprintAction(); }}
+      >
+        <ArrowsClockwise size={16} weight={isGenerating ? 'bold' : 'regular'} />
+      </CtrlButton>
+
+      <div style={{ width: 1, height: 16, background: 'var(--col-border-subtle, #e0e0e0)' }} />
+
       <CtrlButton
         label="Zoom out"
         testId="zoom-out"

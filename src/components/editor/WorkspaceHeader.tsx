@@ -19,6 +19,7 @@ import { useUiStore } from '@/stores/uiStore';
 import { useEpicStore } from '@/stores/epicStore';
 import { usePipelineStore } from '@/stores/pipelineStore';
 import { useBlueprintStore } from '@/stores/blueprintStore';
+import { useGitlabStore } from '@/stores/gitlabStore';
 import { EPIC_CATEGORIES } from '@/domain/categoryConstants';
 import { ComplexitySelector } from '@/components/editor/ComplexitySelector';
 import { refinePipelineAction } from '@/pipeline/refinePipelineAction';
@@ -31,13 +32,16 @@ export function WorkspaceHeader() {
   const category = useEpicStore((s) => s.document?.category ?? '');
   const complexity = useEpicStore((s) => s.complexity);
   const qualityScore = useEpicStore((s) => s.document?.metadata?.qualityScore ?? null);
+  const sla = useEpicStore((s) => s.sla);
   const canUndo = useEpicStore((s) => s.previousMarkdown !== null);
   const isRunning = usePipelineStore((s) => s.isRunning);
   const diagramReady = useBlueprintStore((s) => !!s.code);
+  const hasGitLabContext = useGitlabStore((s) => s.loadedEpicIid !== null);
 
   // ─── Store writes ───────────────────────────────────────────
   const setMarkdown = useEpicStore((s) => s.setMarkdown);
   const setComplexity = useEpicStore((s) => s.setComplexity);
+  const setSla = useEpicStore((s) => s.setSla);
   const undo = useEpicStore((s) => s.undo);
   const openModal = useUiStore((s) => s.openModal);
 
@@ -53,6 +57,7 @@ export function WorkspaceHeader() {
     refinePipelineAction(); // fire-and-forget
   };
   const handlePublish = () => openModal('publish');
+  const handleIssues = () => openModal('issueCreation');
   const handleSettings = () => openModal('settings');
 
   return (
@@ -148,6 +153,56 @@ export function WorkspaceHeader() {
           disabled={isRunning}
         />
 
+        {/* SLA Override — optional */}
+        <div
+          data-testid="sla-input-group"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            border: '1px solid var(--col-border-illustrative)',
+            borderRadius: '0.375rem',
+            padding: '0 10px',
+            height: 32,
+          }}
+        >
+          <label
+            style={{
+              fontSize: 11,
+              fontWeight: 300,
+              color: 'var(--col-text-subtle)',
+              fontFamily: F,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            SLA
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={sla ?? ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSla(val ? Math.max(1, Math.min(100, parseInt(val, 10))) : null);
+            }}
+            placeholder="days"
+            disabled={isRunning}
+            data-testid="sla-input"
+            style={{
+              width: 48,
+              border: 'none',
+              outline: 'none',
+              fontSize: 13,
+              fontWeight: 400,
+              fontFamily: F,
+              color: 'var(--col-text-primary)',
+              background: 'transparent',
+              textAlign: 'center',
+            }}
+          />
+        </div>
+
         {/* Save */}
         <button
           data-testid="btn-save"
@@ -230,7 +285,8 @@ export function WorkspaceHeader() {
 
         {/* Issues */}
         <button
-          disabled={!diagramReady}
+          onClick={hasGitLabContext ? handleIssues : undefined}
+          disabled={!hasGitLabContext}
           data-testid="btn-issues"
           style={{
             display: 'inline-flex',
@@ -240,12 +296,12 @@ export function WorkspaceHeader() {
             border: '1px solid var(--col-border-illustrative)',
             borderRadius: '0.375rem',
             background: 'var(--col-background-ui-10)',
-            color: diagramReady ? 'var(--col-text-primary)' : 'var(--col-text-subtle)',
+            color: hasGitLabContext ? 'var(--col-text-primary)' : 'var(--col-text-subtle)',
             fontSize: 13,
             fontWeight: 400,
-            cursor: diagramReady ? 'pointer' : 'not-allowed',
+            cursor: hasGitLabContext ? 'pointer' : 'not-allowed',
             fontFamily: F,
-            opacity: diagramReady ? 1 : 0.4,
+            opacity: hasGitLabContext ? 1 : 0.4,
           }}
         >
           <ListBullets size={14} weight="regular" /> Issues

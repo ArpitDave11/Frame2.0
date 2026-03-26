@@ -12,6 +12,7 @@ import { useEpicStore } from '@/stores/epicStore';
 import { useConfigStore } from '@/stores/configStore';
 import { usePipelineStore } from '@/stores/pipelineStore';
 import { useBlueprintStore } from '@/stores/blueprintStore';
+import { useGitlabStore } from '@/stores/gitlabStore';
 import { useUiStore } from '@/stores/uiStore';
 import { runPremiumPipeline } from '@/pipeline/pipelineOrchestrator';
 import type { PipelineProgress } from '@/pipeline/pipelineTypes';
@@ -55,7 +56,11 @@ export async function refinePipelineAction(): Promise<void> {
     return;
   }
 
-  const title = document?.title ?? 'Untitled Epic';
+  const rawTitle = document?.title ?? '';
+  const isLoadedFromGitLab = useGitlabStore.getState().loadedEpicIid !== null;
+  // Loaded epics: preserve title. New epics with long/empty titles: let AI generate.
+  const titleNeedsGeneration = !isLoadedFromGitLab && (rawTitle.length > 80 || rawTitle.length === 0);
+  const title = titleNeedsGeneration ? '' : rawTitle;
 
   // ─── Build AI config ──────────────────────────────────────
   const aiConfig: AIClientConfig = {
@@ -95,6 +100,7 @@ export async function refinePipelineAction(): Promise<void> {
       complexity,
       aiConfig,
       onProgress,
+      sla: epicStore.sla ?? undefined,
     });
 
     if (result.success && result.epicContent) {
@@ -106,7 +112,9 @@ export async function refinePipelineAction(): Promise<void> {
 
       // Set diagram code if available
       if (result.mandatory.architectureDiagram) {
-        useBlueprintStore.getState().setCode(result.mandatory.architectureDiagram);
+        const _diagCode = result.mandatory.architectureDiagram;
+        const _diagType = (_diagCode.match(/^\s*(?:%%\{[^}]*\}%%\s*)*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie)/m)?.[1] ?? 'flowchart').replace(/^graph.*/, 'flowchart');
+        useBlueprintStore.getState().setCode(_diagCode, _diagType);
       }
 
       // Store full validation output for critique UI
@@ -130,6 +138,11 @@ export async function refinePipelineAction(): Promise<void> {
           6: { status: 'complete', message: `Score: ${result.validation.overallScore}`, durationMs: 0 },
         },
       });
+
+      // Update category to what the AI detected (useful when user selected "General")
+      if (result.classification.primaryCategory) {
+        useEpicStore.getState().setCategory(result.classification.primaryCategory);
+      }
     } else {
       // Partial success — pipeline ran but didn't pass quality threshold.
       // Still write content (user gets best effort) and complete (not fail)
@@ -140,7 +153,9 @@ export async function refinePipelineAction(): Promise<void> {
           useEpicStore.getState().setQualityScore(result.validation.overallScore / 10);
         }
         if (result.mandatory.architectureDiagram) {
-          useBlueprintStore.getState().setCode(result.mandatory.architectureDiagram);
+          const _diagCode = result.mandatory.architectureDiagram;
+        const _diagType = (_diagCode.match(/^\s*(?:%%\{[^}]*\}%%\s*)*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie)/m)?.[1] ?? 'flowchart').replace(/^graph.*/, 'flowchart');
+        useBlueprintStore.getState().setCode(_diagCode, _diagType);
         }
       }
 
@@ -164,6 +179,11 @@ export async function refinePipelineAction(): Promise<void> {
           6: { status: 'complete', message: `Score: ${result.validation.overallScore}`, durationMs: 0 },
         },
       });
+
+      // Update category to what the AI detected (useful when user selected "General")
+      if (result.classification.primaryCategory) {
+        useEpicStore.getState().setCategory(result.classification.primaryCategory);
+      }
 
       addToast({
         type: 'warning',

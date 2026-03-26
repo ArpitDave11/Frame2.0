@@ -24,6 +24,8 @@ export interface MandatoryPromptVars {
   readonly complexityLevel: ComplexityLevel;
   readonly existingEntities: readonly string[];
   readonly fewShotExample?: string;
+  readonly sla?: number;
+  readonly includeStoryPoints: boolean;
 }
 
 // ─── Complexity Scaling ─────────────────────────────────────
@@ -56,7 +58,38 @@ export function buildMandatoryPrompt(vars: MandatoryPromptVars): string {
     storyCountMax,
     complexityLevel,
     existingEntities,
+    sla,
+    includeStoryPoints,
   } = vars;
+
+  const slaInstructions = sla ? `
+### Story Point Allocation (SLA Override Active)
+An SLA of ${sla} business days has been specified. This means:
+- The total story point capacity for this epic is ${sla} points.
+- Assign each story a point value using the Fibonacci scale: 1, 2, 3, or 5.
+- The maximum story point value for any single story is 5.
+- The SUM of all story points across all stories MUST equal exactly ${sla}.
+- Distribute stories and points so that the total matches the SLA capacity.
+- Larger, more complex stories should receive higher points (3 or 5).
+- Smaller, well-defined stories should receive lower points (1 or 2).
+` : includeStoryPoints ? `
+### Story Point Estimation
+Assign each story a point value using the Fibonacci scale: 1, 2, 3, or 5.
+- The maximum story point value for any single story is 5.
+- Larger, more complex stories should receive higher points (3 or 5).
+- Smaller, well-defined stories should receive lower points (1 or 2).
+` : '';
+
+  const testCaseInstructions = `
+### Test Case Generation
+For EVERY user story, generate 2–5 functional test cases in the "testCases" array.
+Each test case must:
+- Be a specific, executable test scenario (Given/When/Then or action/expected-result format)
+- Cover the primary functionality described in the story
+- Include at least one positive case and one edge case or negative case
+- Be independent and self-contained (no dependency on other test cases)
+- Map to at least one acceptance criterion from the story
+`;
 
   const entityList = existingEntities
     .map((e, i) => `${i + 1}. ${e}`)
@@ -115,7 +148,11 @@ Respond with a single JSON object matching this exact schema. Do not include any
       "acceptanceCriteria": [
         "string — a specific, testable acceptance criterion"
       ],
-      "priority": "high | medium | low"
+      "priority": "high | medium | low",
+      "storyPoints": "number — Fibonacci estimate (1, 2, 3, or 5). Required when SLA is specified or story points are enabled.",
+      "testCases": [
+        "string — a specific, executable test case for this story"
+      ]
     }
   ],
   "assembledEpic": {
@@ -181,6 +218,41 @@ Follow these instructions precisely:
        e3[E3 (Epic Management)]
        api[REST API: v2]
 
+### Diagram Styling (Required)
+
+#### Node Shapes by Component Type
+Use different Mermaid node shapes to convey meaning:
+- Services/APIs: \`ID["Label"]\` (rectangle)
+- Databases/Storage: \`ID[("Label")]\` (cylinder)
+- External/3rd-Party: \`ID{{"Label"}}\` (hexagon)
+- Events/Triggers: \`ID(("Label"))\` (circle)
+- Processes: \`ID("Label")\` (rounded rectangle)
+
+#### Semantic Colors via classDef (Paul Tol Light — colorblind-safe)
+Define these classDef classes at the top of the diagram, then apply them:
+
+\`\`\`
+classDef service fill:#99DDFF,stroke:#33BBEE,color:#000
+classDef database fill:#77AADD,stroke:#4477AA,color:#000
+classDef external fill:#EE8866,stroke:#CC3311,color:#000
+classDef queue fill:#EEDD88,stroke:#CCBB44,color:#000
+classDef cache fill:#44BB99,stroke:#009988,color:#000
+classDef security fill:#FFAABB,stroke:#EE3377,color:#000
+classDef infra fill:#DDDDDD,stroke:#999999,color:#000
+\`\`\`
+
+Apply classes using the \`:::\` shorthand: \`API["API Gateway"]:::service\`
+
+#### Arrow Styling via linkStyle
+After ALL connections, add linkStyle commands for colored arrows. Index is 0-based, counting arrows in order of appearance:
+- User/client flows: \`linkStyle 0 stroke:#0072B2,stroke-width:2.5px\`
+- Service-to-service: \`linkStyle 1 stroke:#6366F1,stroke-width:2px\`
+- Database calls: \`linkStyle 2 stroke:#E69F00,stroke-width:2px\`
+- Async/events: \`linkStyle 3 stroke:#009E73,stroke-width:2px,stroke-dasharray:5\`
+- External calls: \`linkStyle 4 stroke:#CC79A7,stroke-width:2px\`
+
+Apply the appropriate color based on what each arrow represents. You do not need to style every arrow — focus on the most important 5-10 connections.
+
 ### User Story Generation
 1. Derive stories from the extracted requirements in the comprehension analysis.
 2. Each story must follow the template:
@@ -197,8 +269,11 @@ Follow these instructions precisely:
    - **low**: Nice-to-have features, cosmetic improvements, future enhancements
 5. Every story must trace back to at least one requirement from the comprehension stage. If a requirement has no story, create one.
 6. Generate exactly ${storyCountMin}–${storyCountMax} stories. Do not exceed or fall below this range.
-
+${slaInstructions}${testCaseInstructions}
 ### Epic Assembly
+
+**Title Generation**: If the input title is empty or not provided, generate a concise, professional title for this epic (5–10 words maximum). The title should capture the core purpose of the project in a way suitable for a GitLab epic title. Do NOT use the first sentence of the content as the title — synthesize a proper short title.
+
 1. Collect all refined sections from the input.
 2. Add the architecture diagram as a dedicated section (title: "Architecture Overview" or similar).
 3. Add user stories as a dedicated section (title: "User Stories" or similar).
@@ -212,6 +287,9 @@ Follow these instructions precisely:
 - Every extracted requirement should be covered by at least one story.
 - The assembled epic must include ALL refined sections plus the generated sections.
 - Metadata must be accurate (correct counts, correct diagram type).
+- Every user story must include 2–5 test cases in the "testCases" array.
+${sla ? `- Total story points must equal exactly ${sla}.` : ''}
+${includeStoryPoints || sla ? '- Every story must have a storyPoints value (1, 2, 3, or 5).' : ''}
 ${vars.fewShotExample ? `
 <example_output>
 The following is an example of HIGH QUALITY output for a different document. Use it as a reference for the level of detail and structure expected.

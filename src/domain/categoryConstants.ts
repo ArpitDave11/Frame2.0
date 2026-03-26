@@ -14,6 +14,12 @@ export interface EpicCategory {
 
 export const EPIC_CATEGORIES: EpicCategory[] = [
   {
+    id: 'general',
+    label: 'General',
+    icon: '✦',
+    secs: [],
+  },
+  {
     id: 'business_requirement',
     label: 'Business Requirement',
     icon: 'B',

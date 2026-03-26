@@ -20,8 +20,13 @@ export function EditorPane() {
   const handlePickCategory = (categoryId: string) => {
     const cat = EPIC_CATEGORIES.find((c) => c.id === categoryId);
     if (cat) {
-      const md = cat.secs.map((s) => `## ${s}\n\n_Your content here..._\n`).join('\n');
-      setMarkdown(md);
+      if (cat.secs.length > 0) {
+        const md = cat.secs.map((s) => `## ${s}\n\n_Your content here..._\n`).join('\n');
+        setMarkdown(md);
+      } else {
+        // General category: set minimal prompt so editor enters active mode
+        setMarkdown('# \n\n_Start writing your epic here..._\n');
+      }
     }
   };
 
@@ -156,13 +161,19 @@ export function EditorPane() {
                   style={{
                     padding: '8px 18px',
                     borderRadius: 4,
-                    border: '1px solid var(--col-border-illustrative)',
-                    background: 'var(--col-background-ui-10)',
-                    color: 'var(--col-text-subtle)',
+                    border: c.id === 'general'
+                      ? '1px solid var(--col-background-brand)'
+                      : '1px solid var(--col-border-illustrative)',
+                    background: c.id === 'general'
+                      ? 'rgba(230, 0, 0, 0.04)'
+                      : 'var(--col-background-ui-10)',
+                    color: c.id === 'general'
+                      ? 'var(--col-background-brand)'
+                      : 'var(--col-text-subtle)',
                     fontSize: 12,
                     cursor: 'pointer',
                     fontFamily: F,
-                    fontWeight: 300,
+                    fontWeight: c.id === 'general' ? 400 : 300,
                     transition: 'all .12s',
                     display: 'flex',
                     alignItems: 'center',

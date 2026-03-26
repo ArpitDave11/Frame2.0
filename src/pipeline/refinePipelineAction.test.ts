@@ -13,6 +13,8 @@ const mockEpicState = {
   complexity: 'moderate' as const,
   applyRefinedEpic: vi.fn(),
   setQualityScore: vi.fn(),
+  setCategory: vi.fn(),
+  sla: null,
 };
 
 const mockPipelineState = {
@@ -138,7 +140,7 @@ describe('refinePipelineAction', () => {
       await refinePipelineAction();
 
       expect(mockEpicState.setQualityScore).toHaveBeenCalledWith(9); // 90/10
-      expect(mockBlueprintState.setCode).toHaveBeenCalledWith('graph TD');
+      expect(mockBlueprintState.setCode).toHaveBeenCalledWith('graph TD', 'flowchart');
     });
   });
 

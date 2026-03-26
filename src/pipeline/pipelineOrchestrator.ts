@@ -36,6 +36,7 @@ export interface PipelineOrchestratorOptions {
   readonly complexity: ComplexityLevel;
   readonly aiConfig: AIClientConfig;
   readonly onProgress?: PipelineProgressCallback;
+  readonly sla?: number;
 }
 
 // ─── Config Builder ─────────────────────────────────────────
@@ -43,18 +44,26 @@ export interface PipelineOrchestratorOptions {
 export function buildPipelineConfig(
   complexity: ComplexityLevel,
   userApprovedSections: readonly string[] = [],
+  sla?: number,
 ): PipelineConfig {
   const cc = getComplexityConfig(complexity);
   const storyRange = getScaledStoryCount(complexity);
+
+  // When SLA is provided, override story count range based on point capacity
+  const finalStoryRange: readonly [number, number] = sla
+    ? [Math.ceil(sla / 5), Math.min(sla, 30)]
+    : [storyRange.min, storyRange.max];
+
   return {
     complexity,
     maxIterations: cc.maxPipelineIterations,
     passingScore: cc.validationThreshold,
-    storyCountRange: [storyRange.min, storyRange.max],
+    storyCountRange: finalStoryRange,
     generationTemperature: 0.3,
     validationTemperature: 0.7,
     classificationTemperature: 0.5,
     userApprovedSections,
+    sla,
   };
 }
 
@@ -64,8 +73,8 @@ export async function runPremiumPipeline(
   options: PipelineOrchestratorOptions,
 ): Promise<PipelineResult> {
   const startTime = Date.now();
-  const { rawContent, title, complexity, aiConfig, onProgress } = options;
-  const config = buildPipelineConfig(complexity);
+  const { rawContent, title, complexity, aiConfig, onProgress, sla } = options;
+  const config = buildPipelineConfig(complexity, [], sla);
 
   // Empty outputs for failure returns
   const emptyComp: ComprehensionOutput = { keyEntities: [], detectedGaps: [], implicitRisks: [], semanticSections: [], extractedRequirements: [], gapAnalysis: [] };

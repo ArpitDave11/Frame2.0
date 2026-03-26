@@ -17,6 +17,7 @@ export type ComplexityLevel = 'simple' | 'moderate' | 'complex';
 /** The 7 epic category templates (BRD FR-4). Underscore convention matches
  *  categoryTemplates.json keys and pipeline Stage 2 classification output. */
 export type EpicCategory =
+  | 'general'
   | 'business_requirement'
   | 'technical_design'
   | 'feature_specification'

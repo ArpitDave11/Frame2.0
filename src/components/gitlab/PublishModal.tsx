@@ -1,15 +1,23 @@
 /**
- * PublishModal — Publish to GitLab modal content (T-12.2).
+ * PublishModal — Publish or update epic to/in GitLab (T-12.2).
  *
- * Title input, target group select, quality score indicator, and action buttons.
- * Pixel-matches prototype App.tsx lines 496-618.
+ * - If user loaded an epic from GitLab → shows "Update" to save changes back
+ * - If user created a new epic → shows "Publish" to create in GitLab
+ * - Fetches real subgroups for target group selection
+ * - Sets loadedEpicContext after publish so Issues button activates
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useEpicStore } from '@/stores/epicStore';
 import { useConfigStore } from '@/stores/configStore';
+import { useGitlabStore } from '@/stores/gitlabStore';
 import { useUiStore } from '@/stores/uiStore';
-import { createGitLabEpic } from '@/services/gitlab/gitlabClient';
+import {
+  createGitLabEpic,
+  updateGitLabEpic,
+  fetchGitLabSubgroups,
+} from '@/services/gitlab/gitlabClient';
+import type { GitLabSubgroup } from '@/services/gitlab/types';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
@@ -20,27 +28,76 @@ export function PublishModal() {
   const closeModal = useUiStore((s) => s.closeModal);
   const addToast = useUiStore((s) => s.addToast);
 
+  // Detect if updating an existing loaded epic
+  const loadedEpicIid = useGitlabStore((s) => s.loadedEpicIid);
+  const loadedGroupId = useGitlabStore((s) => s.loadedGroupId);
+  const isUpdate = loadedEpicIid !== null && loadedGroupId !== null;
+
   const score = document?.metadata?.qualityScore ?? null;
   const defaultTitle = document?.title || 'Epic';
 
   const [title, setTitle] = useState(defaultTitle);
-  const [targetGroup, setTargetGroup] = useState('pod-alpha');
+  const [targetGroup, setTargetGroup] = useState(config.gitlab.rootGroupId || '');
+  const [subgroups, setSubgroups] = useState<GitLabSubgroup[]>([]);
   const [publishing, setPublishing] = useState(false);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
+  // Fetch real subgroups on mount
+  useEffect(() => {
+    if (!config.gitlab.enabled || !config.gitlab.rootGroupId) return;
+    let cancelled = false;
+    setLoadingGroups(true);
+
+    fetchGitLabSubgroups(config.gitlab, config.gitlab.rootGroupId).then((result) => {
+      if (cancelled) return;
+      setLoadingGroups(false);
+      if (result.success && result.data) {
+        setSubgroups(result.data);
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [config.gitlab]);
 
   const handlePublish = async () => {
     setPublishing(true);
-    const result = await createGitLabEpic(config.gitlab, {
-      title,
-      description: markdown,
-      group_id: targetGroup,
-    });
-    setPublishing(false);
 
-    if (result.success) {
-      addToast({ type: 'success', title: 'Epic published to GitLab' });
-      closeModal();
+    if (isUpdate) {
+      // Update existing epic
+      const result = await updateGitLabEpic(
+        config.gitlab,
+        loadedGroupId!,
+        loadedEpicIid!,
+        { title, description: markdown },
+      );
+      setPublishing(false);
+
+      if (result.success && result.data) {
+        addToast({ type: 'success', title: `Epic #${loadedEpicIid} updated in GitLab` });
+        closeModal();
+      } else {
+        addToast({ type: 'error', title: result.error ?? 'Failed to update epic' });
+      }
     } else {
-      addToast({ type: 'error', title: result.error ?? 'Failed to publish epic' });
+      // Create new epic
+      const result = await createGitLabEpic(config.gitlab, {
+        title,
+        description: markdown,
+        group_id: targetGroup,
+      });
+      setPublishing(false);
+
+      if (result.success && result.data) {
+        // Set GitLab context so Issues button activates
+        useGitlabStore.getState().setLoadedEpicContext(
+          result.data.iid,
+          String(result.data.group_id || targetGroup),
+        );
+        addToast({ type: 'success', title: 'Epic published to GitLab' });
+        closeModal();
+      } else {
+        addToast({ type: 'error', title: result.error ?? 'Failed to publish epic' });
+      }
     }
   };
 
@@ -55,15 +112,26 @@ export function PublishModal() {
         fontFamily: F,
       }}
     >
-      {/* Title input */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label
+      {/* Update banner — when editing a loaded epic */}
+      {isUpdate && (
+        <div
           style={{
+            padding: '10px 16px',
+            borderRadius: '0.375rem',
+            borderLeft: '4px solid #0072B2',
+            background: '#F0F9FF',
             fontSize: 12,
-            fontWeight: 400,
-            color: 'var(--col-text-subtle)',
+            fontWeight: 300,
+            color: 'var(--col-text-primary)',
           }}
         >
+          Updating epic <strong>#{loadedEpicIid}</strong> in GitLab
+        </div>
+      )}
+
+      {/* Title input */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label style={{ fontSize: 12, fontWeight: 400, color: 'var(--col-text-subtle)' }}>
           Title
         </label>
         <input
@@ -78,38 +146,43 @@ export function PublishModal() {
             fontFamily: F,
             fontWeight: 300,
             outline: 'none',
+            background: 'var(--input-background)',
           }}
         />
       </div>
 
-      {/* Target group select */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label
-          style={{
-            fontSize: 12,
-            fontWeight: 400,
-            color: 'var(--col-text-subtle)',
-          }}
-        >
-          Target group
-        </label>
-        <select
-          data-testid="publish-target-group"
-          value={targetGroup}
-          onChange={(e) => setTargetGroup(e.target.value)}
-          style={{
-            padding: '8px 12px',
-            borderRadius: '0.375rem',
-            border: '1px solid var(--col-border-illustrative)',
-            fontSize: 13,
-            fontFamily: F,
-            fontWeight: 300,
-          }}
-        >
-          <option value="pod-alpha">pod-alpha</option>
-          <option value="crew-platform">crew-platform</option>
-        </select>
-      </div>
+      {/* Target group select — only for NEW epics */}
+      {!isUpdate && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 12, fontWeight: 400, color: 'var(--col-text-subtle)' }}>
+            Target group
+          </label>
+          <select
+            data-testid="publish-target-group"
+            value={targetGroup}
+            onChange={(e) => setTargetGroup(e.target.value)}
+            disabled={loadingGroups}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '0.375rem',
+              border: '1px solid var(--col-border-illustrative)',
+              fontSize: 13,
+              fontFamily: F,
+              fontWeight: 300,
+              background: 'var(--input-background)',
+            }}
+          >
+            <option value={config.gitlab.rootGroupId}>
+              {config.gitlab.rootGroupId} (root)
+            </option>
+            {subgroups.map((sg) => (
+              <option key={sg.id} value={sg.id}>
+                {sg.full_path || sg.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Quality score indicator */}
       {score !== null && (
@@ -118,11 +191,11 @@ export function PublishModal() {
           style={{
             padding: '10px 16px',
             borderRadius: '0.375rem',
-            borderLeft: `4px solid ${score >= 7 ? '#22c55e' : 'var(--col-background-brand)'}`,
-            background: score >= 7 ? '#f0fdf4' : 'var(--input-background)',
+            borderLeft: `4px solid ${score >= 7 ? '#5A5D5C' : 'var(--col-background-brand)'}`,
+            background: score >= 7 ? '#F5F0E1' : 'var(--input-background)',
             fontSize: 12,
             fontWeight: 300,
-            color: score >= 7 ? '#166534' : 'var(--col-text-subtle)',
+            color: score >= 7 ? 'var(--col-text-primary)' : 'var(--col-text-subtle)',
           }}
         >
           Quality score: <strong>{score.toFixed(1)}/10</strong> {'\u2014'}{' '}
@@ -131,14 +204,7 @@ export function PublishModal() {
       )}
 
       {/* Action buttons */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          justifyContent: 'flex-end',
-          marginTop: 4,
-        }}
-      >
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
         <button
           data-testid="publish-cancel-btn"
           onClick={closeModal}
@@ -172,7 +238,9 @@ export function PublishModal() {
             opacity: publishing ? 0.7 : 1,
           }}
         >
-          {publishing ? 'Publishing...' : 'Publish'}
+          {publishing
+            ? (isUpdate ? 'Updating...' : 'Publishing...')
+            : (isUpdate ? 'Update Epic' : 'Publish')}
         </button>
       </div>
     </div>

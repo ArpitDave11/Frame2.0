@@ -19,6 +19,9 @@ export interface MockIssue {
   assignee: string;
   description?: string;
   timeline?: TimelineEntry[];
+  web_url?: string;
+  project_id?: number;
+  iid?: number;
 }
 
 export const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";

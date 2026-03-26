@@ -11,8 +11,21 @@ import { useBlueprintStore } from '@/stores/blueprintStore';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
-// Initialize mermaid once
-mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+// Single global mermaid config — V4 parity. No other file should call initialize().
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  securityLevel: 'loose',
+  fontFamily: 'Frutiger, Helvetica Neue, Arial, sans-serif',
+  themeVariables: {
+    edgeLabelBackground: 'transparent',
+  },
+  flowchart: {
+    useMaxWidth: true,
+    htmlLabels: true,
+    curve: 'basis',
+  },
+});
 
 export function DiagramRenderer() {
   const code = useBlueprintStore((s) => s.code);

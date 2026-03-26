@@ -51,7 +51,7 @@ export const useBlueprintStore = create<BlueprintStore>()((set, get) => ({
   ...INITIAL_STATE,
 
   setCode: (code, type, reasoning) => {
-    set({ code, diagramType: type ?? '', reasoning: reasoning ?? '' });
+    set({ code, diagramType: type ?? '', reasoning: reasoning ?? '', svgContent: '', error: null });
   },
 
   setSvg: (svg) => {

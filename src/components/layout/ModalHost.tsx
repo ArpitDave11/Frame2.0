@@ -12,21 +12,7 @@ import { PipelineModal } from '@/components/pipeline/PipelineModal';
 import { CritiqueReport } from '@/components/critique/CritiqueReport';
 import { LoadEpicModal } from '@/components/gitlab/LoadEpicModal';
 import { PublishModal } from '@/components/gitlab/PublishModal';
-
-const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
-
-function IssueCreationContent() {
-  return (
-    <div style={{ fontFamily: F, fontSize: 13, color: 'var(--col-text-subtle)', textAlign: 'center', padding: '40px 20px' }}>
-      <div style={{ fontSize: 15, fontWeight: 400, color: 'var(--col-text-primary)', marginBottom: 8 }}>
-        Create Issues from User Stories
-      </div>
-      <div style={{ fontWeight: 300, lineHeight: 1.6 }}>
-        Run the Refine pipeline first to generate user stories, then use this modal to create GitLab issues from them.
-      </div>
-    </div>
-  );
-}
+import { IssueCreationModal } from '@/components/issues/IssueCreationModal';
 
 export function ModalHost() {
   const activeModal = useUiStore((s) => s.activeModal);
@@ -56,8 +42,8 @@ export function ModalHost() {
       );
     case 'issueCreation':
       return (
-        <Modal open onClose={closeModal} title="Create Issues" width={600}>
-          <IssueCreationContent />
+        <Modal open onClose={closeModal} title="Create Issues from User Stories" width={700}>
+          <IssueCreationModal />
         </Modal>
       );
     case 'pipeline':
