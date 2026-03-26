@@ -180,70 +180,74 @@ describe('getActiveAIProvider', () => {
       ...DEFAULT_CONFIG,
       ai: { ...DEFAULT_CONFIG.ai, provider: 'azure' },
     };
-    expect(getActiveAIProvider(config)).toBe('Azure OpenAI (gpt-4)');
+    expect(getActiveAIProvider(config)).toBe('Azure OpenAI (gpt-4.1)');
   });
 
   it('returns formatted string for openai with model', () => {
     const config: AppConfig = {
       ...DEFAULT_CONFIG,
-      ai: { ...DEFAULT_CONFIG.ai, provider: 'openai', openai: { apiKey: 'sk-x', model: 'gpt-4o' } },
+      ai: { ...DEFAULT_CONFIG.ai, provider: 'openai', openai: { apiKey: 'sk-x', model: 'gpt-5' } },
     };
-    expect(getActiveAIProvider(config)).toBe('OpenAI (gpt-4o)');
+    expect(getActiveAIProvider(config)).toBe('OpenAI (gpt-5)');
   });
 });
 
 // ─── detectModelFamily ──────────────────────────────────────
 
 describe('detectModelFamily', () => {
-  it('detects gpt-4', () => {
-    expect(detectModelFamily('gpt-4')).toBe('gpt-4');
+  it('detects gpt-4.1 as standard', () => {
+    expect(detectModelFamily('gpt-4.1')).toBe('gpt-4.1');
   });
 
-  it('detects gpt-4o', () => {
-    expect(detectModelFamily('gpt-4o')).toBe('gpt-4o');
+  it('detects gpt-5 as reasoning', () => {
+    expect(detectModelFamily('gpt-5')).toBe('reasoning');
   });
 
-  it('detects gpt-4o-mini', () => {
-    expect(detectModelFamily('gpt-4o-mini')).toBe('gpt-4o-mini');
+  it('detects gpt-5-mini as reasoning', () => {
+    expect(detectModelFamily('gpt-5-mini')).toBe('reasoning');
   });
 
-  it('detects gpt-3.5-turbo', () => {
-    expect(detectModelFamily('gpt-3.5-turbo')).toBe('gpt-3.5-turbo');
+  it('detects gpt-5.2 as reasoning', () => {
+    expect(detectModelFamily('gpt-5.2')).toBe('reasoning');
   });
 
-  it('detects gpt-4o-mini from deployment name like gpt-4o-mini-2024', () => {
-    expect(detectModelFamily('gpt-4o-mini-2024-07-18')).toBe('gpt-4o-mini');
+  it('detects gpt-5.4 as reasoning', () => {
+    expect(detectModelFamily('gpt-5.4')).toBe('reasoning');
   });
 
-  it('detects gpt-4o from deployment name like gpt-4o-2024', () => {
-    expect(detectModelFamily('gpt-4o-2024-08-06')).toBe('gpt-4o');
+  it('detects o1 series as reasoning', () => {
+    expect(detectModelFamily('o1-preview')).toBe('reasoning');
   });
 
-  it('falls back to gpt-4 for unknown model', () => {
-    expect(detectModelFamily('some-custom-model')).toBe('gpt-4');
+  it('detects o3 series as reasoning', () => {
+    expect(detectModelFamily('o3-mini')).toBe('reasoning');
+  });
+
+  it('falls back to gpt-4.1 for unknown model', () => {
+    expect(detectModelFamily('some-custom-model')).toBe('gpt-4.1');
   });
 });
 
 // ─── getSafeModelParams ─────────────────────────────────────
 
 describe('getSafeModelParams', () => {
-  it('returns gpt-4 limits for azure gpt-4 config', () => {
+  it('returns gpt-4.1 limits for azure gpt-4.1 config', () => {
     const config: AppConfig = {
       ...DEFAULT_CONFIG,
       ai: { ...DEFAULT_CONFIG.ai, provider: 'azure' },
     };
-    expect(getSafeModelParams(config)).toEqual(MODEL_LIMITS['gpt-4']);
+    expect(getSafeModelParams(config)).toEqual(MODEL_LIMITS['gpt-4.1']);
   });
 
-  it('returns gpt-4o limits for openai gpt-4o config', () => {
+  it('returns reasoning limits for openai gpt-5 config', () => {
     const config: AppConfig = {
       ...DEFAULT_CONFIG,
-      ai: { ...DEFAULT_CONFIG.ai, provider: 'openai', openai: { apiKey: 'sk-x', model: 'gpt-4o' } },
+      ai: { ...DEFAULT_CONFIG.ai, provider: 'openai', openai: { apiKey: 'sk-x', model: 'gpt-5' } },
     };
-    expect(getSafeModelParams(config)).toEqual(MODEL_LIMITS['gpt-4o']);
+    expect(getSafeModelParams(config)).toEqual(MODEL_LIMITS['reasoning']);
   });
 
-  it('returns gpt-4 limits for provider none (fallback)', () => {
-    expect(getSafeModelParams(DEFAULT_CONFIG)).toEqual(MODEL_LIMITS['gpt-4']);
+  it('returns gpt-4.1 limits for provider none (fallback)', () => {
+    expect(getSafeModelParams(DEFAULT_CONFIG)).toEqual(MODEL_LIMITS['gpt-4.1']);
   });
 });

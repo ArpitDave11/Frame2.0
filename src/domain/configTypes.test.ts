@@ -93,7 +93,7 @@ describe('AIProvider type', () => {
 // ─── MODEL_LIMITS ───────────────────────────────────────────
 
 describe('MODEL_LIMITS', () => {
-  const families: ModelFamily[] = ['gpt-4', 'gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'];
+  const families: ModelFamily[] = ['gpt-4.1', 'reasoning'];
 
   it('has limits for all model families', () => {
     for (const fam of families) {
@@ -103,12 +103,20 @@ describe('MODEL_LIMITS', () => {
     }
   });
 
-  it('gpt-4 maxTokens is 8192', () => {
-    expect(MODEL_LIMITS['gpt-4'].maxTokens).toBe(8192);
+  it('gpt-4.1 maxTokens is 32768', () => {
+    expect(MODEL_LIMITS['gpt-4.1'].maxTokens).toBe(32768);
   });
 
-  it('gpt-4o maxTokens is 128000', () => {
-    expect(MODEL_LIMITS['gpt-4o'].maxTokens).toBe(128000);
+  it('reasoning maxTokens is 128000', () => {
+    expect(MODEL_LIMITS['reasoning'].maxTokens).toBe(128000);
+  });
+
+  it('reasoning isReasoning flag is true', () => {
+    expect(MODEL_LIMITS['reasoning'].isReasoning).toBe(true);
+  });
+
+  it('gpt-4.1 isReasoning flag is false', () => {
+    expect(MODEL_LIMITS['gpt-4.1'].isReasoning).toBe(false);
   });
 });
 
@@ -119,12 +127,12 @@ describe('OPENAI_MODELS', () => {
     expect(OPENAI_MODELS.length).toBeGreaterThan(0);
   });
 
-  it('contains gpt-4', () => {
-    expect(OPENAI_MODELS).toContain('gpt-4');
+  it('contains gpt-4.1', () => {
+    expect(OPENAI_MODELS).toContain('gpt-4.1');
   });
 
-  it('contains gpt-4o', () => {
-    expect(OPENAI_MODELS).toContain('gpt-4o');
+  it('contains gpt-5', () => {
+    expect(OPENAI_MODELS).toContain('gpt-5');
   });
 });
 
@@ -135,8 +143,8 @@ describe('AZURE_API_VERSIONS', () => {
     expect(AZURE_API_VERSIONS.length).toBeGreaterThan(0);
   });
 
-  it('contains 2024-02-15-preview', () => {
-    expect(AZURE_API_VERSIONS).toContain('2024-02-15-preview');
+  it('contains 2025-04-01-preview', () => {
+    expect(AZURE_API_VERSIONS).toContain('2025-04-01-preview');
   });
 });
 
@@ -156,10 +164,10 @@ describe('type compilation', () => {
           endpoint: 'https://my.openai.azure.com',
           deploymentName: 'gpt4-deploy',
           apiKey: 'key-123',
-          apiVersion: '2024-02-15-preview',
-          model: 'gpt-4',
+          apiVersion: '2025-04-01-preview',
+          model: 'gpt-4.1',
         },
-        openai: { apiKey: '', model: 'gpt-4' },
+        openai: { apiKey: '', model: 'gpt-4.1' },
       },
       gitlab: {
         enabled: true,

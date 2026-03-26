@@ -112,8 +112,8 @@ describe('createMockConfig', () => {
   it('preserves other fields when merging overrides', () => {
     const config = createMockConfig({ ai: { provider: 'azure' } });
     // Azure sub-config should still have defaults
-    expect(config.ai.azure.apiVersion).toBe('2024-02-15-preview');
-    expect(config.ai.openai.model).toBe('gpt-4');
+    expect(config.ai.azure.apiVersion).toBe('2025-04-01-preview');
+    expect(config.ai.openai.model).toBe('gpt-4.1');
     expect(config.gitlab.enabled).toBe(false);
   });
 
@@ -124,7 +124,7 @@ describe('createMockConfig', () => {
       },
     });
     expect(config.ai.azure.endpoint).toBe('https://my-instance.openai.azure.com');
-    expect(config.ai.azure.model).toBe('gpt-4'); // preserved from default
+    expect(config.ai.azure.model).toBe('gpt-4.1'); // preserved from default
   });
 
   it('merges gitlab overrides', () => {

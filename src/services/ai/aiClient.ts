@@ -20,15 +20,33 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
     ? buildAzureRequest(config)
     : buildOpenAIRequest(config);
 
-  const body = JSON.stringify({
+  const modelName = config.provider === 'azure'
+    ? (config.azure.deploymentName || config.azure.model)
+    : config.openai.model;
+  const family = detectModelFamily(modelName);
+  const limits = MODEL_LIMITS[family];
+
+  const bodyObj: Record<string, unknown> = {
     messages: [
       { role: 'system', content: request.systemPrompt },
       { role: 'user', content: request.userPrompt },
     ],
-    ...(config.provider === 'openai' && { model: config.openai.model }),
-    ...(request.maxTokens != null && { max_tokens: request.maxTokens }),
-    ...(request.temperature != null && { temperature: request.temperature }),
-  });
+  };
+
+  if (config.provider === 'openai') {
+    bodyObj.model = config.openai.model;
+  }
+
+  if (limits.isReasoning) {
+    bodyObj.max_completion_tokens = request.maxTokens ?? limits.maxTokens;
+  } else {
+    bodyObj.max_tokens = request.maxTokens ?? limits.maxTokens;
+    if (request.temperature != null) {
+      bodyObj.temperature = request.temperature;
+    }
+  }
+
+  const body = JSON.stringify(bodyObj);
 
   const response = await fetch(url, {
     method: 'POST',
@@ -90,14 +108,19 @@ export function getActiveAIProvider(config: AppConfig): string {
 }
 
 export function detectModelFamily(modelName: string): ModelFamily {
-  if (modelName.includes('gpt-4o-mini')) return 'gpt-4o-mini';
-  if (modelName.includes('gpt-4o')) return 'gpt-4o';
-  if (modelName.includes('gpt-3.5-turbo')) return 'gpt-3.5-turbo';
-  if (modelName.includes('gpt-4')) return 'gpt-4';
-  return 'gpt-4'; // fallback
+  const name = modelName.toLowerCase();
+
+  // GPT-5 series — all are reasoning models
+  if (name.includes('gpt-5')) return 'reasoning';
+
+  // o-series — all are reasoning models
+  if (name.includes('o1') || name.includes('o3') || name.includes('o4')) return 'reasoning';
+
+  // GPT-4.1 and everything else — standard
+  return 'gpt-4.1';
 }
 
-export function getSafeModelParams(config: AppConfig): { maxTokens: number; temperature: number } {
+export function getSafeModelParams(config: AppConfig): { maxTokens: number; temperature: number; isReasoning: boolean } {
   const model = config.ai.provider === 'azure'
     ? config.ai.azure.model
     : config.ai.provider === 'openai'

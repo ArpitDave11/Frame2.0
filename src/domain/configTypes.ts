@@ -58,30 +58,29 @@ export interface GitLabConfig {
 // ─── Model Limits ───────────────────────────────────────────
 
 /** AI model family identifier */
-export type ModelFamily = 'gpt-4' | 'gpt-4o' | 'gpt-4o-mini' | 'gpt-3.5-turbo';
+export type ModelFamily = 'gpt-4.1' | 'reasoning';
 
 /** Safe parameter limits per model family */
-export const MODEL_LIMITS: Record<ModelFamily, { maxTokens: number; temperature: number }> = {
-  'gpt-4': { maxTokens: 8192, temperature: 0.7 },
-  'gpt-4o': { maxTokens: 128000, temperature: 0.7 },
-  'gpt-4o-mini': { maxTokens: 128000, temperature: 0.7 },
-  'gpt-3.5-turbo': { maxTokens: 4096, temperature: 0.7 },
+export const MODEL_LIMITS: Record<ModelFamily, { maxTokens: number; temperature: number; isReasoning: boolean }> = {
+  'gpt-4.1':   { maxTokens: 32768,  temperature: 0.7, isReasoning: false },
+  'reasoning':  { maxTokens: 128000, temperature: 1.0, isReasoning: true },
 };
 
 /** Available OpenAI model options */
 export const OPENAI_MODELS: readonly string[] = [
-  'gpt-4',
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-3.5-turbo',
+  'gpt-4.1',
+  'gpt-5',
+  'gpt-5-mini',
+  'gpt-5.2',
+  'gpt-5.4',
 ];
 
 /** Available Azure API version options */
 export const AZURE_API_VERSIONS: readonly string[] = [
-  '2024-02-15-preview',
-  '2024-05-01-preview',
-  '2024-06-01',
-  '2024-08-01-preview',
+  '2025-04-01-preview',
+  '2025-01-01-preview',
+  '2024-12-01-preview',
+  '2024-10-21',
 ];
 
 // ─── App Config ─────────────────────────────────────────────
@@ -110,12 +109,12 @@ export const DEFAULT_CONFIG: AppConfig = {
       endpoint: '',
       deploymentName: '',
       apiKey: '',
-      apiVersion: '2024-02-15-preview',
-      model: 'gpt-4',
+      apiVersion: '2025-04-01-preview',
+      model: 'gpt-4.1',
     },
     openai: {
       apiKey: '',
-      model: 'gpt-4',
+      model: 'gpt-4.1',
     },
   },
   gitlab: {

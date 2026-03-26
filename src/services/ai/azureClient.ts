@@ -19,14 +19,24 @@ export async function callAzure(
   const base = endpoint.replace(/\/$/, '');
   const url = `${base}/openai/deployments/${config.deploymentName}/chat/completions?api-version=${config.apiVersion}`;
 
-  const body = JSON.stringify({
+  const name = config.deploymentName.toLowerCase();
+  const isReasoning = name.includes('gpt-5') || name.includes('o1') || name.includes('o3') || name.includes('o4');
+
+  const bodyObj: Record<string, unknown> = {
     messages: [
       { role: 'system', content: request.systemPrompt },
       { role: 'user', content: request.userPrompt },
     ],
-    ...(request.maxTokens != null && { max_tokens: request.maxTokens }),
-    ...(request.temperature != null && { temperature: request.temperature }),
-  });
+  };
+
+  if (isReasoning) {
+    if (request.maxTokens != null) bodyObj.max_completion_tokens = request.maxTokens;
+  } else {
+    if (request.maxTokens != null) bodyObj.max_tokens = request.maxTokens;
+    if (request.temperature != null) bodyObj.temperature = request.temperature;
+  }
+
+  const body = JSON.stringify(bodyObj);
 
   const response = await fetch(url, {
     method: 'POST',
