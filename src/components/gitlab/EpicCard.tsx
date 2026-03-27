@@ -12,10 +12,11 @@ export interface EpicCardProps {
   title: string;
   iid: number;
   state: string;
+  groupName?: string;
   onClick: () => void;
 }
 
-export function EpicCard({ title, iid, state, onClick }: EpicCardProps) {
+export function EpicCard({ title, iid, state, groupName, onClick }: EpicCardProps) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -40,6 +41,16 @@ export function EpicCard({ title, iid, state, onClick }: EpicCardProps) {
     >
       <span style={{ color: 'var(--col-text-primary)' }}>
         {title} {'\u2014'} #{iid}
+        {groupName && (
+          <span style={{
+            marginLeft: 8,
+            fontSize: 11,
+            color: 'var(--col-text-subtle)',
+            fontWeight: 400,
+          }}>
+            {groupName}
+          </span>
+        )}
       </span>
       <span
         style={{

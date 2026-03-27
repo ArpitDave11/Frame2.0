@@ -73,6 +73,8 @@ export function PublishModal() {
       setPublishing(false);
 
       if (result.success && result.data) {
+        // F12: Invalidate cache so Load modal shows fresh data
+        useGitlabStore.getState().invalidateGroupCache(loadedGroupId!);
         addToast({ type: 'success', title: `Epic #${loadedEpicIid} updated in GitLab` });
         closeModal();
       } else {
@@ -93,6 +95,8 @@ export function PublishModal() {
           result.data.iid,
           String(result.data.group_id || targetGroup),
         );
+        // F12: Invalidate cache so Load modal shows fresh data
+        useGitlabStore.getState().invalidateGroupCache(targetGroup);
         addToast({ type: 'success', title: 'Epic published to GitLab' });
         closeModal();
       } else {

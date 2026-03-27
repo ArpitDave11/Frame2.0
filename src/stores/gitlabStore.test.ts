@@ -122,39 +122,34 @@ describe('selectedEpic', () => {
   });
 });
 
-// ─── navigateToGroup / navigateUp ───────────────────────────
+// ─── group navigation ───────────────────────────────────────
 
 describe('group navigation', () => {
-  it('navigateToGroup adds breadcrumb and updates currentGroupId', () => {
-    useGitlabStore.getState().navigateToGroup('123', 'Platform');
-    const state = useGitlabStore.getState();
-    expect(state.currentGroupId).toBe('123');
-    expect(state.breadcrumb).toEqual([{ id: '123', name: 'Platform' }]);
-  });
-
-  it('navigateToGroup accumulates breadcrumb entries', () => {
-    useGitlabStore.getState().navigateToGroup('123', 'Platform');
-    useGitlabStore.getState().navigateToGroup('456', 'Backend');
-    const state = useGitlabStore.getState();
-    expect(state.currentGroupId).toBe('456');
-    expect(state.breadcrumb).toHaveLength(2);
-    expect(state.breadcrumb[1]).toEqual({ id: '456', name: 'Backend' });
-  });
-
-  it('navigateUp pops last breadcrumb entry', () => {
-    useGitlabStore.getState().navigateToGroup('123', 'Platform');
-    useGitlabStore.getState().navigateToGroup('456', 'Backend');
-    useGitlabStore.getState().navigateUp();
-    const state = useGitlabStore.getState();
-    expect(state.breadcrumb).toHaveLength(1);
-    expect(state.currentGroupId).toBe('123');
-  });
-
-  it('navigateUp on empty breadcrumb is a no-op', () => {
-    const before = useGitlabStore.getState().currentGroupId;
-    useGitlabStore.getState().navigateUp();
-    expect(useGitlabStore.getState().currentGroupId).toBe(before);
+  it('navigateToBreadcrumb is a no-op for out-of-range index', () => {
+    useGitlabStore.getState().navigateToBreadcrumb(-1);
     expect(useGitlabStore.getState().breadcrumb).toEqual([]);
+  });
+
+  it('setIncludeDescendants updates the flag', () => {
+    useGitlabStore.getState().setIncludeDescendants(true);
+    expect(useGitlabStore.getState().includeDescendants).toBe(true);
+  });
+
+  it('invalidateGroupCache removes the targeted entry', () => {
+    useGitlabStore.setState({
+      groupCache: {
+        '10': { metadata: { id: 10, name: 'Test', full_path: 'test', web_url: '', parent_id: null }, subgroups: [], epics: [], fetchedAt: Date.now() },
+        '20': { metadata: { id: 20, name: 'Other', full_path: 'other', web_url: '', parent_id: null }, subgroups: [], epics: [], fetchedAt: Date.now() },
+      },
+    });
+    useGitlabStore.getState().invalidateGroupCache('10');
+    const cache = useGitlabStore.getState().groupCache;
+    expect(cache['10']).toBeUndefined();
+    expect(cache['20']).toBeDefined();
+  });
+
+  it('loadingNavigation defaults to false', () => {
+    expect(useGitlabStore.getState().loadingNavigation).toBe(false);
   });
 });
 
@@ -205,7 +200,7 @@ describe('reset', () => {
     useGitlabStore.getState().setFilterState('closed');
     useGitlabStore.getState().setPage(5);
     useGitlabStore.getState().setSelectedEpic(MOCK_EPIC);
-    useGitlabStore.getState().navigateToGroup('123', 'Platform');
+    useGitlabStore.setState({ currentGroupId: '123', breadcrumb: [{ id: '123', name: 'Platform' }] });
     useGitlabStore.getState().openLoadModal();
 
     useGitlabStore.getState().reset();

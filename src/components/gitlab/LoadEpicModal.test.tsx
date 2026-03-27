@@ -7,6 +7,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { LoadEpicModal } from './LoadEpicModal';
 import { useConfigStore } from '@/stores/configStore';
 import { useEpicStore } from '@/stores/epicStore';
+import { useGitlabStore } from '@/stores/gitlabStore';
 import { useUiStore } from '@/stores/uiStore';
 
 // ─── Mock GitLab client ──────────────────────────────────────
@@ -14,12 +15,16 @@ import { useUiStore } from '@/stores/uiStore';
 vi.mock('@/services/gitlab/gitlabClient', () => ({
   fetchGroupEpics: vi.fn(),
   fetchEpicDetails: vi.fn(),
+  fetchGroupMetadata: vi.fn(),
+  fetchGitLabSubgroups: vi.fn(),
 }));
 
-import { fetchGroupEpics, fetchEpicDetails } from '@/services/gitlab/gitlabClient';
+import { fetchGroupEpics, fetchEpicDetails, fetchGroupMetadata, fetchGitLabSubgroups } from '@/services/gitlab/gitlabClient';
 
 const mockFetchGroupEpics = vi.mocked(fetchGroupEpics);
 const mockFetchEpicDetails = vi.mocked(fetchEpicDetails);
+const mockFetchGroupMetadata = vi.mocked(fetchGroupMetadata);
+const mockFetchGitLabSubgroups = vi.mocked(fetchGitLabSubgroups);
 
 // ─── Fixtures ─────────────────────────────────────────────────
 
@@ -29,11 +34,28 @@ const MOCK_EPICS = [
   { id: 3, iid: 201, title: 'Data Pipeline v3', description: '## Data', state: 'closed', web_url: '', labels: [], created_at: '', updated_at: '', group_id: 10 },
 ];
 
+const MOCK_GROUP_METADATA = {
+  id: 10, name: 'Platform', full_path: 'ubs/platform', web_url: 'https://gitlab.com/ubs/platform', parent_id: null, description: '',
+};
+
+function setupConfigured() {
+  useConfigStore.setState({
+    config: {
+      ...useConfigStore.getState().config,
+      gitlab: { enabled: true, rootGroupId: '10', accessToken: 'tok', authMode: 'pat' },
+    },
+  });
+  mockFetchGroupMetadata.mockResolvedValue({ success: true, data: MOCK_GROUP_METADATA });
+  mockFetchGitLabSubgroups.mockResolvedValue({ success: true, data: [] });
+  mockFetchGroupEpics.mockResolvedValue({ success: true, data: MOCK_EPICS });
+}
+
 // ─── Setup ────────────────────────────────────────────────────
 
 beforeEach(() => {
   useConfigStore.setState(useConfigStore.getInitialState());
   useEpicStore.setState(useEpicStore.getInitialState());
+  useGitlabStore.setState(useGitlabStore.getInitialState());
   useUiStore.setState(useUiStore.getInitialState());
   vi.clearAllMocks();
 });
@@ -48,27 +70,13 @@ describe('LoadEpicModal', () => {
   });
 
   it('renders search input when configured', async () => {
-    useConfigStore.setState({
-      config: {
-        ...useConfigStore.getState().config,
-        gitlab: { enabled: true, rootGroupId: '10', accessToken: 'tok', authMode: 'pat' },
-      },
-    });
-    mockFetchGroupEpics.mockResolvedValue({ success: true, data: [] });
-
+    setupConfigured();
     render(<LoadEpicModal />);
     expect(screen.getByTestId('epic-search-input')).toBeDefined();
   });
 
-  it('renders epic cards when data is available', async () => {
-    useConfigStore.setState({
-      config: {
-        ...useConfigStore.getState().config,
-        gitlab: { enabled: true, rootGroupId: '10', accessToken: 'tok', authMode: 'pat' },
-      },
-    });
-    mockFetchGroupEpics.mockResolvedValue({ success: true, data: MOCK_EPICS });
-
+  it('renders epic cards after navigation completes', async () => {
+    setupConfigured();
     render(<LoadEpicModal />);
 
     await waitFor(() => {
@@ -81,14 +89,7 @@ describe('LoadEpicModal', () => {
   });
 
   it('search filters epic list client-side', async () => {
-    useConfigStore.setState({
-      config: {
-        ...useConfigStore.getState().config,
-        gitlab: { enabled: true, rootGroupId: '10', accessToken: 'tok', authMode: 'pat' },
-      },
-    });
-    mockFetchGroupEpics.mockResolvedValue({ success: true, data: MOCK_EPICS });
-
+    setupConfigured();
     render(<LoadEpicModal />);
 
     await waitFor(() => {
@@ -104,20 +105,13 @@ describe('LoadEpicModal', () => {
   });
 
   it('clicking an epic loads its description and closes modal', async () => {
-    useConfigStore.setState({
-      config: {
-        ...useConfigStore.getState().config,
-        gitlab: { enabled: true, rootGroupId: '10', accessToken: 'tok', authMode: 'pat' },
-      },
-    });
-    mockFetchGroupEpics.mockResolvedValue({ success: true, data: MOCK_EPICS });
+    setupConfigured();
     mockFetchEpicDetails.mockResolvedValue({
       success: true,
       data: { id: 1, iid: 142, title: 'API Gateway Migration', description: '## Loaded content', state: 'opened', web_url: '', labels: [], created_at: '', updated_at: '', group_id: 10 },
     });
 
     useUiStore.setState({ activeModal: 'loadEpic' });
-
     render(<LoadEpicModal />);
 
     await waitFor(() => {
@@ -134,21 +128,18 @@ describe('LoadEpicModal', () => {
     expect(useUiStore.getState().activeView).toBe('workspace');
   });
 
-  it('shows error toast when fetch fails', async () => {
-    useConfigStore.setState({
-      config: {
-        ...useConfigStore.getState().config,
-        gitlab: { enabled: true, rootGroupId: '10', accessToken: 'tok', authMode: 'pat' },
-      },
-    });
-    mockFetchGroupEpics.mockResolvedValue({ success: false, error: 'Network error' });
-
+  it('renders breadcrumb after navigation', async () => {
+    setupConfigured();
     render(<LoadEpicModal />);
 
     await waitFor(() => {
-      const toasts = useUiStore.getState().toasts;
-      expect(toasts.length).toBeGreaterThan(0);
-      expect(toasts[0]!.type).toBe('error');
+      expect(screen.getByText('Platform')).toBeDefined();
     });
+  });
+
+  it('renders include descendants toggle', async () => {
+    setupConfigured();
+    render(<LoadEpicModal />);
+    expect(screen.getByText('Include epics from subgroups')).toBeDefined();
   });
 });

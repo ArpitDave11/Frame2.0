@@ -62,8 +62,8 @@ export type ModelFamily = 'gpt-4.1' | 'reasoning';
 
 /** Safe parameter limits per model family */
 export const MODEL_LIMITS: Record<ModelFamily, { maxTokens: number; defaultTokens: number; temperature: number; isReasoning: boolean }> = {
-  'gpt-4.1':   { maxTokens: 32768,  defaultTokens: 4096, temperature: 0.7, isReasoning: false },
-  'reasoning':  { maxTokens: 128000, defaultTokens: 4096, temperature: 1.0, isReasoning: true },
+  'gpt-4.1':    { maxTokens: 32768,  defaultTokens: 16384, temperature: 0.7, isReasoning: false },
+  'reasoning':  { maxTokens: 128000, defaultTokens: 65536, temperature: 1.0, isReasoning: true },
 };
 
 /** Available OpenAI model options */
