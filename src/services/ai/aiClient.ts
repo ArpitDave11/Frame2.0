@@ -37,9 +37,12 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
     bodyObj.model = config.openai.model;
   }
 
-  // Use requested tokens, fall back to safe default, cap at model ceiling
+  // V4 pattern: caller > user config > safe default, all capped at model max
+  const userMaxTokens = config.provider === 'azure'
+    ? config.azure.maxTokens
+    : config.openai.maxTokens;
   const effectiveMaxTokens = Math.min(
-    request.maxTokens ?? limits.defaultTokens,
+    request.maxTokens ?? userMaxTokens ?? limits.defaultTokens,
     limits.maxTokens,
   );
 
@@ -47,9 +50,10 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
     bodyObj.max_completion_tokens = effectiveMaxTokens;
   } else {
     bodyObj.max_tokens = effectiveMaxTokens;
-    if (request.temperature != null) {
-      bodyObj.temperature = request.temperature;
-    }
+    const userTemp = config.provider === 'azure'
+      ? config.azure.temperature
+      : config.openai.temperature;
+    bodyObj.temperature = request.temperature ?? userTemp ?? limits.temperature;
   }
 
   const body = JSON.stringify(bodyObj);
@@ -62,21 +66,28 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
 
   if (!response.ok) {
     const text = await response.text();
-    const { status } = response;
+    const status = response.status;
 
-    // Actionable error messages for common failures
     if (status === 429) {
       const retryAfter = response.headers.get('Retry-After');
-      throw new Error(`Rate limit exceeded (429). ${retryAfter ? `Retry after ${retryAfter}s.` : 'Wait and try again.'}`);
+      const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 10000;
+      await new Promise(resolve => setTimeout(resolve, Math.min(waitMs, 30000)));
+      throw new Error(`AI rate limited (429). Waited ${Math.round(waitMs / 1000)}s — please retry.`);
     }
     if (status === 401) {
-      throw new Error('Authentication failed (401). Check your API key in Settings.');
+      throw new Error('AI authentication failed (401). Check your API key in Settings.');
     }
-    if (text.includes('max_tokens')) {
-      throw new Error(`Token limit error: ${text}. Try reducing Max Tokens in Settings.`);
+    if (status === 404) {
+      throw new Error('AI deployment not found (404). Check your deployment name and endpoint in Settings.');
+    }
+    if (text.includes('max_tokens') || text.includes('max_completion_tokens')) {
+      throw new Error(`Token limit error: ${text}. The model may have stricter output limits.`);
     }
     if (text.includes('temperature')) {
       throw new Error(`Temperature error: ${text}. Reasoning models (GPT-5) do not support temperature.`);
+    }
+    if (status >= 500) {
+      throw new Error(`AI server error (${status}). The service may be temporarily unavailable.`);
     }
     throw new Error(`AI request failed (${status}): ${text}`);
   }

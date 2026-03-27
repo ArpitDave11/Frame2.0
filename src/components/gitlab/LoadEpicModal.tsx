@@ -1,13 +1,12 @@
 /**
  * LoadEpicModal — GitLab epic browser with V4-parity navigation.
  *
- * Feature Spec: F03 (Epic Loading & Browsing with Group Context)
- * - Breadcrumb navigation (clickable path segments)
- * - Subgroup dropdown (one-shot navigation)
- * - Include descendants toggle (with cache invalidation per F12)
- * - Group name displayed per epic when descendants shown (V4-BUG-03 prevention)
- * - Cache-first fetching (5-minute TTL per F12)
- * - Correct group_id on load (V4-BUG-05 prevention: never IID alone)
+ * Two modes:
+ * - BROWSE: navigateToGroup with per_page:100, cached, breadcrumb nav
+ * - SEARCH: server-side search across ALL subgroups (include_descendant_groups)
+ *
+ * Features: breadcrumb, subgroup dropdown, state filter, server-side search,
+ * include descendants toggle, group names, "X of Y" count.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -28,33 +27,58 @@ export function LoadEpicModal() {
   const addToast = useUiStore((s) => s.addToast);
   const setActiveView = useUiStore((s) => s.setActiveView);
 
-  // Store-driven navigation (V4 parity)
-  const epics = useGitlabStore((s) => s.epics);
+  // Browse state
+  const browseEpics = useGitlabStore((s) => s.epics);
   const breadcrumb = useGitlabStore((s) => s.breadcrumb);
   const currentGroupId = useGitlabStore((s) => s.currentGroupId);
   const groupCache = useGitlabStore((s) => s.groupCache);
   const loadingNavigation = useGitlabStore((s) => s.loadingNavigation);
   const includeDescendants = useGitlabStore((s) => s.includeDescendants);
+  const browseTotalCount = useGitlabStore((s) => s.browseTotalCount);
   const navigateToGroup = useGitlabStore((s) => s.navigateToGroup);
   const navigateToBreadcrumb = useGitlabStore((s) => s.navigateToBreadcrumb);
   const setIncludeDescendants = useGitlabStore((s) => s.setIncludeDescendants);
 
+  // Search state
+  const searchResults = useGitlabStore((s) => s.searchResults);
+  const searchTotalCount = useGitlabStore((s) => s.searchTotalCount);
+  const isSearching = useGitlabStore((s) => s.isSearching);
+  const searchActive = useGitlabStore((s) => s.searchActive);
+  const searchEpics = useGitlabStore((s) => s.searchEpics);
+  const clearSearch = useGitlabStore((s) => s.clearSearch);
+
   const [search, setSearch] = useState('');
+  const [stateFilter, setStateFilter] = useState<'opened' | 'closed' | 'all'>('opened');
   const [loadingEpic, setLoadingEpic] = useState(false);
 
   const gitlabConfigured = config.gitlab.enabled && !!config.gitlab.rootGroupId;
 
-  // Navigate to root group on mount
+  // Navigate to root on mount
   useEffect(() => {
     if (!gitlabConfigured) return;
     navigateToGroup(config.gitlab.rootGroupId);
   }, [gitlabConfigured, config.gitlab.rootGroupId, navigateToGroup]);
 
-  // Subgroups from cache
   const cachedEntry = currentGroupId ? groupCache[currentGroupId] : undefined;
   const subgroups = cachedEntry?.subgroups ?? [];
 
-  // F11 (ID Safety): Use epic.group_id, NEVER rootGroupId alone
+  // Server-side search handler
+  const handleSearch = useCallback(() => {
+    if (!search.trim()) { clearSearch(); return; }
+    searchEpics(search.trim(), stateFilter);
+  }, [search, stateFilter, searchEpics, clearSearch]);
+
+  const handleSearchClear = useCallback(() => {
+    setSearch('');
+    clearSearch();
+  }, [clearSearch]);
+
+  // Which epics to display
+  const displayEpics = searchActive ? searchResults : browseEpics;
+  const displayTotal = searchActive ? searchTotalCount : browseTotalCount;
+  const isLoading = loadingNavigation || isSearching;
+
+  // Load epic handler
   const handleEpicClick = useCallback(
     async (epic: GitLabEpic) => {
       setLoadingEpic(true);
@@ -75,7 +99,6 @@ export function LoadEpicModal() {
     [config.gitlab, setMarkdown, closeModal, setActiveView, addToast],
   );
 
-  // Not configured
   if (!gitlabConfigured) {
     return (
       <div data-testid="gitlab-not-configured" style={{
@@ -87,16 +110,11 @@ export function LoadEpicModal() {
     );
   }
 
-  // Client-side search filter
-  const filtered = search.trim()
-    ? epics.filter((e) => e.title.toLowerCase().includes(search.toLowerCase()))
-    : epics;
-
   return (
     <div data-testid="load-epic-modal" style={{ fontFamily: F }}>
 
-      {/* Breadcrumb (V4 parity) */}
-      {breadcrumb.length > 0 && (
+      {/* Breadcrumb */}
+      {breadcrumb.length > 0 && !searchActive && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16,
           padding: '10px 14px', backgroundColor: '#ECEBE4',
@@ -128,8 +146,8 @@ export function LoadEpicModal() {
         </div>
       )}
 
-      {/* Subgroup Dropdown (V4 parity: one-shot navigation) */}
-      {subgroups.length > 0 && (
+      {/* Subgroup Dropdown — hide during search */}
+      {subgroups.length > 0 && !searchActive && (
         <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--col-text-primary)' }}>
             Navigate to Subgroup:
@@ -153,79 +171,134 @@ export function LoadEpicModal() {
         </div>
       )}
 
-      {/* Include Descendants Toggle (F12: cache invalidation on toggle) */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
-        padding: '10px 14px', backgroundColor: '#ECEBE4',
-        borderRadius: 6, border: '1px solid var(--col-border-illustrative)',
-      }}>
-        <label style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--col-text-primary)',
+      {/* Include Descendants Toggle — hide during search */}
+      {!searchActive && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+          padding: '10px 14px', backgroundColor: '#ECEBE4',
+          borderRadius: 6, border: '1px solid var(--col-border-illustrative)',
         }}>
-          <input
-            type="checkbox"
-            checked={includeDescendants}
-            onChange={(e) => setIncludeDescendants(e.target.checked)}
-            style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#E60000' }}
-          />
-          <span>Include epics from subgroups</span>
-        </label>
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--col-text-primary)',
+          }}>
+            <input
+              type="checkbox"
+              checked={includeDescendants}
+              onChange={(e) => setIncludeDescendants(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#E60000' }}
+            />
+            <span>Include epics from subgroups</span>
+          </label>
+        </div>
+      )}
+
+      {/* Search bar + State filter + Search button */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        {/* State filter */}
+        <select
+          value={stateFilter}
+          onChange={(e) => setStateFilter(e.target.value as 'opened' | 'closed' | 'all')}
+          data-testid="epic-state-filter"
+          style={{
+            padding: '9px 12px', borderRadius: '0.375rem',
+            border: '1px solid var(--col-border-illustrative)', fontSize: 13,
+            fontFamily: F, fontWeight: 300, cursor: 'pointer',
+            minWidth: 90,
+          }}
+        >
+          <option value="opened">Opened</option>
+          <option value="closed">Closed</option>
+          <option value="all">All</option>
+        </select>
+
+        {/* Search input */}
+        <input
+          data-testid="epic-search-input"
+          placeholder="Search epics across all subgroups..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+          style={{
+            flex: 1, padding: '9px 14px', borderRadius: '0.375rem',
+            border: '1px solid var(--col-border-illustrative)', fontSize: 13,
+            fontFamily: F, fontWeight: 300, outline: 'none', boxSizing: 'border-box',
+          }}
+        />
+
+        {/* Search button */}
+        <button
+          onClick={handleSearch}
+          disabled={isSearching}
+          data-testid="epic-search-btn"
+          style={{
+            padding: '9px 18px', borderRadius: '0.375rem', border: 'none',
+            background: '#E60000', color: '#fff', fontSize: 13,
+            fontFamily: F, fontWeight: 500, cursor: isSearching ? 'not-allowed' : 'pointer',
+            opacity: isSearching ? 0.7 : 1, whiteSpace: 'nowrap',
+          }}
+        >
+          {isSearching ? 'Searching...' : 'Search'}
+        </button>
+
+        {/* Clear button — only when search active */}
+        {searchActive && (
+          <button
+            onClick={handleSearchClear}
+            data-testid="epic-search-clear"
+            style={{
+              padding: '9px 14px', borderRadius: '0.375rem',
+              border: '1px solid var(--col-border-illustrative)',
+              background: 'var(--col-background-ui-10)', fontSize: 13,
+              fontFamily: F, fontWeight: 400, cursor: 'pointer',
+            }}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
-      {/* Search */}
-      <input
-        data-testid="epic-search-input"
-        placeholder="Search epics by title..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{
-          width: '100%', padding: '9px 14px', borderRadius: '0.375rem',
-          border: '1px solid var(--col-border-illustrative)', fontSize: 13,
-          fontFamily: F, fontWeight: 300, marginBottom: 16,
-          outline: 'none', boxSizing: 'border-box',
-        }}
-      />
+      {/* Count display */}
+      <div style={{
+        fontSize: 12, fontWeight: 300, color: 'var(--col-text-subtle)',
+        marginBottom: 12, fontFamily: F,
+      }}>
+        {searchActive
+          ? `Search results: showing ${displayEpics.length} of ${displayTotal} epics`
+          : `Showing ${displayEpics.length}${displayTotal > displayEpics.length ? ` of ${displayTotal}` : ''} epics`
+        }
+      </div>
 
       {/* Loading */}
-      {(loadingNavigation || loadingEpic) && (
+      {(isLoading || loadingEpic) && (
         <div data-testid="loading-indicator" style={{
           padding: 16, fontSize: 13, fontWeight: 300,
           color: 'var(--col-text-subtle)', textAlign: 'center',
         }}>
-          {loadingEpic ? 'Loading epic...' : 'Loading group...'}
+          {loadingEpic ? 'Loading epic...' : isSearching ? 'Searching across all subgroups...' : 'Loading group...'}
         </div>
       )}
 
-      {/* Epic List (F03: show group name when descendants enabled) */}
-      {!loadingNavigation &&
-        filtered.map((epic) => (
+      {/* Epic List */}
+      {!isLoading &&
+        displayEpics.map((epic) => (
           <EpicCard
             key={epic.id}
             title={epic.title}
             iid={epic.iid}
             state={epic.state}
-            groupName={includeDescendants ? resolveGroupName(epic, groupCache) : undefined}
+            groupName={(searchActive || includeDescendants) ? resolveGroupName(epic, groupCache) : undefined}
             onClick={() => handleEpicClick(epic)}
           />
         ))}
 
       {/* Empty States */}
-      {!loadingNavigation && filtered.length === 0 && epics.length > 0 && (
+      {!isLoading && displayEpics.length === 0 && !loadingEpic && (
         <div style={{
           padding: 16, fontSize: 13, fontWeight: 300,
           color: 'var(--col-text-subtle)', textAlign: 'center',
         }}>
-          No epics match your search
-        </div>
-      )}
-
-      {!loadingNavigation && epics.length === 0 && !loadingEpic && (
-        <div style={{
-          padding: 16, fontSize: 13, fontWeight: 300,
-          color: 'var(--col-text-subtle)', textAlign: 'center',
-        }}>
-          No epics found in this group
+          {searchActive ? 'No epics match your search' : 'No epics found in this group'}
         </div>
       )}
     </div>

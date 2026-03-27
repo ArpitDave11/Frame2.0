@@ -172,6 +172,42 @@ export function AIProviderConfig() {
               ))}
             </select>
           </div>
+          {/* Max Tokens + Temperature */}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Max Tokens</label>
+              <input
+                type="number"
+                style={inputStyle}
+                value={config.ai.azure.maxTokens ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                  updateConfig({ ai: { azure: { maxTokens: val } } });
+                }}
+                placeholder="16384"
+                min={1}
+                max={128000}
+                data-testid="azure-max-tokens"
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Temperature</label>
+              <input
+                type="number"
+                style={inputStyle}
+                value={config.ai.azure.temperature ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                  updateConfig({ ai: { azure: { temperature: val } } });
+                }}
+                placeholder="0.7"
+                min={0}
+                max={2}
+                step={0.1}
+                data-testid="azure-temperature"
+              />
+            </div>
+          </div>
           <ConnectionTestButton onTest={handleTestConnection} />
         </div>
       )}
@@ -234,6 +270,42 @@ export function AIProviderConfig() {
               placeholder="https://api.openai.com/v1"
               data-testid="openai-base-url"
             />
+          </div>
+          {/* Max Tokens + Temperature */}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Max Tokens</label>
+              <input
+                type="number"
+                style={inputStyle}
+                value={config.ai.openai.maxTokens ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                  updateConfig({ ai: { openai: { maxTokens: val } } });
+                }}
+                placeholder="16384"
+                min={1}
+                max={128000}
+                data-testid="openai-max-tokens"
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Temperature</label>
+              <input
+                type="number"
+                style={inputStyle}
+                value={config.ai.openai.temperature ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                  updateConfig({ ai: { openai: { temperature: val } } });
+                }}
+                placeholder="0.7"
+                min={0}
+                max={2}
+                step={0.1}
+                data-testid="openai-temperature"
+              />
+            </div>
           </div>
           <ConnectionTestButton onTest={handleTestConnection} />
         </div>

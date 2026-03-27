@@ -136,12 +136,31 @@ describe('callAI', () => {
   it('throws on non-ok response', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
-      status: 429,
-      statusText: 'Too Many Requests',
-      text: async () => 'Rate limited',
-      headers: { get: () => null },
+      status: 400,
+      statusText: 'Bad Request',
+      text: async () => 'Invalid request body',
     });
-    await expect(callAI(AZURE_CONFIG, REQUEST)).rejects.toThrow('Rate limit exceeded (429)');
+    await expect(callAI(AZURE_CONFIG, REQUEST)).rejects.toThrow('AI request failed (400)');
+  });
+
+  it('throws actionable error on 401', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      text: async () => 'Invalid key',
+    });
+    await expect(callAI(AZURE_CONFIG, REQUEST)).rejects.toThrow('AI authentication failed (401)');
+  });
+
+  it('throws actionable error on 404', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      text: async () => 'Deployment not found',
+    });
+    await expect(callAI(AZURE_CONFIG, REQUEST)).rejects.toThrow('AI deployment not found (404)');
   });
 });
 

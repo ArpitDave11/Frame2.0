@@ -12,6 +12,9 @@ import { useConfigStore } from '@/stores/configStore';
 import { parseUserStories } from '@/pipeline/utils/parseUserStories';
 import { analyzeStoryDuplicates } from '@/services/ai/analyzeStoryDuplicates';
 import { createIssuesAction } from '@/actions/createIssuesAction';
+import { fetchIssuesAction } from '@/actions/fetchIssuesAction';
+import { fetchGroupProjects } from '@/services/gitlab/gitlabClient';
+import type { GitLabProject } from '@/services/gitlab/types';
 import type { ParsedUserStory } from '@/pipeline/utils/parseUserStories';
 import type { DuplicateAnalysis } from '@/services/ai/analyzeStoryDuplicates';
 import type { CreationProgress } from '@/actions/createIssuesAction';
@@ -37,11 +40,41 @@ export function IssueCreationModal() {
   const [phase, setPhase] = useState<Phase>('parsing');
   const [storiesWithAnalysis, setStoriesWithAnalysis] = useState<StoryWithAnalysis[]>([]);
   const [projectId, setProjectId] = useState('');
+  const [issuesExpanded, setIssuesExpanded] = useState(true); // F09: collapsible
+  const [projects, setProjects] = useState<GitLabProject[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
   const [progress, setProgress] = useState<CreationProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const loadedGroupId = useGitlabStore((s) => s.loadedGroupId);
   const epicTitle = epicDoc?.title ?? 'Untitled Epic';
   const isGitLabConfigured = cfg.gitlab.enabled && !!cfg.gitlab.accessToken;
+
+  // F09: Auto-collapse when >5 existing issues
+  useEffect(() => {
+    if (gitlabIssues.length > 5) setIssuesExpanded(false);
+  }, [gitlabIssues.length]);
+
+  // F04: Auto-fetch projects from the epic's group
+  useEffect(() => {
+    if (!isGitLabConfigured || !loadedGroupId) return;
+    let cancelled = false;
+    setLoadingProjects(true);
+
+    fetchGroupProjects(cfg.gitlab, loadedGroupId).then((result) => {
+      if (cancelled) return;
+      setLoadingProjects(false);
+      if (result.success && result.data) {
+        setProjects(result.data);
+        // Auto-select if only 1 project
+        if (result.data.length === 1) {
+          setProjectId(String(result.data[0]!.id));
+        }
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [isGitLabConfigured, loadedGroupId, cfg.gitlab]);
   const selectedCount = storiesWithAnalysis.filter((s) => s.selected).length;
 
   // Phase 1: Parse stories from markdown
@@ -145,6 +178,11 @@ export function IssueCreationModal() {
     if (!result.success) {
       setError(`${result.errors.length} issue(s) failed to create`);
     }
+
+    // F04: Sync new issues back to store so they're visible in Issue Manager
+    if (result.created > 0) {
+      fetchIssuesAction();
+    }
   }, [storiesWithAnalysis, projectId, epicTitle, markdown]);
 
   // ─── Loading states ─────────────────────────────────────
@@ -227,13 +265,18 @@ export function IssueCreationModal() {
   // ─── Ready state — main UI ──────────────────────────────
   return (
     <div style={{ fontFamily: F, maxHeight: 500, display: 'flex', flexDirection: 'column' }}>
-      {/* Existing issues chips */}
+      {/* F09: Collapsible existing issues */}
       {gitlabIssues.length > 0 && (
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--col-border-illustrative)' }}>
-          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--col-text-subtle)', marginBottom: 8 }}>
+          <div
+            onClick={() => setIssuesExpanded(!issuesExpanded)}
+            style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--col-text-subtle)', marginBottom: issuesExpanded ? 8 : 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <span style={{ transform: issuesExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>&#9654;</span>
             Existing Issues ({gitlabIssues.length})
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {issuesExpanded && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 120, overflowY: 'auto' }}>
             {gitlabIssues.slice(0, 10).map((issue) => (
               <span key={issue.id} style={{
                 padding: '3px 8px',
@@ -252,6 +295,7 @@ export function IssueCreationModal() {
               </span>
             )}
           </div>
+          )}
         </div>
       )}
 
@@ -262,30 +306,59 @@ export function IssueCreationModal() {
         </div>
       )}
 
-      {/* Project ID input */}
+      {/* F04: Project picker */}
       {isGitLabConfigured && (
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--col-border-illustrative)' }}>
           <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--col-text-subtle)', display: 'block', marginBottom: 4 }}>
-            GitLab Project ID
+            Target Project
           </label>
-          <input
-            data-testid="project-id-input"
-            type="text"
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-            placeholder="e.g. 12345"
-            style={{
-              width: '100%',
-              padding: '7px 10px',
-              border: '1px solid var(--col-border-illustrative)',
-              borderRadius: 6,
-              fontSize: 12,
-              fontFamily: F,
-              fontWeight: 300,
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
-          />
+          {loadingProjects ? (
+            <div style={{ fontSize: 12, color: 'var(--col-text-subtle)', padding: '7px 0' }}>Loading projects...</div>
+          ) : projects.length > 0 ? (
+            <select
+              data-testid="project-id-input"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '7px 10px',
+                border: '1px solid var(--col-border-illustrative)',
+                borderRadius: 6,
+                fontSize: 12,
+                fontFamily: F,
+                fontWeight: 300,
+                boxSizing: 'border-box',
+              }}
+            >
+              <option value="">Select a project...</option>
+              {projects.map((p) => (
+                <option key={p.id} value={String(p.id)}>{p.name} ({p.path_with_namespace})</option>
+              ))}
+            </select>
+          ) : projects.length === 0 && !loadingProjects && loadedGroupId ? (
+            <div style={{ fontSize: 12, color: '#b91c1c', padding: '7px 0' }}>
+              No projects found in this group. Issues require a project.
+            </div>
+          ) : (
+            <input
+              data-testid="project-id-input"
+              type="text"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              placeholder="Enter project ID"
+              style={{
+                width: '100%',
+                padding: '7px 10px',
+                border: '1px solid var(--col-border-illustrative)',
+                borderRadius: 6,
+                fontSize: 12,
+                fontFamily: F,
+                fontWeight: 300,
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          )}
         </div>
       )}
 
@@ -300,7 +373,7 @@ export function IssueCreationModal() {
       </div>
 
       {/* Story list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0', minHeight: 200 }}>
         {storiesWithAnalysis.map(({ story, analysis, selected }) => {
           const score = analysis?.similarityScore ?? 0;
           const isDuplicate = score >= 80;

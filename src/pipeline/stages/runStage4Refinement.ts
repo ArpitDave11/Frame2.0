@@ -12,6 +12,7 @@ import { callAI } from '@/services/ai/aiClient';
 import { withRetry } from '@/services/ai/throttler';
 import { buildRefinementPrompt } from '@/pipeline/prompts/refinementPrompt';
 import { discoverSections } from '@/domain/sectionDiscovery';
+import { enforceWordLimit } from '@/domain/epicSerializer';
 import { loadCategoryTemplate, getFormatInstruction, findSectionConfig } from '@/services/templates/templateLoader';
 import type {
   RefinementInput,
@@ -53,53 +54,79 @@ export async function runStage4Refinement(
   const plan = input.structural.transformationPlan;
   const totalSections = plan.length;
 
-  const refinedSections: PipelineRefinedSection[] = [];
-  let successCount = 0;
+  // Sections that Stage 5 will generate authoritatively — skip AI calls for these
+  const STAGES_OWNED = new Set(['user stories', 'architecture diagram', 'architecture overview']);
 
-  for (let i = 0; i < plan.length; i++) {
-    const action = plan[i]!;
-    const sectionIndex = i + 1;
+  onProgress?.({
+    stageName: STAGE_NAME,
+    status: 'running',
+    message: `Refining ${totalSections} sections in parallel...`,
+    timestamp: Date.now(),
+  });
 
-    onProgress?.({
-      stageName: STAGE_NAME,
-      status: 'running',
-      message: `Refining section ${sectionIndex}/${totalSections}: ${action.displayName || action.sectionId}`,
-      timestamp: Date.now(),
+  const CONCURRENCY_LIMIT = 5;
+  const orderedResults: Array<{ index: number; sections: PipelineRefinedSection[]; tokensUsed: number }> = [];
+
+  // Process in batches of CONCURRENCY_LIMIT
+  for (let batchStart = 0; batchStart < plan.length; batchStart += CONCURRENCY_LIMIT) {
+    const batch = plan.slice(batchStart, batchStart + CONCURRENCY_LIMIT);
+
+    const batchPromises = batch.map(async (action, batchIdx) => {
+      const globalIdx = batchStart + batchIdx;
+
+      // Skip sections owned by Stage 5 — no wasted AI call
+      if (STAGES_OWNED.has((action.displayName || action.sectionId).toLowerCase().trim())) {
+        return { index: globalIdx, sections: [] as PipelineRefinedSection[], tokensUsed: 0 };
+      }
+
+      try {
+        const result = await refineSingleSection(
+          action,
+          discovered,
+          category,
+          template,
+          config,
+          aiConfig,
+          input.rawContent,
+          input.previousFeedback,
+        );
+
+        totalTokens += result.tokensUsed;
+        if (result.model) model = result.model;
+
+        // F08: enforce word limits on each refined section (500 words max per section)
+        const cappedSections = result.sections.map((s) => ({
+          ...s,
+          content: enforceWordLimit(s.content, 500),
+        }));
+        return { index: globalIdx, sections: cappedSections, tokensUsed: result.tokensUsed };
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        return {
+          index: globalIdx,
+          sections: [{
+            sectionId: action.sectionId,
+            title: action.displayName || action.sectionId,
+            content: `_Error generating this section: ${errMsg}_`,
+            formatUsed: 'error',
+          }] as PipelineRefinedSection[],
+          tokensUsed: 0,
+        };
+      }
     });
 
-    try {
-      const result = await refineSingleSection(
-        action,
-        discovered,
-        category,
-        template,
-        config,
-        aiConfig,
-        input.rawContent,
-        input.previousFeedback,
-      );
-
-      totalTokens += result.tokensUsed;
-      if (result.model) model = result.model;
-      successCount++;
-
-      for (const section of result.sections) {
-        refinedSections.push(section);
-      }
-    } catch (error) {
-      // Partial failure: log and continue with other sections
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`Stage 4: Failed to refine section "${action.displayName}":`, error);
-      refinedSections.push({
-        sectionId: action.sectionId,
-        title: action.displayName || action.sectionId,
-        content: `_Error generating this section: ${errMsg}_`,
-        formatUsed: 'error',
-      });
-    }
+    const batchResults = await Promise.all(batchPromises);
+    orderedResults.push(...batchResults);
   }
 
-  const success = successCount > 0;
+  // Reassemble in original order, filtering out empty (skipped) entries
+  orderedResults.sort((a, b) => a.index - b.index);
+  const refinedSections: PipelineRefinedSection[] = [];
+  for (const r of orderedResults) {
+    for (const s of r.sections) refinedSections.push(s);
+  }
+
+  const success = refinedSections.some((s) => s.formatUsed !== 'error');
 
   onProgress?.({
     stageName: STAGE_NAME,

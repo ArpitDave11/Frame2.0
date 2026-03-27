@@ -73,6 +73,13 @@ interface GitlabState {
   loadResults: GitLabEpic[];
   loadingResults: boolean;
   includeDescendants: boolean;
+
+  // Server-side search (Approach B: separate from browse)
+  searchResults: GitLabEpic[];
+  searchTotalCount: number;
+  isSearching: boolean;
+  searchActive: boolean;
+  browseTotalCount: number;
 }
 
 interface GitlabActions {
@@ -94,6 +101,8 @@ interface GitlabActions {
   setIssueSearchQuery: (query: string) => void;
   setLoadedEpicContext: (epicIid: number, groupId: string) => void;
   clearLoadedEpicContext: () => void;
+  searchEpics: (query: string, state?: string) => Promise<void>;
+  clearSearch: () => void;
   openLoadModal: () => void;
   closeLoadModal: () => void;
   reset: () => void;
@@ -141,6 +150,12 @@ const INITIAL_STATE: GitlabState = {
   loadResults: [],
   loadingResults: false,
   includeDescendants: false,
+
+  searchResults: [],
+  searchTotalCount: 0,
+  isSearching: false,
+  searchActive: false,
+  browseTotalCount: 0,
 };
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -233,7 +248,7 @@ export const useGitlabStore = create<GitlabStore>()((set, get) => ({
     const cached = groupCache[groupId];
     if (cached && (Date.now() - cached.fetchedAt < CACHE_TTL)) {
       const bc = buildBreadcrumb(cached.metadata, groupCache);
-      set({ currentGroupId: groupId, breadcrumb: bc, epics: cached.epics, loadingNavigation: false });
+      set({ currentGroupId: groupId, breadcrumb: bc, epics: cached.epics, loadingNavigation: false, searchActive: false });
       return;
     }
 
@@ -245,7 +260,7 @@ export const useGitlabStore = create<GitlabStore>()((set, get) => ({
       const [metaRes, subRes, epicRes] = await Promise.all([
         fetchGroupMetadata(config.gitlab, groupId),
         fetchGitLabSubgroups(config.gitlab, groupId),
-        fetchGroupEpics(config.gitlab, groupId, { include_descendant_groups: includeDescendants }),
+        fetchGroupEpics(config.gitlab, groupId, { include_descendant_groups: includeDescendants, per_page: 100 }),
       ]);
 
       if (metaRes.success && metaRes.data) {
@@ -254,7 +269,8 @@ export const useGitlabStore = create<GitlabStore>()((set, get) => ({
         const epics = epicRes.data ?? [];
         const newCache = { ...get().groupCache, [groupId]: { metadata, subgroups, epics, fetchedAt: Date.now() } };
         const bc = buildBreadcrumb(metadata, newCache);
-        set({ currentGroupId: groupId, breadcrumb: bc, groupCache: newCache, epics, loadingNavigation: false });
+        const browseTotal = epicRes.totalCount ?? epics.length;
+        set({ currentGroupId: groupId, breadcrumb: bc, groupCache: newCache, epics, loadingNavigation: false, browseTotalCount: browseTotal, searchActive: false });
       } else {
         set({ loadingNavigation: false });
       }
@@ -290,7 +306,8 @@ export const useGitlabStore = create<GitlabStore>()((set, get) => ({
   },
 
   setPublishLevel: (level) => {
-    set({ publishLevel: level });
+    // F02: Reset target group and parent on level switch to prevent stale state
+    set({ publishLevel: level, publishTargetGroupId: null });
   },
 
   setPublishTargetGroup: (groupId) => {
@@ -323,6 +340,38 @@ export const useGitlabStore = create<GitlabStore>()((set, get) => ({
 
   clearLoadedEpicContext: () => {
     set({ loadedEpicIid: null, loadedGroupId: null, issues: [] });
+  },
+
+  searchEpics: async (query, state) => {
+    if (!query.trim()) { get().clearSearch(); return; }
+
+    set({ isSearching: true, searchActive: true });
+    const config = useConfigStore.getState().config;
+
+    try {
+      const result = await fetchGroupEpics(config.gitlab, config.gitlab.rootGroupId, {
+        search: query.trim(),
+        state: state && state !== 'all' ? state : undefined,
+        include_descendant_groups: true,
+        per_page: 100,
+      });
+
+      if (result.success) {
+        set({
+          searchResults: result.data ?? [],
+          searchTotalCount: result.totalCount ?? (result.data?.length ?? 0),
+          isSearching: false,
+        });
+      } else {
+        set({ isSearching: false });
+      }
+    } catch {
+      set({ isSearching: false });
+    }
+  },
+
+  clearSearch: () => {
+    set({ searchActive: false, searchResults: [], searchTotalCount: 0, isSearching: false });
   },
 
   openLoadModal: () => {

@@ -37,7 +37,7 @@ function applyDiagramTheme(diagramCode: string): string {
   return themeInit + diagramCode;
 }
 
-export async function regenerateBlueprintAction(): Promise<void> {
+export async function regenerateBlueprintAction(instruction?: string): Promise<void> {
   const epicStore = useEpicStore.getState();
   const configStore = useConfigStore.getState();
   const blueprintStore = useBlueprintStore.getState();
@@ -96,7 +96,9 @@ Apply classes: API["Gateway"]:::service
 After connections, add linkStyle for 5-10 key arrows with semantic colors.
 
 Respond with ONLY the Mermaid code. No explanation, no markdown fences.`,
-      userPrompt: `Generate an architecture diagram for this epic:\n\n${epicStore.markdown.substring(0, 8000)}`,
+      userPrompt: instruction
+        ? `Modify the existing diagram based on this instruction: "${instruction}"\n\nExisting diagram:\n${blueprintStore.code.substring(0, 4000)}\n\nEpic context:\n${epicStore.markdown.substring(0, 4000)}`
+        : `Generate an architecture diagram for this epic:\n\n${epicStore.markdown.substring(0, 8000)}`,
       temperature: 0.3,
     });
 
@@ -110,8 +112,8 @@ Respond with ONLY the Mermaid code. No explanation, no markdown fences.`,
 
     const themed = applyDiagramTheme(code);
     const diagType = (code.match(/^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie)/m)?.[1] ?? 'flowchart').replace(/^graph.*/, 'flowchart');
-    blueprintStore.setCode(themed, diagType);
-    addToast({ type: 'success', title: 'Blueprint regenerated.' });
+    blueprintStore.setCode(themed, diagType, undefined, instruction ?? 'Generated');
+    addToast({ type: 'success', title: instruction ? `Applied: ${instruction}` : 'Blueprint regenerated.' });
   } catch (err) {
     addToast({ type: 'error', title: `Regeneration failed: ${err instanceof Error ? err.message : String(err)}` });
   } finally {

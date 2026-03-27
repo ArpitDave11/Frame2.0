@@ -73,6 +73,94 @@ function splitSections(markdown: string): { title: string; content: string }[] {
   return sections;
 }
 
+// ─── safeTruncateTitle (F06) ─────────────────────────────────
+
+/**
+ * Words that should never be the last word of a truncated title.
+ * Includes prepositions, conjunctions, articles, determiners.
+ * F06 spec: 50+ unsafe ending words.
+ */
+const DANGLING_WORDS = new Set([
+  'a', 'an', 'the', 'of', 'in', 'for', 'to', 'and', 'or', 'but', 'nor',
+  'at', 'by', 'on', 'with', 'from', 'into', 'through', 'during', 'before',
+  'after', 'above', 'below', 'between', 'under', 'over', 'about', 'against',
+  'along', 'among', 'around', 'behind', 'beneath', 'beside', 'beyond',
+  'despite', 'down', 'except', 'inside', 'near', 'off', 'onto', 'outside',
+  'per', 'since', 'than', 'toward', 'towards', 'until', 'upon', 'via',
+  'within', 'without', 'our', 'your', 'their', 'its', 'this', 'that', 'these',
+  'those', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
+]);
+
+/**
+ * Truncate a title at a safe word boundary, never ending with a dangling word.
+ * F06 spec: minimum 3 words, max maxWords.
+ */
+export function safeTruncateTitle(title: string, maxWords: number = 8): string {
+  const words = title.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return title;
+
+  // Truncate to maxWords
+  let end = maxWords;
+
+  // Walk backward to find last non-dangling word
+  while (end > 3 && DANGLING_WORDS.has(words[end - 1]!.toLowerCase())) {
+    end--;
+  }
+
+  // Minimum 3 words
+  if (end < 3) end = 3;
+
+  return words.slice(0, end).join(' ');
+}
+
+// ─── enforceWordLimit (F08) ──────────────────────────────────
+
+/**
+ * Enforce word limits on AI-generated text. Runs AFTER every AI response.
+ * - Within limit: pass through unchanged.
+ * - 1x-2x over: trim at last sentence boundary within maxWords.
+ * - Over 2x: returns text truncated at sentence boundary (caller can re-prompt).
+ * - Hard fallback: word-level truncation if no sentence boundary found.
+ *
+ * F08 spec: mechanical enforcement, not reliant on AI compliance.
+ */
+export function enforceWordLimit(text: string, maxWords: number): string {
+  if (maxWords <= 0) return text; // max: 0 means no limit (tables, metadata)
+
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return text;
+
+  // Find last sentence boundary within maxWords
+  const truncatedWords = words.slice(0, maxWords);
+  const truncatedText = truncatedWords.join(' ');
+
+  // Walk backward to find last sentence-ending punctuation
+  const sentenceEnd = /[.!?]\s*$/;
+  const sentences = truncatedText.split(/(?<=[.!?])\s+/);
+
+  if (sentences.length > 1) {
+    // Drop the last (likely incomplete) sentence
+    sentences.pop();
+    const result = sentences.join(' ').trim();
+    if (result.length > 0) return result;
+  }
+
+  // No sentence boundary found — hard truncate at word limit
+  return truncatedText + '...';
+}
+
+// ─── stripRequirementTags (F10) ─────────────────────────────
+
+/**
+ * Strip internal requirement traceability tags from text for output boundaries.
+ * Handles: [Req #1], [Req #1, Req #3], [REQ-001], [req#2], etc.
+ * Strips preceding whitespace to avoid double-spaces.
+ * F10 spec: apply at publish, update, clipboard, export — NOT in editor state.
+ */
+export function stripRequirementTags(text: string): string {
+  return text.replace(/\s*\[(?:Req|REQ)\s*[#-]?\s*\d+(?:\s*,\s*(?:Req|REQ)\s*[#-]?\s*\d+)*\]/gi, '');
+}
+
 // ─── epicToMarkdown ─────────────────────────────────────────
 
 export function epicToMarkdown(epic: EpicDocument): string {

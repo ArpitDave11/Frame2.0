@@ -64,30 +64,27 @@ export async function runStage2Classification(
       complexityLevel: config.complexity,
     });
 
-    // Run classification VOTE_COUNT times for self-consistency
-    const votes: ClassificationOutput[] = [];
-
-    for (let i = 0; i < VOTE_COUNT; i++) {
-      try {
-        const response = await withRetry(
-          () => callAI(aiConfig, {
-            systemPrompt: prompt,
-            userPrompt: 'Classify the document provided above and produce the JSON output as specified.',
-            temperature: config.classificationTemperature,
-          }),
-          `${STAGE_NAME}-vote-${i + 1}`,
-          3,
-        );
-
+    // Run classification VOTE_COUNT times in parallel for self-consistency
+    const votePromises = Array.from({ length: VOTE_COUNT }, (_, i) =>
+      withRetry(
+        () => callAI(aiConfig, {
+          systemPrompt: prompt,
+          userPrompt: 'Classify the document provided above and produce the JSON output as specified.',
+          temperature: config.classificationTemperature,
+        }),
+        `${STAGE_NAME}-vote-${i + 1}`,
+        3,
+      ).then((response) => {
         totalTokens += response.usage?.totalTokens ?? 0;
         if (response.model) model = response.model;
+        return parseClassificationResponse(response.content);
+      }).catch(() => null),
+    );
 
-        const parsed = parseClassificationResponse(response.content);
-        if (parsed) votes.push(parsed);
-      } catch {
-        // Individual vote failure — continue with remaining votes
-      }
-    }
+    const voteResults = await Promise.all(votePromises);
+    const votes: ClassificationOutput[] = voteResults.filter(
+      (v): v is ClassificationOutput => v !== null,
+    );
 
     if (votes.length === 0) {
       onProgress?.({

@@ -42,7 +42,7 @@ export function ModalHost() {
       );
     case 'issueCreation':
       return (
-        <Modal open onClose={closeModal} title="Create Issues from User Stories" width={700}>
+        <Modal open onClose={closeModal} title="Create Issues from User Stories" width={850}>
           <IssueCreationModal />
         </Modal>
       );

@@ -95,7 +95,7 @@ Respond with a single JSON object matching this exact schema. Do not include any
 - Be assigned a priority (high/medium/low)
 - Trace back to at least one extracted requirement from the comprehension stage
 
-**assembledEpic**: Combine all refined sections with the generated architecture diagram and user stories into a complete epic document. The sections array should include all refined sections in order, plus new sections for the diagram and stories.
+**assembledEpic**: Generate ONLY the architecture diagram and user stories sections. Do NOT repeat or include sections that were already refined in earlier stages.
 </output_format>
 
 <instructions>
@@ -193,18 +193,17 @@ Each test case must:
 
 **Title Generation**: If the input title is empty or not provided, generate a concise, professional title for this epic (5–10 words maximum). The title should capture the core purpose of the project in a way suitable for a GitLab epic title. Do NOT use the first sentence of the content as the title — synthesize a proper short title.
 
-1. Collect all refined sections from the input.
-2. Add the architecture diagram as a dedicated section (title: "Architecture Overview" or similar).
-3. Add user stories as a dedicated section (title: "User Stories" or similar).
-4. Order sections logically: overview → requirements → architecture → design → stories → testing → deployment.
-5. Populate metadata: totalSections, totalStories, diagramType, generatedAt.
+1. Generate only the architecture diagram and user stories content. Do NOT repeat or include sections that were already refined by earlier pipeline stages.
+2. The "assembledEpic.sections" field in your JSON output should be empty ([]). The system will merge refined sections automatically.
+3. Focus entirely on producing a high-quality "architectureDiagram" and "userStories" in the output.
+4. Populate metadata: totalSections (0 is fine), totalStories, diagramType, generatedAt.
 
 ### Quality Criteria
 - The Mermaid diagram must be syntactically valid and renderable.
 - Every user story must have a unique ID and 3–5 acceptance criteria.
 - Story count must be within the specified range (5–8).
 - Every extracted requirement should be covered by at least one story.
-- The assembled epic must include ALL refined sections plus the generated sections.
+- The assembled epic must NOT duplicate sections already present in the refined content.
 - Metadata must be accurate (correct counts, correct diagram type).
 - Every user story must include 2–5 test cases in the "testCases" array.
 

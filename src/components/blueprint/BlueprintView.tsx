@@ -16,6 +16,9 @@ export function BlueprintView() {
   const code = useBlueprintStore((s) => s.code);
   const isFullscreen = useBlueprintStore((s) => s.isFullscreen);
   const diagramType = useBlueprintStore((s) => s.diagramType);
+  const versions = useBlueprintStore((s) => s.versions);
+  const activeVersionIndex = useBlueprintStore((s) => s.activeVersionIndex);
+  const revertToVersion = useBlueprintStore((s) => s.revertToVersion);
 
   if (!code.trim()) {
     return (
@@ -85,6 +88,48 @@ export function BlueprintView() {
           </span>
         )}
       </div>
+      {/* F07: Version history pills */}
+      {versions.length > 1 && (
+        <div style={{
+          padding: '8px 24px',
+          borderBottom: '1px solid var(--col-border-illustrative, #e5e5e5)',
+          background: '#FAFAFA',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          flexShrink: 0,
+          overflowX: 'auto',
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--col-text-subtle)', marginRight: 4, fontFamily: F }}>
+            History:
+          </span>
+          {versions.map((v, i) => (
+            <button
+              key={i}
+              onClick={() => revertToVersion(i)}
+              title={`${v.label || 'v' + (i + 1)} — ${new Date(v.timestamp).toLocaleTimeString()}`}
+              data-testid={`version-pill-${i}`}
+              style={{
+                padding: '3px 10px',
+                borderRadius: 12,
+                border: i === activeVersionIndex
+                  ? '2px solid #E60000'
+                  : '1px solid var(--col-border-illustrative, #e0e0e0)',
+                background: i === activeVersionIndex ? 'rgba(230, 0, 0, 0.06)' : '#fff',
+                color: i === activeVersionIndex ? '#E60000' : 'var(--col-text-subtle)',
+                fontSize: 11,
+                fontWeight: i === activeVersionIndex ? 600 : 400,
+                fontFamily: F,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              v{i + 1}{v.label ? ` · ${v.label}` : ''}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Diagram */}
       <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
         <div style={{ padding: 24 }}>

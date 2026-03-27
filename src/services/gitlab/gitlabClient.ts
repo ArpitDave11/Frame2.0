@@ -15,6 +15,7 @@ import type {
   GitLabLabel,
   GitLabIssue,
   GitLabNote,
+  GitLabProject,
   GitLabGroupMetadata,
   GitLabSubgroup,
   GitLabBranch,
@@ -177,6 +178,7 @@ export async function createGitLabEpic(
   const body: Record<string, unknown> = { title: params.title };
   if (params.description) body.description = params.description;
   if (params.labels?.length) body.labels = params.labels.join(',');
+  if (params.parent_id != null) body.parent_id = params.parent_id; // F01: uses global ID
 
   const result = await gitlabPost<GitLabEpic>(config, `/groups/${groupId}/epics`, body);
   if (!result.ok) return { success: false, error: result.error };
@@ -242,6 +244,17 @@ export async function fetchGroupLabels(
   groupId: string,
 ): Promise<GitLabLabelResult> {
   const result = await gitlabGet<GitLabLabel[]>(config, `/groups/${groupId}/labels?per_page=100`);
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
+// ─── Projects (F04: resolve target project for issue creation) ──
+
+export async function fetchGroupProjects(
+  config: GitLabConfig,
+  groupId: string,
+): Promise<{ success: boolean; data?: GitLabProject[]; error?: string }> {
+  const result = await gitlabGet<GitLabProject[]>(config, `/groups/${groupId}/projects?per_page=100&include_subgroups=false`);
   if (!result.ok) return { success: false, error: result.error };
   return { success: true, data: result.data };
 }

@@ -242,6 +242,13 @@ function validateStory(raw: PipelineUserStory): PipelineUserStory {
   };
 }
 
+/** Section titles that Stage 5 owns — skip duplicates from Stage 4 */
+const MANDATORY_SECTION_TITLES = new Set([
+  'architecture diagram',
+  'architecture overview',
+  'user stories',
+]);
+
 // ─── Epic Assembly ──────────────────────────────────────────
 
 function assembleEpic(
@@ -252,15 +259,16 @@ function assembleEpic(
 ): AssembledEpic {
   const sections: Array<{ id: string; title: string; content: string }> = [];
 
-  // Add refined sections
+  // Add refined sections, skipping those that Stage 5 will generate authoritatively
   for (const s of refinedSections) {
+    if (MANDATORY_SECTION_TITLES.has(s.title.toLowerCase().trim())) continue;
     sections.push({ id: s.sectionId, title: s.title, content: s.content });
   }
 
-  // Add architecture diagram section
+  // Add architecture diagram section (single authoritative version)
   sections.push({
     id: 'architecture-diagram',
-    title: 'Architecture Diagram',
+    title: 'Deployment Architecture \u2014 Component and Flow Diagram',
     content: `\`\`\`mermaid\n${diagram}\n\`\`\``,
   });
 

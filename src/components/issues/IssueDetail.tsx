@@ -11,7 +11,9 @@ import { F, STATUS_CONFIG, getPriorityColor, getPriorityLabel } from './types';
 import type { MockIssue, TimelineEntry } from './types';
 import { useConfigStore } from '@/stores/configStore';
 import { fetchIssueNotes, addIssueNote } from '@/services/gitlab/gitlabClient';
+import { callAI, isAIEnabled } from '@/services/ai/aiClient';
 import type { GitLabNote } from '@/services/gitlab/types';
+import type { AIClientConfig } from '@/services/ai/types';
 
 interface IssueDetailProps {
   issue: MockIssue | null;
@@ -19,14 +21,17 @@ interface IssueDetailProps {
 
 export function IssueDetail({ issue }: IssueDetailProps) {
   const [aiInput, setAiInput] = useState('');
+  const [aiTone, setAiTone] = useState<'professional' | 'casual' | 'technical'>('professional');
   const [showAiPreview, setShowAiPreview] = useState(false);
   const [aiPreviewText, setAiPreviewText] = useState('');
+  const [generatingAi, setGeneratingAi] = useState(false);
   const [commentInput, setCommentInput] = useState('');
   const [realNotes, setRealNotes] = useState<GitLabNote[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
 
-  const gitlabConfig = useConfigStore((s) => s.config.gitlab);
+  const cfg = useConfigStore((s) => s.config);
+  const gitlabConfig = cfg.gitlab;
   const isRealIssue = !!issue?.web_url && !!issue?.project_id && !!issue?.iid;
 
   // Fetch real notes when a real GitLab issue is selected
@@ -63,18 +68,50 @@ export function IssueDetail({ issue }: IssueDetailProps) {
     }
   }, [commentInput, issue?.project_id, issue?.iid, gitlabConfig]);
 
-  const handleGenerateAI = () => {
-    if (!aiInput.trim()) return;
-    setAiPreviewText(
-      `Completed ${aiInput}. Implementation follows best practices. All tests passing and ready for review.`
-    );
-    setShowAiPreview(true);
-  };
+  const handleGenerateAI = useCallback(async () => {
+    if (!aiInput.trim() || !isAIEnabled(cfg)) return;
+    setGeneratingAi(true);
 
-  const handlePostAI = () => {
+    const aiConfig: AIClientConfig = {
+      provider: cfg.ai.provider,
+      azure: cfg.ai.azure,
+      openai: cfg.ai.openai,
+      endpoints: cfg.endpoints,
+    };
+
+    const toneGuide = aiTone === 'professional'
+      ? 'Write in a professional, concise tone suitable for stakeholder communication.'
+      : aiTone === 'casual'
+        ? 'Write in a friendly, casual tone for team communication.'
+        : 'Write in a precise, technical tone with specific details.';
+
+    try {
+      const response = await callAI(aiConfig, {
+        systemPrompt: `You generate GitLab issue comments. ${toneGuide} Keep it concise (2-4 sentences). Do not use markdown headers.`,
+        userPrompt: `Issue: "${issue?.title}"\nUser's update: "${aiInput}"\n\nGenerate a comment for this issue update.`,
+        temperature: 0.5,
+      });
+      setAiPreviewText(response.content);
+      setShowAiPreview(true);
+    } catch {
+      setAiPreviewText(`${aiInput}. Update applied successfully.`);
+      setShowAiPreview(true);
+    } finally {
+      setGeneratingAi(false);
+    }
+  }, [aiInput, aiTone, cfg, issue?.title]);
+
+  const handlePostAI = useCallback(async () => {
+    if (!aiPreviewText.trim() || !issue?.project_id || !issue?.iid) return;
+    setPostingComment(true);
+    const result = await addIssueNote(gitlabConfig, issue.project_id, issue.iid, aiPreviewText.trim());
+    setPostingComment(false);
+    if (result.success && result.data) {
+      setRealNotes((prev) => [...prev, result.data!]);
+    }
     setShowAiPreview(false);
     setAiInput('');
-  };
+  }, [aiPreviewText, issue?.project_id, issue?.iid, gitlabConfig]);
 
   if (!issue) {
     return (
@@ -197,13 +234,24 @@ export function IssueDetail({ issue }: IssueDetailProps) {
             style={{ flex: 1, padding: '10px 14px', border: '1px solid #ffe5e0', borderRadius: 6, fontFamily: F, fontSize: 13, fontWeight: 300, color: 'var(--col-text-primary)', background: '#ffffff', outline: 'none', transition: 'border-color 0.15s' }}
             onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateAI(); }}
           />
+          {/* F05: Tone selector */}
+          <select
+            value={aiTone}
+            onChange={(e) => setAiTone(e.target.value as 'professional' | 'casual' | 'technical')}
+            data-testid="ai-tone-select"
+            style={{ padding: '10px 8px', border: '1px solid #ffe5e0', borderRadius: 6, fontFamily: F, fontSize: 11, fontWeight: 400, color: 'var(--col-text-subtle)', background: '#fff', cursor: 'pointer' }}
+          >
+            <option value="professional">Professional</option>
+            <option value="casual">Casual</option>
+            <option value="technical">Technical</option>
+          </select>
           <button
             data-testid="ai-generate-btn"
             onClick={handleGenerateAI}
-            disabled={!aiInput.trim()}
-            style={{ padding: '10px 20px', background: aiInput.trim() ? 'var(--col-background-brand)' : '#e5e7eb', color: aiInput.trim() ? '#ffffff' : 'var(--col-text-subtle)', fontFamily: F, fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 6, cursor: aiInput.trim() ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap', transition: 'all 0.2s ease', boxShadow: aiInput.trim() ? '0 2px 8px rgba(225,43,30,0.2)' : 'none' }}
+            disabled={!aiInput.trim() || generatingAi}
+            style={{ padding: '10px 20px', background: aiInput.trim() && !generatingAi ? 'var(--col-background-brand)' : '#e5e7eb', color: aiInput.trim() && !generatingAi ? '#ffffff' : 'var(--col-text-subtle)', fontFamily: F, fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 6, cursor: aiInput.trim() && !generatingAi ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap', transition: 'all 0.2s ease', boxShadow: aiInput.trim() ? '0 2px 8px rgba(225,43,30,0.2)' : 'none' }}
           >
-            Generate
+            {generatingAi ? 'Generating...' : 'Generate'}
           </button>
         </div>
 

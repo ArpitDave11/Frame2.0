@@ -16,6 +16,7 @@ vi.mock('@/services/gitlab/gitlabClient', () => ({
   createGitLabEpic: vi.fn(),
   updateGitLabEpic: vi.fn(),
   fetchGitLabSubgroups: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  fetchGroupEpics: vi.fn().mockResolvedValue({ success: true, data: [] }),
 }));
 
 import { createGitLabEpic } from '@/services/gitlab/gitlabClient';
@@ -125,13 +126,15 @@ describe('PublishModal', () => {
     });
   });
 
-  it('renders target group select with root option', () => {
+  it('renders target group select with root option (pod level)', () => {
     useConfigStore.setState({
       config: {
         ...useConfigStore.getState().config,
         gitlab: { enabled: true, rootGroupId: '42', accessToken: 'tok', authMode: 'pat' },
       },
     });
+    // F02: Target group only visible in pod level
+    useGitlabStore.setState({ publishLevel: 'pod' });
 
     render(<PublishModal />);
     const select = screen.getByTestId('publish-target-group') as HTMLSelectElement;

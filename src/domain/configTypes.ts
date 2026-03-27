@@ -33,6 +33,8 @@ export interface AzureOpenAIConfig {
   apiKey: string;
   apiVersion: string;
   model: string;
+  maxTokens?: number;
+  temperature?: number;
 }
 
 /** OpenAI direct configuration */
@@ -40,6 +42,8 @@ export interface OpenAIConfig {
   apiKey: string;
   model: string;
   baseUrl?: string;
+  maxTokens?: number;
+  temperature?: number;
 }
 
 // ─── GitLab ─────────────────────────────────────────────────

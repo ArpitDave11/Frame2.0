@@ -88,7 +88,7 @@ describe('LoadEpicModal', () => {
     expect(screen.getByText(/Auth Service Redesign/)).toBeDefined();
   });
 
-  it('search filters epic list client-side', async () => {
+  it('server-side search via Search button', async () => {
     setupConfigured();
     render(<LoadEpicModal />);
 
@@ -96,11 +96,24 @@ describe('LoadEpicModal', () => {
       expect(screen.getAllByTestId('epic-card')).toHaveLength(3);
     });
 
+    // Type search term
     const searchInput = screen.getByTestId('epic-search-input');
     fireEvent.change(searchInput, { target: { value: 'Auth' } });
 
-    const cards = screen.getAllByTestId('epic-card');
-    expect(cards).toHaveLength(1);
+    // Mock the server-side search response (returns filtered results)
+    mockFetchGroupEpics.mockResolvedValueOnce({
+      success: true,
+      data: [MOCK_EPICS[1]],
+      totalCount: 1,
+    });
+
+    // Click Search button
+    fireEvent.click(screen.getByTestId('epic-search-btn'));
+
+    await waitFor(() => {
+      const cards = screen.getAllByTestId('epic-card');
+      expect(cards).toHaveLength(1);
+    });
     expect(screen.getByText(/Auth Service Redesign/)).toBeDefined();
   });
 

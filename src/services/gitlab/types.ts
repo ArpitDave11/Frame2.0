@@ -70,6 +70,19 @@ export interface GitLabSubgroup {
   full_path: string;
 }
 
+export interface GitLabProject {
+  id: number;
+  name: string;
+  path_with_namespace: string;
+  web_url: string;
+}
+
+export interface GitLabProjectListResult {
+  success: boolean;
+  data?: GitLabProject[];
+  error?: string;
+}
+
 export interface GitLabBranch {
   name: string;
   default: boolean;
@@ -168,6 +181,7 @@ export interface GitLabCreateEpicParams {
   description?: string;
   labels?: string[];
   group_id?: string;
+  parent_id?: number; // F01: global epic ID (NOT IID) for child epic creation
 }
 
 export interface GitLabUpdateEpicParams {

@@ -95,8 +95,34 @@ describe('runStage5Mandatory', () => {
     const titles = result.data.assembledEpic.sections.map((s) => s.title);
     expect(titles).toContain('Overview');
     expect(titles).toContain('Architecture');
-    expect(titles).toContain('Architecture Diagram');
+    expect(titles).toContain('Deployment Architecture \u2014 Component and Flow Diagram');
     expect(titles).toContain('User Stories');
+  });
+
+  it('deduplicates sections owned by Stage 5 from refined input', async () => {
+    mockCallAI.mockResolvedValue({ content: VALID_MANDATORY_JSON, model: 'gpt-4o' });
+
+    const inputWithDuplicates: MandatoryInput = {
+      ...SAMPLE_INPUT,
+      refinement: {
+        refinedSections: [
+          { sectionId: 'overview', title: 'Overview', content: 'Overview content.', formatUsed: 'prose' },
+          { sectionId: 'architecture-diagram', title: 'Architecture Diagram', content: 'Old arch content.', formatUsed: 'prose' },
+          { sectionId: 'user-stories', title: 'User Stories', content: 'Old stories.', formatUsed: 'prose' },
+          { sectionId: 'networking', title: 'Networking', content: 'Network content.', formatUsed: 'prose' },
+        ],
+      },
+    };
+
+    const result = await runStage5Mandatory(inputWithDuplicates, SAMPLE_CONFIG, AI_CONFIG);
+
+    const titles = result.data.assembledEpic.sections.map((s) => s.title);
+    // Should have Overview, Networking (from refined), plus Stage 5's diagram and stories
+    // Should NOT have duplicate architecture or user stories from refined input
+    expect(titles.filter((t) => t.toLowerCase().includes('architecture'))).toHaveLength(1);
+    expect(titles.filter((t) => t.toLowerCase().includes('user stories'))).toHaveLength(1);
+    expect(titles).toContain('Overview');
+    expect(titles).toContain('Networking');
   });
 
   it('truncates stories when AI generates too many', async () => {

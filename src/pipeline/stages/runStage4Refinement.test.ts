@@ -226,10 +226,10 @@ describe('runStage4Refinement', () => {
       const calls: PipelineProgress[] = [];
       await runStage4Refinement(input, SAMPLE_CONFIG, SAMPLE_AI_CONFIG, (p) => calls.push(p));
 
-      // Initial + 2 per-section + final
-      expect(calls.length).toBeGreaterThanOrEqual(4);
-      expect(calls.some((c) => c.message?.includes('1/2'))).toBe(true);
-      expect(calls.some((c) => c.message?.includes('2/2'))).toBe(true);
+      // Initial parallel message + batch progress + final
+      expect(calls.length).toBeGreaterThanOrEqual(3);
+      expect(calls.some((c) => c.message?.includes('parallel'))).toBe(true);
+      expect(calls.some((c) => c.message?.includes('Refined'))).toBe(true);
     });
   });
 

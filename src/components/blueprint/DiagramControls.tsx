@@ -12,6 +12,10 @@ import {
   CornersIn,
   DownloadSimple,
   ArrowsClockwise,
+  TreeStructure,
+  ListPlus,
+  Warning,
+  Heartbeat,
 } from '@phosphor-icons/react';
 import { useBlueprintStore } from '@/stores/blueprintStore';
 import { regenerateBlueprintAction } from '@/actions/regenerateBlueprintAction';
@@ -130,6 +134,38 @@ export function DiagramControls() {
         onClick={() => { if (!isGenerating) regenerateBlueprintAction(); }}
       >
         <ArrowsClockwise size={16} weight={isGenerating ? 'bold' : 'regular'} />
+      </CtrlButton>
+
+      <div style={{ width: 1, height: 16, background: 'var(--col-border-subtle, #e0e0e0)' }} />
+
+      {/* F07: Quick-action buttons */}
+      <CtrlButton
+        label="Simplify diagram"
+        testId="quick-simplify"
+        onClick={() => { if (!isGenerating) regenerateBlueprintAction('Simplify: reduce to 8-12 key nodes, remove minor details'); }}
+      >
+        <TreeStructure size={14} />
+      </CtrlButton>
+      <CtrlButton
+        label="Add detail"
+        testId="quick-detail"
+        onClick={() => { if (!isGenerating) regenerateBlueprintAction('Add more detail: include databases, caches, queues, and data flows'); }}
+      >
+        <ListPlus size={14} />
+      </CtrlButton>
+      <CtrlButton
+        label="Error paths"
+        testId="quick-errors"
+        onClick={() => { if (!isGenerating) regenerateBlueprintAction('Add error handling paths: timeouts, retries, fallbacks, circuit breakers'); }}
+      >
+        <Warning size={14} />
+      </CtrlButton>
+      <CtrlButton
+        label="Monitoring"
+        testId="quick-monitoring"
+        onClick={() => { if (!isGenerating) regenerateBlueprintAction('Add monitoring and observability: metrics, logging, alerting, health checks'); }}
+      >
+        <Heartbeat size={14} />
       </CtrlButton>
 
       <div style={{ width: 1, height: 16, background: 'var(--col-border-subtle, #e0e0e0)' }} />

@@ -9,6 +9,13 @@ import { create } from 'zustand';
 
 // ─── State & Actions ────────────────────────────────────────
 
+export interface DiagramVersion {
+  code: string;
+  type: string;
+  timestamp: number;
+  label?: string; // e.g. "Simplified", "Added Detail"
+}
+
 interface BlueprintState {
   code: string;
   diagramType: string;
@@ -18,10 +25,13 @@ interface BlueprintState {
   isFullscreen: boolean;
   isGenerating: boolean;
   error: string | null;
+  versions: DiagramVersion[];
+  activeVersionIndex: number;
 }
 
 interface BlueprintActions {
-  setCode: (code: string, type?: string, reasoning?: string) => void;
+  setCode: (code: string, type?: string, reasoning?: string, label?: string) => void;
+  revertToVersion: (index: number) => void;
   setSvg: (svg: string) => void;
   setZoom: (zoom: number) => void;
   toggleFullscreen: () => void;
@@ -43,6 +53,8 @@ const INITIAL_STATE: BlueprintState = {
   isFullscreen: false,
   isGenerating: false,
   error: null,
+  versions: [],
+  activeVersionIndex: -1,
 };
 
 // ─── Store ──────────────────────────────────────────────────
@@ -50,8 +62,37 @@ const INITIAL_STATE: BlueprintState = {
 export const useBlueprintStore = create<BlueprintStore>()((set, get) => ({
   ...INITIAL_STATE,
 
-  setCode: (code, type, reasoning) => {
-    set({ code, diagramType: type ?? '', reasoning: reasoning ?? '', svgContent: '', error: null });
+  setCode: (code, type, reasoning, label) => {
+    const { versions } = get();
+    const newVersion: DiagramVersion = {
+      code,
+      type: type ?? '',
+      timestamp: Date.now(),
+      label,
+    };
+    const newVersions = [...versions, newVersion];
+    set({
+      code,
+      diagramType: type ?? '',
+      reasoning: reasoning ?? '',
+      svgContent: '',
+      error: null,
+      versions: newVersions,
+      activeVersionIndex: newVersions.length - 1,
+    });
+  },
+
+  revertToVersion: (index) => {
+    const { versions } = get();
+    if (index < 0 || index >= versions.length) return;
+    const v = versions[index]!;
+    set({
+      code: v.code,
+      diagramType: v.type,
+      svgContent: '',
+      error: null,
+      activeVersionIndex: index,
+    });
   },
 
   setSvg: (svg) => {
