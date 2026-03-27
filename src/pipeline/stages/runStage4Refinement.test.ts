@@ -183,7 +183,7 @@ describe('runStage4Refinement', () => {
   });
 
   describe('retry with feedback', () => {
-    it('includes relevant feedback in prompt on retry', async () => {
+    it('includes relevant feedback in user prompt on retry (#10)', async () => {
       mockCallAI.mockResolvedValue({ content: VALID_REFINED_JSON, model: 'gpt-4o' });
 
       const input: RefinementInput = {
@@ -193,8 +193,10 @@ describe('runStage4Refinement', () => {
 
       await runStage4Refinement(input, SAMPLE_CONFIG, SAMPLE_AI_CONFIG);
 
-      const prompt = mockCallAI.mock.calls[0]![1]!.systemPrompt;
-      expect(prompt).toContain('error handling');
+      // #10: Feedback now in user prompt (recency bias), not system prompt
+      const userPrompt = mockCallAI.mock.calls[0]![1]!.userPrompt;
+      expect(userPrompt).toContain('error handling');
+      expect(userPrompt).toContain('iteration_feedback');
     });
 
     it('only includes feedback relevant to the current section', async () => {
@@ -207,10 +209,10 @@ describe('runStage4Refinement', () => {
 
       await runStage4Refinement(input, SAMPLE_CONFIG, SAMPLE_AI_CONFIG);
 
-      const prompt = mockCallAI.mock.calls[0]![1]!.systemPrompt;
-      // Should include overview feedback but not architecture feedback
-      expect(prompt).toContain('overview');
-      expect(prompt).not.toContain('deployment diagram');
+      // #10: Feedback in user prompt, not system prompt
+      const userPrompt = mockCallAI.mock.calls[0]![1]!.userPrompt;
+      expect(userPrompt).toContain('overview');
+      expect(userPrompt).not.toContain('deployment diagram');
     });
   });
 

@@ -129,13 +129,6 @@ Use prose format.
 <current_section title="Snapshot Section">
 Fixed content.
 </current_section>
-<previous_attempt_feedback>
-This is iteration 1 (retry). The previous version of this section failed validation. You MUST address the following issues specifically:
-
-Missing detail on error handling.
-
-Do NOT simply rephrase the previous content. Carefully read each piece of feedback and make targeted changes to resolve the identified problems. If the feedback mentions missing content, add it. If it mentions incorrect structure, fix the structure. If it mentions insufficient detail, expand with specifics.
-</previous_attempt_feedback>
 
 
 <output_format>

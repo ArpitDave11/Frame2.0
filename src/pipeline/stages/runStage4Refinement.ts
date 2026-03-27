@@ -219,7 +219,9 @@ async function refineSingleSection(
   const response = await withRetry(
     () => callAI(aiConfig, {
       systemPrompt: prompt,
-      userPrompt: 'Refine the section as specified and produce the JSON output.',
+      userPrompt: sectionFeedback
+        ? `Refine the section as specified and produce the JSON output.\n\n<iteration_feedback>\n${sectionFeedback}\n<directive>Address the above while preserving all existing strengths.</directive>\n</iteration_feedback>`
+        : 'Refine the section as specified and produce the JSON output.',
       temperature: config.generationTemperature,
     }),
     `${STAGE_NAME}:${action.sectionId}`,

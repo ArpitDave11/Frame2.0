@@ -102,16 +102,9 @@ export function buildRefinementPrompt(vars: RefinementPromptVars): string {
 
   const isRetry = iterationNumber > 0 && previousFeedback;
 
-  const feedbackSection = isRetry
-    ? `
-<previous_attempt_feedback>
-This is iteration ${iterationNumber} (retry). The previous version of this section failed validation. You MUST address the following issues specifically:
-
-${previousFeedback}
-
-Do NOT simply rephrase the previous content. Carefully read each piece of feedback and make targeted changes to resolve the identified problems. If the feedback mentions missing content, add it. If it mentions incorrect structure, fix the structure. If it mentions insufficient detail, expand with specifics.
-</previous_attempt_feedback>`
-    : '';
+  // #10: Feedback moved to user prompt for recency bias (see refineSingleSection)
+  // System prompt no longer contains iteration feedback
+  const feedbackSection = '';
 
   return `<system>
 You are an expert technical writer specializing in ${categoryName} documentation. Your task is to refine a single section of an epic document, producing polished, professional content that follows the specified format and category conventions.

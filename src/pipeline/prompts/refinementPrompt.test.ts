@@ -72,31 +72,15 @@ describe('refinementPrompt', () => {
     });
   });
 
-  describe('buildRefinementPrompt — retry with feedback', () => {
-    it('includes the previous attempt feedback section', () => {
+  describe('buildRefinementPrompt — retry with feedback (#10: feedback moved to user prompt)', () => {
+    it('system prompt does NOT contain feedback (moved to user prompt per #10)', () => {
       const result = buildRefinementPrompt(RETRY_VARS);
-      expect(result).toContain('<previous_attempt_feedback>');
-      expect(result).toContain('</previous_attempt_feedback>');
+      // Feedback is now appended to user prompt at the call site, not in system prompt
+      expect(result).not.toContain('<previous_attempt_feedback>');
+      expect(result).not.toContain('component interaction diagram');
     });
 
-    it('includes the actual feedback content', () => {
-      const result = buildRefinementPrompt(RETRY_VARS);
-      expect(result).toContain('component interaction diagram');
-      expect(result).toContain('inter-service communication patterns');
-    });
-
-    it('shows the iteration number', () => {
-      const result = buildRefinementPrompt(RETRY_VARS);
-      expect(result).toContain('iteration 2');
-    });
-
-    it('instructs to address feedback specifically', () => {
-      const result = buildRefinementPrompt(RETRY_VARS);
-      expect(result).toContain('MUST address');
-      expect(result).toContain('Do NOT simply rephrase');
-    });
-
-    it('does not say first attempt', () => {
+    it('does not say first attempt on retry', () => {
       const result = buildRefinementPrompt(RETRY_VARS);
       expect(result).not.toContain('This is the first attempt.');
     });
