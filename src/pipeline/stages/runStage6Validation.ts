@@ -10,7 +10,7 @@ import type { AIClientConfig } from '@/services/ai/types';
 import { callAI } from '@/services/ai/aiClient';
 import { withRetry } from '@/services/ai/throttler';
 import { buildValidationPrompt } from '@/pipeline/prompts/validationPrompt';
-import { scoreDocument, getDefaultScoringConfig } from '@/pipeline/epicScorer';
+import { scoreDocument, getDefaultScoringConfig, extractKeyTerms, analyzeMermaidGraph, computeAdjustedScore } from '@/pipeline/epicScorer';
 // summarizeComprehension available from Stage 2 if needed for future expansion
 import { discoverSections } from '@/domain/sectionDiscovery';
 import type {
@@ -102,7 +102,12 @@ export async function runStage6Validation(
     // Blend AI score with local score
     const aiScore = Math.max(0, Math.min(100, parsed.overallScore));
     const blendedScore = Math.round(AI_WEIGHT * aiScore + LOCAL_WEIGHT * localScore);
-    const passed = blendedScore >= config.passingScore;
+
+    // F5: Apply adjusted score that penalizes dimension imbalance
+    const dimensionScores = parsed.auditChecks.map((c) => c.score / 10); // normalize 0-10 → 0-1
+    const hardFailCount = parsed.detectedFailures.filter((f) => f.severity === 'critical').length;
+    const adjustedScore = computeAdjustedScore(blendedScore, dimensionScores, hardFailCount);
+    const passed = adjustedScore >= config.passingScore;
 
     // Validate feedback quality
     const feedback = passed
@@ -112,7 +117,7 @@ export async function runStage6Validation(
     const result: ValidationOutput = {
       traceabilityMatrix: parsed.traceabilityMatrix,
       auditChecks: parsed.auditChecks,
-      overallScore: blendedScore,
+      overallScore: adjustedScore,
       passed,
       detectedFailures: parsed.detectedFailures,
       feedback,
@@ -121,10 +126,10 @@ export async function runStage6Validation(
     onProgress?.({
       stageName: STAGE_NAME,
       status: 'complete',
-      score: blendedScore,
+      score: adjustedScore,
       message: passed
-        ? `Validation passed (score: ${blendedScore}/${config.passingScore})`
-        : `Validation failed (score: ${blendedScore}/${config.passingScore}), ${feedback.length} feedback items`,
+        ? `Validation passed (score: ${adjustedScore}/${config.passingScore})`
+        : `Validation failed (score: ${adjustedScore}/${config.passingScore}), ${feedback.length} feedback items`,
       timestamp: Date.now(),
     });
 
@@ -171,13 +176,27 @@ function runLocalScoring(epicText: string, config: PipelineConfig): number {
 
   const sections = discovered.map((s) => ({ title: s.title, content: s.content }));
   const termsMap = new Map<string, readonly string[]>();
-  // Use section titles as basic expected terms
+  // F2: Use RAKE key term extraction instead of basic title tokenization
   for (const s of discovered) {
-    termsMap.set(s.title, s.title.toLowerCase().split(/\s+/));
+    termsMap.set(s.title, extractKeyTerms(s.content));
   }
 
   const report = scoreDocument(sections, termsMap, scoringConfig);
-  return report.aggregateScore;
+  let baseScore = report.aggregateScore;
+
+  // F3: Score Mermaid diagrams if present
+  const mermaidBlocks = epicText.match(/```mermaid\n([\s\S]*?)```/g);
+  if (mermaidBlocks && mermaidBlocks.length > 0) {
+    const diagramScores = mermaidBlocks.map((block) => {
+      const code = block.replace(/```mermaid\n?/, '').replace(/\n?```/, '');
+      return analyzeMermaidGraph(code).score;
+    });
+    const avgDiagramScore = diagramScores.reduce((a, b) => a + b, 0) / diagramScores.length;
+    // Blend: 85% content + 15% diagram quality
+    baseScore = Math.round(0.85 * baseScore + 0.15 * avgDiagramScore);
+  }
+
+  return baseScore;
 }
 
 // ─── Feedback Quality Validation ────────────────────────────

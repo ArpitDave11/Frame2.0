@@ -10,9 +10,9 @@ import { StatusIcon } from './StatusIcon';
 import { F, STATUS_CONFIG, getPriorityColor, getPriorityLabel } from './types';
 import type { MockIssue, TimelineEntry } from './types';
 import { useConfigStore } from '@/stores/configStore';
-import { fetchIssueNotes, addIssueNote } from '@/services/gitlab/gitlabClient';
+import { fetchIssueNotes, addIssueNote, fetchIssueLinks } from '@/services/gitlab/gitlabClient';
 import { callAI, isAIEnabled } from '@/services/ai/aiClient';
-import type { GitLabNote } from '@/services/gitlab/types';
+import type { GitLabNote, GitLabIssueLink } from '@/services/gitlab/types';
 import type { AIClientConfig } from '@/services/ai/types';
 
 interface IssueDetailProps {
@@ -21,11 +21,12 @@ interface IssueDetailProps {
 
 export function IssueDetail({ issue }: IssueDetailProps) {
   const [aiInput, setAiInput] = useState('');
-  const [aiTone, setAiTone] = useState<'professional' | 'casual' | 'technical'>('professional');
+  const [activityType, setActivityType] = useState<'update' | 'question' | 'blocker' | 'clarification'>('update');
   const [showAiPreview, setShowAiPreview] = useState(false);
   const [aiPreviewText, setAiPreviewText] = useState('');
   const [generatingAi, setGeneratingAi] = useState(false);
   const [commentInput, setCommentInput] = useState('');
+  const [issueLinksData, setIssueLinksData] = useState<GitLabIssueLink[]>([]);
   const [realNotes, setRealNotes] = useState<GitLabNote[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
@@ -55,6 +56,17 @@ export function IssueDetail({ issue }: IssueDetailProps) {
     return () => { cancelled = true; };
   }, [isRealIssue, issue?.project_id, issue?.iid, gitlabConfig]);
 
+  // C4: Fetch issue links for blocker context
+  useEffect(() => {
+    if (!isRealIssue || !issue?.project_id || !issue?.iid) {
+      setIssueLinksData([]);
+      return;
+    }
+    fetchIssueLinks(gitlabConfig, issue.project_id, issue.iid).then((r) => {
+      if (r.success && r.data) setIssueLinksData(r.data);
+    });
+  }, [isRealIssue, issue?.project_id, issue?.iid, gitlabConfig]);
+
   const handleAddComment = useCallback(async () => {
     if (!commentInput.trim() || !issue?.project_id || !issue?.iid) return;
 
@@ -79,19 +91,39 @@ export function IssueDetail({ issue }: IssueDetailProps) {
       endpoints: cfg.endpoints,
     };
 
-    const toneGuide = aiTone === 'professional'
-      ? 'Write in a professional, concise tone suitable for stakeholder communication.'
-      : aiTone === 'casual'
-        ? 'Write in a friendly, casual tone for team communication.'
-        : 'Write in a precise, technical tone with specific details.';
+    // C2: Activity type guides (replaces tone)
+    const activityGuide: Record<string, string> = {
+      update: 'Generate a status update report. State what is done, what is in progress.',
+      question: 'Generate a question for the team. End with a clear question that needs an answer.',
+      blocker: 'Generate a blocker report. Use urgent language. Identify what is blocking and the impact.',
+      clarification: 'Generate a clarification request. Ask for more details on a specific technical point.',
+    };
+    const guide = activityGuide[activityType] ?? activityGuide.update;
+
+    // C2: Rich context from notes + description
+    const recentNotesContext = realNotes.slice(-5).map((n) => `[${n.author?.name ?? 'Unknown'}]: ${n.body.slice(0, 200)}`).join('\n');
+    const issueContext = issue?.description ? issue.description.slice(0, 500) : '';
+
+    // C4: Blocker link context
+    const blockerCtx = activityType === 'blocker' && issueLinksData.length > 0
+      ? `\nBlocking relationships:\n${issueLinksData.filter((l) => l.link_type === 'blocks' || l.link_type === 'is_blocked_by').map((l) => `${l.link_type}: #${l.iid} "${l.title}" (${l.state})`).join('\n')}`
+      : '';
+
+    // C5: Extract quick actions — pass through unchanged
+    const quickActionLines = aiInput.split('\n').filter((l) => l.trim().startsWith('/'));
+    const textForAI = aiInput.split('\n').filter((l) => !l.trim().startsWith('/')).join('\n');
 
     try {
       const response = await callAI(aiConfig, {
-        systemPrompt: `You generate GitLab issue comments. ${toneGuide} Keep it concise (2-4 sentences). Do not use markdown headers.`,
-        userPrompt: `Issue: "${issue?.title}"\nUser's update: "${aiInput}"\n\nGenerate a comment for this issue update.`,
+        systemPrompt: `You generate GitLab issue activity updates. ${guide} Keep concise (2-4 sentences). Reference the issue context naturally. If the user includes GitLab quick actions (lines starting with /), preserve them exactly.`,
+        userPrompt: `Issue: "${issue?.title}"\nDescription: ${issueContext}\nRecent activity:\n${recentNotesContext}${blockerCtx}\n${issue?.weight ? `Story points: ${issue.weight}` : ''}\n\nUser's input: "${textForAI}"\n\nGenerate a ${activityType} for this issue.`,
         temperature: 0.5,
       });
-      setAiPreviewText(response.content);
+      // C5: Prepend quick actions back
+      const finalPreview = quickActionLines.length > 0
+        ? [...quickActionLines, '', response.content].join('\n')
+        : response.content;
+      setAiPreviewText(finalPreview);
       setShowAiPreview(true);
     } catch {
       setAiPreviewText(`${aiInput}. Update applied successfully.`);
@@ -99,7 +131,7 @@ export function IssueDetail({ issue }: IssueDetailProps) {
     } finally {
       setGeneratingAi(false);
     }
-  }, [aiInput, aiTone, cfg, issue?.title]);
+  }, [aiInput, activityType, cfg, issue?.title, issue?.description, issue?.weight, realNotes, issueLinksData]);
 
   const handlePostAI = useCallback(async () => {
     if (!aiPreviewText.trim() || !issue?.project_id || !issue?.iid) return;
@@ -234,16 +266,17 @@ export function IssueDetail({ issue }: IssueDetailProps) {
             style={{ flex: 1, padding: '10px 14px', border: '1px solid #ffe5e0', borderRadius: 6, fontFamily: F, fontSize: 13, fontWeight: 300, color: 'var(--col-text-primary)', background: '#ffffff', outline: 'none', transition: 'border-color 0.15s' }}
             onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateAI(); }}
           />
-          {/* F05: Tone selector */}
+          {/* C1: Activity type selector (replaces tone) */}
           <select
-            value={aiTone}
-            onChange={(e) => setAiTone(e.target.value as 'professional' | 'casual' | 'technical')}
-            data-testid="ai-tone-select"
+            value={activityType}
+            onChange={(e) => setActivityType(e.target.value as 'update' | 'question' | 'blocker' | 'clarification')}
+            data-testid="ai-activity-type"
             style={{ padding: '10px 8px', border: '1px solid #ffe5e0', borderRadius: 6, fontFamily: F, fontSize: 11, fontWeight: 400, color: 'var(--col-text-subtle)', background: '#fff', cursor: 'pointer' }}
           >
-            <option value="professional">Professional</option>
-            <option value="casual">Casual</option>
-            <option value="technical">Technical</option>
+            <option value="update">Update</option>
+            <option value="question">Question</option>
+            <option value="blocker">Blocker</option>
+            <option value="clarification">Clarification</option>
           </select>
           <button
             data-testid="ai-generate-btn"
@@ -253,6 +286,11 @@ export function IssueDetail({ issue }: IssueDetailProps) {
           >
             {generatingAi ? 'Generating...' : 'Generate'}
           </button>
+        </div>
+
+        {/* C5: Quick actions hint */}
+        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--col-text-subtle)', fontFamily: F, fontWeight: 300, opacity: 0.7 }}>
+          Tip: Quick actions like /assign @user, /weight 3, /label ~bug are passed to GitLab as-is.
         </div>
 
         {/* AI Preview */}

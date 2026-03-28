@@ -27,11 +27,22 @@ interface BlueprintState {
   error: string | null;
   versions: DiagramVersion[];
   activeVersionIndex: number;
+  // D2: 2-stage refinement state
+  diagramFeedback: string;
+  diagramInterpretation: { interpretation: string; changeItems: string[]; confidence: string } | null;
+  diagramRefineState: 'idle' | 'interpreting' | 'confirming' | 'refining';
+  // D6: Draft labeling
+  isDraft: boolean;
 }
 
 interface BlueprintActions {
   setCode: (code: string, type?: string, reasoning?: string, label?: string) => void;
   revertToVersion: (index: number) => void;
+  setDiagramFeedback: (feedback: string) => void;
+  setDiagramInterpretation: (interp: BlueprintState['diagramInterpretation']) => void;
+  setDiagramRefineState: (state: BlueprintState['diagramRefineState']) => void;
+  clearRefinement: () => void;
+  finalize: () => void;
   setSvg: (svg: string) => void;
   setZoom: (zoom: number) => void;
   toggleFullscreen: () => void;
@@ -55,6 +66,10 @@ const INITIAL_STATE: BlueprintState = {
   error: null,
   versions: [],
   activeVersionIndex: -1,
+  diagramFeedback: '',
+  diagramInterpretation: null,
+  diagramRefineState: 'idle',
+  isDraft: true,
 };
 
 // ─── Store ──────────────────────────────────────────────────
@@ -79,6 +94,7 @@ export const useBlueprintStore = create<BlueprintStore>()((set, get) => ({
       error: null,
       versions: newVersions,
       activeVersionIndex: newVersions.length - 1,
+      isDraft: true,
     });
   },
 
@@ -94,6 +110,12 @@ export const useBlueprintStore = create<BlueprintStore>()((set, get) => ({
       activeVersionIndex: index,
     });
   },
+
+  setDiagramFeedback: (feedback) => set({ diagramFeedback: feedback }),
+  setDiagramInterpretation: (interp) => set({ diagramInterpretation: interp }),
+  setDiagramRefineState: (state) => set({ diagramRefineState: state }),
+  clearRefinement: () => set({ diagramFeedback: '', diagramInterpretation: null, diagramRefineState: 'idle' }),
+  finalize: () => set({ isDraft: false }),
 
   setSvg: (svg) => {
     set({ svgContent: svg });

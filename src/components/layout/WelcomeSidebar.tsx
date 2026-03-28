@@ -18,6 +18,7 @@ import {
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import ubsLogo from '@/assets/00ac1239b9b421f7eee8b4e260132b1ac860676a.png';
+import { UserMenu } from '@/components/auth/UserMenu';
 
 // ─── Section Config ─────────────────────────────────────────
 
@@ -173,6 +174,9 @@ export function WelcomeSidebar() {
           );
         })}
       </div>
+
+      {/* User Menu — pinned to bottom */}
+      <UserMenu />
     </aside>
   );
 }

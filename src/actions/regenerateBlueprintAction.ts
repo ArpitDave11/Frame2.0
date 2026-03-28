@@ -120,3 +120,50 @@ Respond with ONLY the Mermaid code. No explanation, no markdown fences.`,
     blueprintStore.setGenerating(false);
   }
 }
+
+// ─── D1: Stage 1 — Interpret diagram feedback (cheap AI call) ──
+
+export interface DiagramInterpretation {
+  interpretation: string;
+  changeItems: string[];
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export async function interpretDiagramFeedback(
+  feedback: string,
+): Promise<DiagramInterpretation> {
+  const currentDiagram = useBlueprintStore.getState().code;
+  const epicContext = useEpicStore.getState().markdown.substring(0, 2000);
+  const configStore = useConfigStore.getState();
+
+  if (!isAIEnabled(configStore.config)) {
+    throw new Error('No AI provider configured.');
+  }
+
+  const aiConfig: AIClientConfig = {
+    provider: configStore.config.ai.provider,
+    azure: configStore.config.ai.azure,
+    openai: configStore.config.ai.openai,
+    endpoints: configStore.config.endpoints,
+  };
+
+  const response = await callAI(aiConfig, {
+    systemPrompt: `You are a diagram architect. The user wants to modify a Mermaid diagram.
+Describe what changes you would make. Return ONLY valid JSON:
+{
+  "interpretation": "1-2 sentence summary of planned changes",
+  "changeItems": ["Change 1", "Change 2", ...],
+  "confidence": "high" | "medium" | "low"
+}
+Do NOT generate any Mermaid code. Just describe the plan.`,
+    userPrompt: `Current diagram (first 3000 chars):\n${currentDiagram.substring(0, 3000)}\n\nEpic context:\n${epicContext}\n\nUser feedback: "${feedback}"`,
+    temperature: 0.3,
+  });
+
+  try {
+    const text = response.content.replace(/```json\n?/g, '').replace(/```/g, '').trim();
+    return JSON.parse(text);
+  } catch {
+    return { interpretation: feedback, changeItems: [feedback], confidence: 'low' };
+  }
+}

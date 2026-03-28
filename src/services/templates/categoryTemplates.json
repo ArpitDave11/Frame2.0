@@ -20,6 +20,26 @@
       "defaultPerPage": 20
     }
   },
+  "general": {
+    "description": "General-purpose epics — the AI pipeline will classify and structure the content automatically",
+    "tone": "adaptive based on content",
+    "storyStyle": "context-dependent",
+    "architectureFocus": "determined by content classification",
+    "expertRole": "senior technical writer",
+    "totalWordTarget": { "min": 1500, "max": 4000 },
+    "requiredSections": {
+      "Overview": { "target": 200, "max": 400, "format": "prose", "hint": "High-level summary of the epic" },
+      "Objectives": { "target": 200, "max": 400, "format": "bullet-list", "hint": "Key goals and success criteria" },
+      "Requirements": { "target": 300, "max": 600, "format": "numbered-list", "hint": "Core requirements" },
+      "Scope": { "target": 150, "max": 300, "format": "bullet-list", "hint": "In-scope and out-of-scope" },
+      "User Stories": { "target": 400, "max": 800, "format": "mixed", "hint": "User stories with acceptance criteria", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
+    },
+    "optionalSections": {
+      "Architecture Overview": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "System design if applicable" },
+      "Dependencies": { "target": 100, "max": 200, "format": "bullet-list", "hint": "External dependencies" },
+      "Timeline": { "target": 100, "max": 200, "format": "phase-table", "hint": "Key milestones" }
+    }
+  },
   "technical_design": {
     "description": "Technical design documents for engineering teams — architecture, APIs, data models, and implementation plans",
     "tone": "precise and technical",
@@ -34,10 +54,10 @@
       "Data Model": { "target": 250, "max": 500, "format": "schema-table", "hint": "Entity definitions and relationships" },
       "API Design": { "target": 300, "max": 600, "format": "endpoint-blocks", "hint": "API endpoints, request/response formats" },
       "Implementation Plan": { "target": 300, "max": 600, "format": "phase-table", "hint": "Phased rollout with milestones" },
-      "User Stories": { "target": 400, "max": 800, "format": "mixed", "hint": "Detailed user stories with acceptance criteria", "count": { "min": 8, "max": 20 }, "fields": ["title", "description", "acceptance_criteria", "story_points"] }
+      "User Stories": { "target": 400, "max": 800, "format": "mixed", "hint": "Detailed user stories with acceptance criteria", "count": { "min": 8, "max": 20 }, "fields": ["title", "description", "acceptance_criteria", "story_points"] },
+      "Security & Non-Functional Requirements": { "target": 200, "max": 400, "format": "table", "hint": "Performance, security, scalability targets" }
     },
     "optionalSections": {
-      "Non-Functional Requirements": { "target": 200, "max": 400, "format": "table", "hint": "Performance, security, scalability targets" },
       "Sequence Diagrams": { "target": 150, "max": 300, "format": "mermaid-sequence", "diagram": "sequence", "hint": "Key interaction flows" },
       "Error Handling": { "target": 200, "max": 400, "format": "error-table", "hint": "Error codes, recovery strategies" },
       "Migration Strategy": { "target": 200, "max": 400, "format": "numbered-procedure", "hint": "Data migration steps if applicable" },
@@ -128,11 +148,11 @@
       "Networking": { "target": 200, "max": 400, "format": "prose", "hint": "Network design, VPCs, load balancing" },
       "CI/CD Pipeline": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "Build and deploy pipeline" },
       "Monitoring & Alerting": { "target": 200, "max": 400, "format": "slo-table", "hint": "SLOs, metrics, alerting rules" },
-      "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Infrastructure user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
+      "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Infrastructure user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] },
+      "Security": { "target": 200, "max": 400, "format": "bullet-list", "hint": "Security controls and compliance" }
     },
     "optionalSections": {
       "Disaster Recovery": { "target": 200, "max": 400, "format": "numbered-procedure", "hint": "DR plan with RTO/RPO" },
-      "Security": { "target": 200, "max": 400, "format": "bullet-list", "hint": "Security controls and compliance" },
       "Cost Estimation": { "target": 150, "max": 300, "format": "table", "hint": "Monthly/annual cost breakdown" },
       "Scaling Strategy": { "target": 150, "max": 300, "format": "prose", "hint": "Auto-scaling policies" }
     }

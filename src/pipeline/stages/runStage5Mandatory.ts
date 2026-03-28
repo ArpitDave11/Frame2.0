@@ -24,9 +24,10 @@ import type {
 
 const STAGE_NAME = 'mandatory';
 
+// 6 stable types for architecture diagrams (removed pie, journey, gantt — not useful for epic blueprints)
 const VALID_MERMAID_DIRECTIVES = [
   'graph', 'flowchart', 'sequenceDiagram', 'classDiagram',
-  'stateDiagram', 'erDiagram', 'gantt', 'pie', 'journey',
+  'stateDiagram', 'erDiagram',
 ];
 
 // ─── Main Stage Function ────────────────────────────────────

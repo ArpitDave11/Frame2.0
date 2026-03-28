@@ -66,7 +66,7 @@ describe('SectionHints', () => {
   it('shows optional indicator for optional section', () => {
     render(
       <SectionHints
-        sectionTitle="Non-Functional Requirements"
+        sectionTitle="Sequence Diagrams"
         category="technical_design"
         complexity="complex"
       />,

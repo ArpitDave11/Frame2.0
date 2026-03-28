@@ -36,6 +36,11 @@ Output format (markdown):
 - [ ] Code reviewed
 - [ ] Documentation updated
 
+If the story has test cases, add a section after Definition of Done:
+
+## Test Cases
+<numbered list of test scenarios>
+
 Keep it concise and actionable. Use the epic context to add relevant technical details.`;
 
   const userPrompt = `Epic: "${epicTitle}"
@@ -45,6 +50,8 @@ I want: ${story.iWant}
 So that: ${story.soThat}
 Acceptance Criteria: ${story.acceptanceCriteria.join('; ')}
 Priority: ${story.priority}
+${story.testCases?.length ? `Test Cases: ${story.testCases.join('; ')}` : ''}
+${story.storyPoints ? `Story Points: ${story.storyPoints}` : ''}
 
 Epic context (first 2000 chars):
 ${epicContent.slice(0, 2000)}
@@ -77,5 +84,6 @@ ${story.acceptanceCriteria.map((ac, i) => `${i + 1}. ${ac}`).join('\n')}
 ## Definition of Done
 - [ ] Implementation complete
 - [ ] Unit tests written and passing
-- [ ] Code reviewed`;
+- [ ] Code reviewed
+${story.testCases?.length ? `\n## Test Cases\n${story.testCases.map((tc, i) => `${i + 1}. ${tc}`).join('\n')}` : ''}`;
 }

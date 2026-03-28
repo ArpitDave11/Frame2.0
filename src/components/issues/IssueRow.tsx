@@ -124,6 +124,44 @@ export function IssueRow({ issue, isSelected, onClick }: IssueRowProps) {
         <span>{issue.updated}</span>
       </div>
 
+      {/* Health signals — zero additional API calls */}
+      <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
+        {/* Overdue badge */}
+        {issue.due_date && new Date(issue.due_date) < new Date() && issue.status !== 'done' && (
+          <span style={{
+            padding: '1px 6px', borderRadius: 3, fontSize: 9, fontWeight: 500,
+            background: '#fef2f2', color: '#b91c1c', fontFamily: F,
+          }}>
+            Overdue
+          </span>
+        )}
+        {/* Weight/story points */}
+        {issue.weight != null && issue.weight > 0 && (
+          <span style={{
+            padding: '1px 6px', borderRadius: 3, fontSize: 9, fontWeight: 400,
+            background: '#ECEBE4', color: 'var(--col-text-subtle)', fontFamily: F,
+          }}>
+            {issue.weight} pts
+          </span>
+        )}
+        {/* Time progress */}
+        {issue.time_estimate != null && issue.time_estimate > 0 && (
+          <div style={{ flex: 1, maxWidth: 60, height: 3, background: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 2,
+              width: `${Math.min(100, Math.round(((issue.time_spent ?? 0) / issue.time_estimate) * 100))}%`,
+              background: (issue.time_spent ?? 0) > issue.time_estimate ? '#b91c1c' : '#5A5D5C',
+            }} />
+          </div>
+        )}
+        {/* Comment count */}
+        {issue.notes_count != null && issue.notes_count > 0 && (
+          <span style={{ fontSize: 9, color: 'var(--col-text-subtle)', fontFamily: F }}>
+            💬 {issue.notes_count}
+          </span>
+        )}
+      </div>
+
       {/* Active indicator arrow */}
       {isSelected && (
         <CaretRight

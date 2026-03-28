@@ -94,11 +94,12 @@ export async function runStage4Refinement(
         totalTokens += result.tokensUsed;
         if (result.model) model = result.model;
 
-        // F08: enforce word limits on each refined section (500 words max per section)
-        const cappedSections = result.sections.map((s) => ({
-          ...s,
-          content: enforceWordLimit(s.content, 500),
-        }));
+        // F08: enforce word limits — read max from template config, fallback 500
+        const cappedSections = result.sections.map((s) => {
+          const secCfg = findSectionConfig(s.title, template);
+          const maxWords = secCfg?.max ?? 500;
+          return { ...s, content: enforceWordLimit(s.content, maxWords) };
+        });
         return { index: globalIdx, sections: cappedSections, tokensUsed: result.tokensUsed };
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);

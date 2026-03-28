@@ -13,6 +13,8 @@ export interface ParsedUserStory {
   soThat: string;
   acceptanceCriteria: string[];
   priority: string;
+  storyPoints?: number;
+  testCases?: string[];
 }
 
 /**
@@ -57,6 +59,22 @@ export function parseUserStories(epicContent: string): ParsedUserStory[] {
     // Parse priority
     const priorityMatch = /\*\*Priority\*\*[:\s]*(\w+)/i.exec(body);
 
+    // Parse story points
+    const spMatch = /\*\*Story Points\*\*[:\s]*(\d+)/i.exec(body);
+    const storyPoints = spMatch ? parseInt(spMatch[1]!, 10) : undefined;
+
+    // Parse test cases
+    const tcSection = body.match(/(?:test cases)[:\s]*\n((?:\s*\d+\.\s*.+\n?)+)/i);
+    const testCases: string[] = [];
+    if (tcSection?.[1]) {
+      const lines = tcSection[1].match(/\d+\.\s*(.+)/g);
+      if (lines) {
+        for (const line of lines) {
+          testCases.push(line.replace(/^\d+\.\s*/, '').trim());
+        }
+      }
+    }
+
     stories.push({
       id,
       title: titleLine,
@@ -65,6 +83,8 @@ export function parseUserStories(epicContent: string): ParsedUserStory[] {
       soThat: soThatMatch?.[1]?.trim() ?? 'achieve the goal',
       acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : ['Functionality works as described'],
       priority: priorityMatch?.[1]?.toLowerCase() ?? 'medium',
+      ...(storyPoints !== undefined ? { storyPoints } : {}),
+      ...(testCases.length > 0 ? { testCases } : {}),
     });
   }
 

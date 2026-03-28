@@ -22,6 +22,11 @@ export interface MockIssue {
   web_url?: string;
   project_id?: number;
   iid?: number;
+  due_date?: string | null;
+  time_estimate?: number;
+  time_spent?: number;
+  notes_count?: number;
+  weight?: number | null;
 }
 
 export const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";

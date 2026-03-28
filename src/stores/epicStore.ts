@@ -31,6 +31,7 @@ interface EpicActions {
   setQualityScore: (score: number) => void;
   setCategory: (category: string) => void;
   setSla: (days: number | null) => void;
+  replaceArchitectureSection: (mermaidCode: string) => void;
   undo: () => void;
   reset: () => void;
 }
@@ -136,6 +137,25 @@ export const useEpicStore = create<EpicStore>()((set, get) => ({
 
   setSla: (days) => {
     set({ sla: days });
+  },
+
+  replaceArchitectureSection: (mermaidCode) => {
+    const { markdown } = get();
+    const diagramBlock = '```mermaid\n' + mermaidCode + '\n```';
+
+    // Try to find and replace existing architecture section
+    const archRegex = /## .*(?:Architecture|Deployment Architecture|Blueprint).*\n[\s\S]*?(?=\n## |\n# |$)/i;
+    let newMarkdown: string;
+
+    if (archRegex.test(markdown)) {
+      newMarkdown = markdown.replace(archRegex, `## Architecture Diagram\n\n${diagramBlock}\n`);
+    } else {
+      // Append as new section
+      newMarkdown = markdown.trimEnd() + `\n\n## Architecture Diagram\n\n${diagramBlock}\n`;
+    }
+
+    const doc = newMarkdown.trim() ? markdownToEpic(newMarkdown) : null;
+    set({ markdown: newMarkdown, document: doc, isDirty: true });
   },
 
   undo: () => {

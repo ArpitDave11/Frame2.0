@@ -9,6 +9,7 @@
 import type { AIClientConfig } from '@/services/ai/types';
 import { getComplexityConfig, getScaledStoryCount } from '@/domain/complexity';
 import type { ComplexityLevel } from '@/domain/types';
+import { buildIterationFeedback, shouldStopConvergence } from '@/pipeline/epicScorer';
 import { runStage1Comprehension } from '@/pipeline/stages/runStage1Comprehension';
 import { runStage2Classification } from '@/pipeline/stages/runStage2Classification';
 import { runStage3Structural } from '@/pipeline/stages/runStage3Structural';
@@ -117,6 +118,7 @@ export async function runPremiumPipeline(
     let mandatory: MandatoryOutput = emptyMandatory;
     let validation: ValidationOutput = emptyValidation;
     let previousFeedback: ValidationOutput | undefined;
+    let previousScore = 0;
     let iterations = 0;
 
     for (let i = 0; i < config.maxIterations; i++) {
@@ -196,8 +198,29 @@ export async function runPremiumPipeline(
         };
       }
 
-      // Not passed — prepare for retry
-      previousFeedback = validation;
+      // Not passed — check convergence before retrying
+      if (i > 0 && shouldStopConvergence(validation.overallScore, previousScore)) {
+        onProgress?.({
+          stageName: 'pipeline',
+          status: 'complete',
+          score: validation.overallScore,
+          message: `Pipeline converged on iteration ${iterations} (score: ${validation.overallScore}, improvement stalled)`,
+          timestamp: Date.now(),
+        });
+        break;
+      }
+      previousScore = validation.overallScore;
+
+      // Build structured feedback with severity routing + positive framing
+      const structured = buildIterationFeedback(
+        validation.feedback,
+        validation.overallScore,
+        validation.detectedFailures.map((f) => f.pattern),
+      );
+      previousFeedback = {
+        ...validation,
+        feedback: [...validation.feedback, structured.xml],
+      };
 
       onProgress?.({
         stageName: 'pipeline',

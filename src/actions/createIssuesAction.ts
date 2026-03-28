@@ -29,6 +29,7 @@ export async function createIssuesAction(
   epicContent: string,
   projectId: string,
   onProgress?: (progress: CreationProgress) => void,
+  extraLabels?: string[],
 ): Promise<{ success: boolean; created: number; errors: string[] }> {
   const cfg = useConfigStore.getState().config;
   const { loadedEpicIid, loadedGroupId } = useGitlabStore.getState();
@@ -62,7 +63,8 @@ export async function createIssuesAction(
       const result = await createGitLabIssue(cfg.gitlab, projectId, {
         title: `${story.id}: ${story.title}`,
         description,
-        labels: [story.priority],
+        labels: [story.priority, ...(extraLabels ?? [])],
+        weight: story.storyPoints ?? undefined,
       });
 
       if (result.success && result.data) {

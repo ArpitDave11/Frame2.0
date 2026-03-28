@@ -13,8 +13,8 @@ import { parseUserStories } from '@/pipeline/utils/parseUserStories';
 import { analyzeStoryDuplicates } from '@/services/ai/analyzeStoryDuplicates';
 import { createIssuesAction } from '@/actions/createIssuesAction';
 import { fetchIssuesAction } from '@/actions/fetchIssuesAction';
-import { fetchGroupProjects } from '@/services/gitlab/gitlabClient';
-import type { GitLabProject } from '@/services/gitlab/types';
+import { fetchGroupProjects, fetchLabelsWithSearch } from '@/services/gitlab/gitlabClient';
+import type { GitLabProject, GitLabLabel } from '@/services/gitlab/types';
 import type { ParsedUserStory } from '@/pipeline/utils/parseUserStories';
 import type { DuplicateAnalysis } from '@/services/ai/analyzeStoryDuplicates';
 import type { CreationProgress } from '@/actions/createIssuesAction';
@@ -46,6 +46,13 @@ export function IssueCreationModal() {
   const [progress, setProgress] = useState<CreationProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // A1: Label typeahead state
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [labelSearch, setLabelSearch] = useState('');
+  const [labelSuggestions, setLabelSuggestions] = useState<GitLabLabel[]>([]);
+  const [loadingLabels, setLoadingLabels] = useState(false);
+  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
+
   const loadedGroupId = useGitlabStore((s) => s.loadedGroupId);
   const epicTitle = epicDoc?.title ?? 'Untitled Epic';
   const isGitLabConfigured = cfg.gitlab.enabled && !!cfg.gitlab.accessToken;
@@ -76,6 +83,26 @@ export function IssueCreationModal() {
     return () => { cancelled = true; };
   }, [isGitLabConfigured, loadedGroupId, cfg.gitlab]);
   const selectedCount = storiesWithAnalysis.filter((s) => s.selected).length;
+
+  // A1: Debounced label search
+  useEffect(() => {
+    if (!labelSearch.trim() || !isGitLabConfigured || !cfg.gitlab.rootGroupId) {
+      setLabelSuggestions([]);
+      setShowLabelDropdown(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setLoadingLabels(true);
+      const result = await fetchLabelsWithSearch(cfg.gitlab, cfg.gitlab.rootGroupId, labelSearch.trim());
+      setLoadingLabels(false);
+      if (result.success && result.data) {
+        // Filter out already-selected labels
+        setLabelSuggestions(result.data.filter((l) => !selectedLabels.includes(l.name)));
+        setShowLabelDropdown(true);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [labelSearch, isGitLabConfigured, cfg.gitlab, selectedLabels]);
 
   // Phase 1: Parse stories from markdown
   useEffect(() => {
@@ -172,6 +199,7 @@ export function IssueCreationModal() {
       markdown,
       projectId.trim(),
       setProgress,
+      selectedLabels.length > 0 ? selectedLabels : undefined,
     );
 
     setPhase('done');
@@ -443,6 +471,96 @@ export function IssueCreationModal() {
           );
         })}
       </div>
+
+      {/* A1: Labels typeahead */}
+      {isGitLabConfigured && (
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--col-border-illustrative)' }}>
+          <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--col-text-subtle)', display: 'block', marginBottom: 6 }}>
+            Labels (optional — applied to all issues)
+          </label>
+
+          {/* Selected label chips */}
+          {selectedLabels.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+              {selectedLabels.map((label) => (
+                <span
+                  key={label}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '2px 8px', borderRadius: 12,
+                    background: '#ECEBE4', fontSize: 11, fontWeight: 400,
+                    color: 'var(--col-text-primary)', fontFamily: F,
+                  }}
+                >
+                  {label}
+                  <button
+                    onClick={() => setSelectedLabels((prev) => prev.filter((l) => l !== label))}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--col-text-subtle)', padding: 0, lineHeight: 1 }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Search input + dropdown */}
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              data-testid="label-search-input"
+              value={labelSearch}
+              onChange={(e) => setLabelSearch(e.target.value)}
+              onFocus={() => { if (labelSuggestions.length > 0) setShowLabelDropdown(true); }}
+              onBlur={() => setTimeout(() => setShowLabelDropdown(false), 200)}
+              placeholder="Type to search labels..."
+              style={{
+                width: '100%', padding: '6px 10px', borderRadius: 6,
+                border: '1px solid var(--col-border-illustrative)',
+                fontSize: 12, fontFamily: F, fontWeight: 300,
+                outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+            {loadingLabels && (
+              <span style={{ position: 'absolute', right: 10, top: 7, fontSize: 11, color: 'var(--col-text-subtle)' }}>...</span>
+            )}
+
+            {showLabelDropdown && labelSuggestions.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                background: '#fff', border: '1px solid var(--col-border-illustrative)',
+                borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                maxHeight: 150, overflowY: 'auto',
+              }}>
+                {labelSuggestions.map((label) => (
+                  <button
+                    key={label.id}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setSelectedLabels((prev) => [...prev, label.name]);
+                      setLabelSearch('');
+                      setShowLabelDropdown(false);
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', padding: '6px 10px', border: 'none',
+                      background: 'transparent', cursor: 'pointer',
+                      fontSize: 12, fontFamily: F, fontWeight: 300,
+                      color: 'var(--col-text-primary)', textAlign: 'left',
+                    }}
+                  >
+                    <span style={{
+                      width: 10, height: 10, borderRadius: 2,
+                      background: label.color ?? '#ccc', flexShrink: 0,
+                    }} />
+                    {label.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div style={{
