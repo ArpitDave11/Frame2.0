@@ -45,6 +45,46 @@ export interface GitLabIssue {
   assignee?: string | null;
   created_at?: string;
   project_id?: number;
+  due_date?: string | null;
+  time_stats?: { time_estimate: number; total_time_spent: number } | null;
+  user_notes_count?: number;
+  weight?: number | null;
+}
+
+export interface GitLabIteration {
+  id: number;
+  iid: number;
+  group_id: number;
+  title: string | null;
+  state: number;
+  start_date: string;
+  due_date: string;
+  web_url: string;
+}
+
+export interface GitLabIterationResult {
+  success: boolean;
+  data?: GitLabIteration[];
+  error?: string;
+}
+
+export interface GitLabMember {
+  id: number;
+  username: string;
+  name: string;
+  state: string;
+  avatar_url: string | null;
+  web_url: string;
+  access_level: number;
+}
+
+export interface GitLabIssueLink {
+  id: number;
+  iid: number;
+  title: string;
+  state: string;
+  link_type: 'relates_to' | 'blocks' | 'is_blocked_by';
+  web_url: string;
 }
 
 export interface GitLabNote {

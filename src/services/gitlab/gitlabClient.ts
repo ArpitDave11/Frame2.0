@@ -16,6 +16,10 @@ import type {
   GitLabIssue,
   GitLabNote,
   GitLabProject,
+  GitLabIteration,
+  GitLabIterationResult,
+  GitLabMember,
+  GitLabIssueLink,
   GitLabGroupMetadata,
   GitLabSubgroup,
   GitLabBranch,
@@ -264,11 +268,12 @@ export async function fetchGroupProjects(
 export async function createGitLabIssue(
   config: GitLabConfig,
   projectId: string,
-  params: { title: string; description?: string; labels?: string[] },
+  params: { title: string; description?: string; labels?: string[]; weight?: number },
 ): Promise<GitLabIssueResult> {
   const body: Record<string, unknown> = { title: params.title };
   if (params.description) body.description = params.description;
   if (params.labels?.length) body.labels = params.labels.join(',');
+  if (params.weight != null) body.weight = params.weight;
 
   const result = await gitlabPost<GitLabIssue>(config, `/projects/${projectId}/issues`, body);
   if (!result.ok) return { success: false, error: result.error };
@@ -315,6 +320,91 @@ export async function addIssueNote(
   body: string,
 ): Promise<GitLabNoteResult> {
   const result = await gitlabPost<GitLabNote>(config, `/projects/${projectId}/issues/${issueIid}/notes`, { body });
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
+// ─── Iterations (Issue Manager sprint view) ─────────────────
+
+export async function fetchCurrentIteration(
+  config: GitLabConfig,
+  groupId: string,
+): Promise<GitLabIterationResult> {
+  const result = await gitlabGet<GitLabIteration[]>(
+    config,
+    `/groups/${groupId}/iterations?state=current&per_page=1`,
+  );
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
+// ─── Group Issues (user-scoped sprint view) ──────────────────
+
+export async function fetchGroupIssues(
+  config: GitLabConfig,
+  groupId: string,
+  params: {
+    assignee_username?: string;
+    iteration_id?: number;
+    per_page?: number;
+    state?: string;
+  },
+): Promise<{ success: boolean; data?: GitLabIssue[]; error?: string }> {
+  const searchParams = new URLSearchParams();
+  if (params.assignee_username) searchParams.set('assignee_username', params.assignee_username);
+  if (params.iteration_id) searchParams.set('iteration_id', String(params.iteration_id));
+  searchParams.set('per_page', String(params.per_page ?? 100));
+  if (params.state) searchParams.set('state', params.state);
+  searchParams.set('order_by', 'updated_at');
+  searchParams.set('sort', 'desc');
+
+  const qs = searchParams.toString();
+  const result = await gitlabGet<GitLabIssue[]>(config, `/groups/${groupId}/issues?${qs}`);
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
+// ─── Group Members (user search autocomplete) ────────────────
+
+export async function searchGroupMembers(
+  config: GitLabConfig,
+  groupId: string,
+  query: string,
+): Promise<{ success: boolean; data?: GitLabMember[]; error?: string }> {
+  const result = await gitlabGet<GitLabMember[]>(
+    config,
+    `/groups/${groupId}/members/all?query=${encodeURIComponent(query)}&per_page=10`,
+  );
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
+// ─── Issue Links (blocker/dependency context) ────────────────
+
+export async function fetchIssueLinks(
+  config: GitLabConfig,
+  projectId: number,
+  issueIid: number,
+): Promise<{ success: boolean; data?: GitLabIssueLink[]; error?: string }> {
+  const result = await gitlabGet<GitLabIssueLink[]>(
+    config,
+    `/projects/${projectId}/issues/${issueIid}/links`,
+  );
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
+// ─── Labels with Search (typeahead autocomplete) ─────────────
+
+export async function fetchLabelsWithSearch(
+  config: GitLabConfig,
+  groupId: string,
+  query: string,
+): Promise<GitLabLabelResult> {
+  const result = await gitlabGet<GitLabLabel[]>(
+    config,
+    `/groups/${groupId}/labels?search=${encodeURIComponent(query)}&per_page=20`,
+  );
   if (!result.ok) return { success: false, error: result.error };
   return { success: true, data: result.data };
 }

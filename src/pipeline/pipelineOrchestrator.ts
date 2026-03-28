@@ -135,13 +135,17 @@ export async function runPremiumPipeline(
       );
       refinement = s4.data;
 
-      // Stage 4b: Cross-section coherence
-      const s4b = await runStage4bCoherence(
-        { refinement: s4.data, classification: s2.data },
-        config, aiConfig, onProgress,
-      );
-      if (s4b.success && s4b.data.fixes.length > 0) {
-        refinement = { refinedSections: s4b.data.refinedSections };
+      // Stage 4b: Cross-section coherence (skip on first iteration —
+      // freshly generated sections are consistent; only needed on retries
+      // where feedback-driven patches may introduce contradictions)
+      if (i > 0) {
+        const s4b = await runStage4bCoherence(
+          { refinement: s4.data, classification: s2.data },
+          config, aiConfig, onProgress,
+        );
+        if (s4b.success && s4b.data.fixes.length > 0) {
+          refinement = { refinedSections: s4b.data.refinedSections };
+        }
       }
 
       // Stage 5: Mandatory (even if refinement partially failed)
