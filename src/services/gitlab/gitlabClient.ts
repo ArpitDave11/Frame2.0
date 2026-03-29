@@ -324,6 +324,19 @@ export async function addIssueNote(
   return { success: true, data: result.data };
 }
 
+// ─── Current User ────────────────────────────────────────────
+
+export async function fetchCurrentUser(
+  config: GitLabConfig,
+): Promise<{ success: boolean; data?: { id: number; username: string; name: string; email: string; avatar_url: string }; error?: string }> {
+  const result = await gitlabGet<{ id: number; username: string; name: string; email: string; avatar_url: string }>(
+    config,
+    '/user',
+  );
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
 // ─── Iterations (Issue Manager sprint view) ─────────────────
 
 export async function fetchCurrentIteration(
@@ -348,6 +361,7 @@ export async function fetchGroupIssues(
     iteration_id?: number;
     per_page?: number;
     state?: string;
+    search?: string;
   },
 ): Promise<{ success: boolean; data?: GitLabIssue[]; error?: string }> {
   const searchParams = new URLSearchParams();
@@ -355,6 +369,7 @@ export async function fetchGroupIssues(
   if (params.iteration_id) searchParams.set('iteration_id', String(params.iteration_id));
   searchParams.set('per_page', String(params.per_page ?? 100));
   if (params.state) searchParams.set('state', params.state);
+  if (params.search) searchParams.set('search', params.search);
   searchParams.set('order_by', 'updated_at');
   searchParams.set('sort', 'desc');
 

@@ -9,13 +9,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { IssueList } from './IssueList';
 import { IssueDetail } from './IssueDetail';
-import { MOCK_ISSUES, F } from './types';
+import { F } from './types';
 import { useGitlabStore } from '@/stores/gitlabStore';
 import { useConfigStore } from '@/stores/configStore';
 import { useAuth } from '@/components/auth';
 import { fetchIssuesAction } from '@/actions/fetchIssuesAction';
 import {
   fetchCurrentIteration,
+  fetchCurrentUser,
   fetchGroupIssues,
   searchGroupMembers,
 } from '@/services/gitlab/gitlabClient';
@@ -70,15 +71,30 @@ export function IssueManagerView() {
   const isConfigured = config.gitlab.enabled;
   const { user: authUser } = useAuth();
 
-  // Derive username from auth (no username field — use email prefix)
-  const currentUsername = authUser?.email?.split('@')[0] ?? 'me';
+  // Resolve actual GitLab username via GET /user (email prefix ≠ GitLab username)
+  const [gitlabUsername, setGitlabUsername] = useState<string | null>(null);
 
-  // Set default viewing user to current user
   useEffect(() => {
-    if (authUser && !viewingUser) {
-      setViewingUser({ username: currentUsername, name: authUser.name });
+    if (gitlabUsername || viewingUser) return;
+    if (isConfigured) {
+      fetchCurrentUser(config.gitlab).then((result) => {
+        if (result.success && result.data) {
+          setGitlabUsername(result.data.username);
+          setViewingUser({ username: result.data.username, name: result.data.name });
+        } else {
+          const fallback = authUser?.email?.split('@')[0] ?? 'me';
+          setGitlabUsername(fallback);
+          setViewingUser({ username: fallback, name: authUser?.name ?? 'Me' });
+          console.warn('[Issue Manager] GET /user failed, using email prefix as fallback:', result.error);
+        }
+      });
+    } else if (authUser) {
+      // GitLab not configured — use auth user for display
+      const fallback = authUser.email?.split('@')[0] ?? 'me';
+      setGitlabUsername(fallback);
+      setViewingUser({ username: fallback, name: authUser.name });
     }
-  }, [authUser, currentUsername, viewingUser]);
+  }, [isConfigured, config.gitlab, authUser, gitlabUsername, viewingUser]);
 
   // Fetch sprint issues for the viewing user
   const fetchSprintIssues = useCallback(async (username: string) => {
@@ -100,8 +116,8 @@ export function IssueManagerView() {
       if (issuesResult.success && issuesResult.data) {
         setSprintIssues(issuesResult.data.map(mapGitLabIssueToMock));
       }
-    } catch {
-      // Silently fail — show empty state
+    } catch (err) {
+      console.error('[Issue Manager] Sprint fetch failed:', err);
     } finally {
       setLoadingSprint(false);
     }
@@ -114,10 +130,14 @@ export function IssueManagerView() {
     }
   }, [viewingUser, activeTab, fetchSprintIssues]);
 
+  // Epic issues loading state
+  const [loadingEpicIssues, setLoadingEpicIssues] = useState(false);
+
   // Fetch epic issues when tab switches to epic
   useEffect(() => {
     if (activeTab === 'epic' && isConfigured && loadedEpicIid && loadedGroupId) {
-      fetchIssuesAction();
+      setLoadingEpicIssues(true);
+      fetchIssuesAction().finally(() => setLoadingEpicIssues(false));
     }
   }, [activeTab, isConfigured, loadedEpicIid, loadedGroupId]);
 
@@ -140,10 +160,8 @@ export function IssueManagerView() {
     return () => clearTimeout(timer);
   }, [userSearch, isConfigured, config.gitlab]);
 
-  // Determine which issues to show
-  const epicIssues: MockIssue[] = gitlabIssues.length > 0
-    ? gitlabIssues.map(mapGitLabIssueToMock)
-    : MOCK_ISSUES;
+  // Determine which issues to show (no mock fallback — show real data or empty)
+  const epicIssues: MockIssue[] = gitlabIssues.map(mapGitLabIssueToMock);
   const displayIssues = activeTab === 'sprint' ? sprintIssues : epicIssues;
 
   // Auto-select first issue
@@ -153,10 +171,35 @@ export function IssueManagerView() {
     }
   }, [displayIssues, selectedId]);
 
-  // Filter logic
+  // Server-side search: re-fetch sprint issues when search changes (debounced)
+  useEffect(() => {
+    if (activeTab !== 'sprint' || !viewingUser || !isConfigured || !config.gitlab.rootGroupId) return;
+    const timer = setTimeout(() => {
+      const trimmed = search.trim();
+      if (trimmed.length >= 2) {
+        setLoadingSprint(true);
+        fetchGroupIssues(config.gitlab, config.gitlab.rootGroupId, {
+          assignee_username: viewingUser.username,
+          search: trimmed,
+          per_page: 50,
+        }).then((result) => {
+          if (result.success && result.data) setSprintIssues(result.data.map(mapGitLabIssueToMock));
+        }).finally(() => setLoadingSprint(false));
+      } else if (trimmed.length === 0) {
+        // Empty search: re-fetch normal sprint
+        fetchSprintIssues(viewingUser.username);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search, activeTab, viewingUser, isConfigured, config.gitlab, fetchSprintIssues]);
+
+  // Client-side filter (status filter + local text search for epic tab)
   const filtered = displayIssues.filter((issue) => {
-    const q = search.toLowerCase();
-    if (q && !issue.title.toLowerCase().includes(q) && !issue.id.toLowerCase().includes(q)) return false;
+    // For epic tab, apply client-side text search (sprint tab uses server-side)
+    if (activeTab === 'epic') {
+      const q = search.toLowerCase();
+      if (q && !issue.title.toLowerCase().includes(q) && !issue.id.toLowerCase().includes(q)) return false;
+    }
     switch (filter) {
       case 'active': return issue.status === 'in-progress' || issue.status === 'review';
       case 'blocked': return issue.status === 'blocked';
@@ -279,10 +322,10 @@ export function IssueManagerView() {
             </div>
 
             {/* Reset to my issues */}
-            {viewingUser && viewingUser.username !== currentUsername && (
+            {viewingUser && gitlabUsername && viewingUser.username !== gitlabUsername && (
               <button
                 onClick={() => {
-                  setViewingUser({ username: currentUsername, name: authUser?.name ?? 'Me' });
+                  setViewingUser({ username: gitlabUsername, name: authUser?.name ?? 'Me' });
                   setSelectedId(null);
                 }}
                 style={{
@@ -305,14 +348,32 @@ export function IssueManagerView() {
         )}
       </div>
 
-      {/* Banner when using mock data on epic tab */}
-      {activeTab === 'epic' && gitlabIssues.length === 0 && (
-        <div data-testid="mock-data-banner" style={{
-          padding: '8px 24px', background: '#fef3c7',
-          borderBottom: '1px solid #fde68a', fontSize: 12,
-          fontWeight: 400, color: '#92400e', fontFamily: F, textAlign: 'center',
+      {/* Epic tab loading indicator */}
+      {loadingEpicIssues && activeTab === 'epic' && (
+        <div style={{
+          padding: '8px 24px', fontSize: 12, fontWeight: 300,
+          color: 'var(--col-text-subtle)', fontFamily: F, textAlign: 'center',
+          fontStyle: 'italic', borderBottom: '1px solid var(--col-border-illustrative)',
         }}>
-          Showing sample data — load an epic from GitLab to see real issues
+          Loading epic issues...
+        </div>
+      )}
+
+      {/* Epic tab: contextual empty states */}
+      {activeTab === 'epic' && !loadingEpicIssues && !loadedEpicIid && (
+        <div style={{
+          padding: '24px', fontSize: 13, fontWeight: 300,
+          color: 'var(--col-text-subtle)', fontFamily: F, textAlign: 'center',
+        }}>
+          Load an epic from GitLab to see its linked issues.
+        </div>
+      )}
+      {activeTab === 'epic' && !loadingEpicIssues && loadedEpicIid && epicIssues.length === 0 && (
+        <div style={{
+          padding: '24px', fontSize: 13, fontWeight: 300,
+          color: 'var(--col-text-subtle)', fontFamily: F, textAlign: 'center',
+        }}>
+          No issues are linked to this epic. Create issues from user stories, or link existing issues in GitLab.
         </div>
       )}
 
