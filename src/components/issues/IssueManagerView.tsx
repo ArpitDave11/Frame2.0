@@ -16,13 +16,14 @@ import { useAuth } from '@/components/auth';
 import { fetchIssuesAction } from '@/actions/fetchIssuesAction';
 import {
   fetchCurrentIteration,
+  fetchRecentIterations,
   fetchCurrentUser,
   fetchGroupIssues,
   searchGroupMembers,
 } from '@/services/gitlab/gitlabClient';
 import type { IssueFilter } from './IssueList';
 import type { MockIssue } from './types';
-import type { GitLabIssue, GitLabMember } from '@/services/gitlab/types';
+import type { GitLabIssue, GitLabIteration, GitLabMember } from '@/services/gitlab/types';
 
 function mapGitLabIssueToMock(issue: GitLabIssue): MockIssue {
   return {
@@ -45,6 +46,14 @@ function mapGitLabIssueToMock(issue: GitLabIssue): MockIssue {
   };
 }
 
+function formatIterationLabel(iter: GitLabIteration, currentId: number | null): string {
+  const start = new Date(iter.start_date);
+  const end = new Date(iter.due_date);
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const label = `${fmt(start)} \u2013 ${fmt(end)}`;
+  return iter.id === currentId ? `${label} \u00b7 Current` : label;
+}
+
 type ViewTab = 'sprint' | 'epic';
 
 export function IssueManagerView() {
@@ -56,6 +65,12 @@ export function IssueManagerView() {
   // Sprint issues state
   const [sprintIssues, setSprintIssues] = useState<MockIssue[]>([]);
   const [loadingSprint, setLoadingSprint] = useState(false);
+
+  // Iteration dropdown state
+  const [iterations, setIterations] = useState<GitLabIteration[]>([]);
+  const [selectedIterationId, setSelectedIterationId] = useState<number | null>(null);
+  const [currentIterationId, setCurrentIterationId] = useState<number | null>(null);
+  const [loadingIterations, setLoadingIterations] = useState(false);
 
   // User search state
   const [viewingUser, setViewingUser] = useState<{ username: string; name: string } | null>(null);
@@ -98,20 +113,32 @@ export function IssueManagerView() {
     }
   }, [isConfigured, config.gitlab, authUser, gitlabUsername, viewingUser]);
 
+  // Fetch recent iterations for dropdown
+  useEffect(() => {
+    if (!isConfigured || !config.gitlab.rootGroupId) return;
+    setLoadingIterations(true);
+    Promise.all([
+      fetchRecentIterations(config.gitlab, config.gitlab.rootGroupId),
+      fetchCurrentIteration(config.gitlab, config.gitlab.rootGroupId),
+    ]).then(([recentResult, currentResult]) => {
+      if (recentResult.success && recentResult.data) {
+        setIterations(recentResult.data);
+      }
+      const currentId = currentResult.data?.[0]?.id ?? null;
+      setCurrentIterationId(currentId);
+      setSelectedIterationId(currentId);
+    }).finally(() => setLoadingIterations(false));
+  }, [isConfigured, config.gitlab]);
+
   // Fetch sprint issues for the viewing user
   const fetchSprintIssues = useCallback(async (username: string) => {
     if (!isConfigured || !config.gitlab.rootGroupId) return;
     setLoadingSprint(true);
 
     try {
-      // Step 1: Get current iteration
-      const iterResult = await fetchCurrentIteration(config.gitlab, config.gitlab.rootGroupId);
-      const iterationId = iterResult.data?.[0]?.id;
-
-      // Step 2: Fetch user's issues (with or without iteration filter)
       const issuesResult = await fetchGroupIssues(config.gitlab, config.gitlab.rootGroupId, {
         assignee_username: username,
-        iteration_id: iterationId,
+        iteration_id: selectedIterationId ?? undefined,
         per_page: 100,
       });
 
@@ -123,7 +150,7 @@ export function IssueManagerView() {
     } finally {
       setLoadingSprint(false);
     }
-  }, [isConfigured, config.gitlab]);
+  }, [isConfigured, config.gitlab, selectedIterationId]);
 
   // Fetch on mount and when viewing user changes
   useEffect(() => {
@@ -182,6 +209,7 @@ export function IssueManagerView() {
         setLoadingSprint(true);
         fetchGroupIssues(config.gitlab, config.gitlab.rootGroupId, {
           assignee_username: viewingUser.username,
+          iteration_id: selectedIterationId ?? undefined,
           search: trimmed,
           per_page: 50,
         }).then((result) => {
@@ -193,7 +221,7 @@ export function IssueManagerView() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [search, activeTab, viewingUser, isConfigured, config.gitlab, fetchSprintIssues]);
+  }, [search, activeTab, viewingUser, isConfigured, config.gitlab, fetchSprintIssues, selectedIterationId]);
 
   // Client-side filter (status filter + local text search for epic tab)
   const filtered = displayIssues.filter((issue) => {
@@ -341,6 +369,39 @@ export function IssueManagerView() {
                 My Issues
               </button>
             )}
+
+            {/* Iteration dropdown */}
+            {iterations.length > 0 && (
+              <select
+                data-testid="iteration-dropdown"
+                value={selectedIterationId ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedIterationId(val ? Number(val) : null);
+                }}
+                disabled={loadingIterations}
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: '1px solid var(--col-border-illustrative)',
+                  background: 'var(--col-background-ui-10, #fff)',
+                  fontSize: 11,
+                  fontFamily: F,
+                  fontWeight: 300,
+                  color: 'var(--col-text-primary)',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  maxWidth: 200,
+                }}
+              >
+                <option value="">All Iterations</option>
+                {iterations.map((iter) => (
+                  <option key={iter.id} value={iter.id}>
+                    {formatIterationLabel(iter, currentIterationId)}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         )}
 
@@ -388,7 +449,7 @@ export function IssueManagerView() {
           {!isConfigured
             ? 'Configure GitLab in Settings to view sprint issues'
             : viewingUser
-              ? `No issues found for ${viewingUser.name} in the current sprint`
+              ? `No issues found for ${viewingUser.name} in ${selectedIterationId ? 'this iteration' : 'any iteration'}`
               : 'Select a user to view their sprint issues'
           }
         </div>
