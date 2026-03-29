@@ -106,6 +106,7 @@ export function GitLabConfig() {
               onChange={(e) => updateConfig({ gitlab: { accessToken: e.target.value } })}
               placeholder="glpat-..."
               data-testid="gitlab-token"
+              title="GitLab → Preferences → Access Tokens. Requires api scope."
             />
             <button
               type="button"
@@ -127,6 +128,9 @@ export function GitLabConfig() {
               {showToken ? 'Hide' : 'Show'}
             </button>
           </div>
+          <span style={{ fontSize: 11, fontWeight: 300, color: 'var(--col-text-subtle)', fontFamily: F, marginTop: 4, display: 'block' }}>
+            GitLab &rarr; Preferences &rarr; Access Tokens. Requires <code style={{ fontSize: 11 }}>api</code> scope.
+          </span>
         </div>
       )}
 
@@ -151,6 +155,9 @@ export function GitLabConfig() {
           placeholder="e.g., 12345"
           data-testid="gitlab-group-id"
         />
+        <span style={{ fontSize: 11, fontWeight: 300, color: 'var(--col-text-subtle)', fontFamily: F, marginTop: 4, display: 'block' }}>
+          GitLab &rarr; Your group &rarr; Settings &rarr; General &rarr; Group ID
+        </span>
       </div>
 
       {/* Base URL (read-only, from environment) */}

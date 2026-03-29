@@ -107,6 +107,8 @@ export const useConfigStore = create<ConfigStore>()((set, get) => ({
     const current = structuredClone(get().config);
     deepMerge(current, partial);
     set({ config: current });
+    // Persist every change to localStorage
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
   },
 
   setGitlabTestStatus: (status) => {

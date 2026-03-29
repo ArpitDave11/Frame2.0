@@ -47,6 +47,15 @@ const fieldGroupStyle: React.CSSProperties = {
   gap: '12px',
 };
 
+const hintStyle: React.CSSProperties = {
+  fontSize: '11px',
+  fontWeight: 300,
+  color: 'var(--col-text-subtle, #888)',
+  fontFamily: F,
+  marginTop: '4px',
+  display: 'block',
+};
+
 // ─── Component ─────────────────────────────────────────────
 
 export function AIProviderConfig() {
@@ -115,6 +124,7 @@ export function AIProviderConfig() {
               placeholder="https://your-resource.openai.azure.com"
               data-testid="azure-endpoint"
             />
+            <span style={hintStyle}>Azure portal &rarr; your resource &rarr; Keys and Endpoint</span>
           </div>
           <div>
             <label style={labelStyle}>Deployment Name</label>
@@ -126,6 +136,7 @@ export function AIProviderConfig() {
               placeholder="gpt-4"
               data-testid="azure-deployment"
             />
+            <span style={hintStyle}>Azure portal &rarr; Model deployments &rarr; deployment name</span>
           </div>
           <div>
             <label style={labelStyle}>API Key</label>
@@ -137,6 +148,7 @@ export function AIProviderConfig() {
                 onChange={(e) => updateConfig({ ai: { azure: { apiKey: e.target.value } } })}
                 placeholder="Enter API key"
                 data-testid="azure-api-key"
+                title="Azure portal → Keys and Endpoint → Key 1 or Key 2"
               />
               <button
                 type="button"
@@ -225,6 +237,7 @@ export function AIProviderConfig() {
                 onChange={(e) => updateConfig({ ai: { openai: { apiKey: e.target.value } } })}
                 placeholder="sk-..."
                 data-testid="openai-api-key"
+                title="platform.openai.com → API keys"
               />
               <button
                 type="button"
@@ -270,6 +283,7 @@ export function AIProviderConfig() {
               placeholder="https://api.openai.com/v1"
               data-testid="openai-base-url"
             />
+            <span style={hintStyle}>Default works for most users. Change only for proxies or compatible APIs.</span>
           </div>
           {/* Max Tokens + Temperature */}
           <div style={{ display: 'flex', gap: 12 }}>

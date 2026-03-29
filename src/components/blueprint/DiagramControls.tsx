@@ -49,6 +49,7 @@ function CtrlButton({
   return (
     <button
       aria-label={label}
+      title={label}
       data-testid={testId}
       onClick={onClick}
       style={BTN}
