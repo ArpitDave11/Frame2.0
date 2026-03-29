@@ -6,11 +6,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { IssueManagerView } from './IssueManagerView';
 import { AuthContext } from '@/components/auth/AuthContext';
+import { useConfigStore } from '@/stores/configStore';
 
 // Mock GitLab API calls that the component now makes on mount
 vi.mock('@/services/gitlab/gitlabClient', () => ({
   fetchCurrentUser: vi.fn().mockResolvedValue({ success: true, data: { id: 1, username: 'devuser', name: 'Dev User', email: 'dev.user@ubs.com', avatar_url: '' } }),
-  fetchCurrentIteration: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  fetchCurrentIteration: vi.fn().mockResolvedValue({ success: true, data: [{ id: 207814, iid: 50, group_id: 478494, title: null, state: 2, start_date: '2026-03-18', due_date: '2026-03-31', web_url: '' }] }),
+  fetchRecentIterations: vi.fn().mockResolvedValue({ success: true, data: [
+    { id: 207814, iid: 50, group_id: 478494, title: null, state: 2, start_date: '2026-03-18', due_date: '2026-03-31', web_url: '' },
+    { id: 207000, iid: 49, group_id: 478494, title: null, state: 3, start_date: '2026-03-04', due_date: '2026-03-17', web_url: '' },
+  ] }),
   fetchGroupIssues: vi.fn().mockResolvedValue({ success: true, data: [] }),
   searchGroupMembers: vi.fn().mockResolvedValue({ success: true, data: [] }),
   fetchEpicIssues: vi.fn().mockResolvedValue({ success: true, data: [] }),
@@ -88,5 +93,60 @@ describe('IssueManagerView', () => {
     expect(screen.getByTestId('filter-tab-all')).toBeTruthy();
     expect(screen.getByTestId('filter-tab-active')).toBeTruthy();
     expect(screen.getByTestId('filter-tab-blocked')).toBeTruthy();
+  });
+});
+
+// ─── Iteration Dropdown ─────────────────────────────────────
+
+function enableGitLab() {
+  useConfigStore.setState({
+    config: {
+      ...useConfigStore.getState().config,
+      gitlab: { enabled: true, rootGroupId: '478494', accessToken: 'glpat-test', authMode: 'pat' as const },
+    },
+  });
+}
+
+describe('Iteration Dropdown', () => {
+  beforeEach(() => {
+    enableGitLab();
+  });
+
+  it('renders iteration dropdown on sprint tab when GitLab is configured', async () => {
+    renderWithAuth(<IssueManagerView />);
+    await waitFor(() => expect(screen.getByTestId('iteration-dropdown')).toBeTruthy());
+  });
+
+  it('dropdown has "All Iterations" plus fetched iterations', async () => {
+    renderWithAuth(<IssueManagerView />);
+    await waitFor(() => {
+      const dropdown = screen.getByTestId('iteration-dropdown') as HTMLSelectElement;
+      expect(dropdown.options.length).toBe(3); // All + 2 iterations
+      expect(dropdown.options[0]!.textContent).toBe('All Iterations');
+    });
+  });
+
+  it('current iteration is auto-selected', async () => {
+    renderWithAuth(<IssueManagerView />);
+    await waitFor(() => {
+      const dropdown = screen.getByTestId('iteration-dropdown') as HTMLSelectElement;
+      expect(dropdown.value).toBe('207814');
+    });
+  });
+
+  it('current iteration option has "Current" suffix', async () => {
+    renderWithAuth(<IssueManagerView />);
+    await waitFor(() => {
+      const dropdown = screen.getByTestId('iteration-dropdown') as HTMLSelectElement;
+      const currentOption = Array.from(dropdown.options).find((o) => o.value === '207814');
+      expect(currentOption?.textContent).toContain('Current');
+    });
+  });
+
+  it('iteration dropdown hidden on epic tab', async () => {
+    renderWithAuth(<IssueManagerView />);
+    await waitFor(() => expect(screen.getByTestId('iteration-dropdown')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('tab-epic'));
+    expect(screen.queryByTestId('iteration-dropdown')).toBeNull();
   });
 });
