@@ -13,6 +13,7 @@ import {
   createGitLabIssue,
   fetchGitLabFileContent,
   publishWithMergeRequest,
+  fetchRecentIterations,
 } from './gitlabClient';
 import type { GitLabConfig } from '@/domain/configTypes';
 
@@ -361,5 +362,33 @@ describe('auth headers on fetch calls', () => {
 
     const [, options] = mockFetch.mock.calls[0];
     expect(options.headers['Authorization']).toBe('Bearer oauth-token-xyz');
+  });
+});
+
+// ─── fetchRecentIterations ─────────────────────────────────
+
+describe('fetchRecentIterations', () => {
+  it('calls /groups/:id/iterations with state=all', async () => {
+    const mockIterations = [
+      { id: 207814, iid: 50, group_id: 478494, title: null, state: 2, start_date: '2026-03-18', due_date: '2026-03-31', web_url: 'https://gitlab.example.com/iterations/50' },
+      { id: 207000, iid: 49, group_id: 478494, title: null, state: 3, start_date: '2026-03-04', due_date: '2026-03-17', web_url: 'https://gitlab.example.com/iterations/49' },
+    ];
+    mockJsonResponse(mockIterations);
+
+    const result = await fetchRecentIterations(PAT_CONFIG, '478494');
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual(mockIterations);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/groups/478494/iterations');
+    expect(url).toContain('state=all');
+    expect(url).toContain('per_page=6');
+  });
+
+  it('returns error on API failure', async () => {
+    mockJsonResponse({ error: 'Forbidden' }, 403);
+    const result = await fetchRecentIterations(PAT_CONFIG, '478494');
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
   });
 });

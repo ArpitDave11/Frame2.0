@@ -351,6 +351,18 @@ export async function fetchCurrentIteration(
   return { success: true, data: result.data };
 }
 
+export async function fetchRecentIterations(
+  config: GitLabConfig,
+  groupId: string,
+): Promise<GitLabIterationResult> {
+  const result = await gitlabGet<GitLabIteration[]>(
+    config,
+    `/groups/${groupId}/iterations?state=all&per_page=6&sort=desc&order_by=due_date`,
+  );
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
 // ─── Group Issues (user-scoped sprint view) ──────────────────
 
 export async function fetchGroupIssues(
