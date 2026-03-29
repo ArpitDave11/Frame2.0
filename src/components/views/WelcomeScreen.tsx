@@ -258,8 +258,8 @@ export function WelcomeScreen() {
               maxWidth: 440,
             }}
           >
-            Enterprise Requirement Engineering Platform — consistent, governed
-            specifications across every team
+            Feature Requirement Agentic Modeling Engine —
+            consistent, governed specifications across every team
           </p>
         </div>
 
