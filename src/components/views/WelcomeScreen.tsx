@@ -46,7 +46,7 @@ const LIFECYCLE_STAGES = [
     name: 'AI Refine',
     description: '6-stage AI pipeline enhances structure and clarity',
     icon: Sparkle,
-    tip: 'The AI runs through 6 stages: Comprehension \u2192 Classification \u2192 Structural \u2192 Refinement \u2192 Mandatory \u2192 Validation. Each stage improves your epic\u2019s quality automatically.',
+    tip: 'The AI runs through 6 stages: Comprehension \u2192 Classification \u2192 Structural \u2192 Refinement \u2192 Mandatory \u2192 Validation. Each stage improves your model\u2019s quality automatically.',
     highlight: true,
   },
   {
@@ -75,15 +75,15 @@ const LIFECYCLE_STAGES = [
 const ACTION_CARDS = [
   {
     id: 'create-parent',
-    label: 'Create parent epic',
-    description: 'Start from scratch with a template',
+    label: 'Create Requirement Model',
+    description: 'Start with a structured template',
     icon: FileText,
     primary: true,
   },
   {
     id: 'modify',
-    label: 'Modify existing epics',
-    description: 'Load from GitLab and refine',
+    label: 'Refine Existing Model',
+    description: 'Import from GitLab and refine',
     icon: GitBranch,
     primary: true,
   },
@@ -96,8 +96,8 @@ const ACTION_CARDS = [
   },
   {
     id: 'create-sub-epic',
-    label: 'Create sub-epic',
-    description: 'Break down large initiatives',
+    label: 'Create Sub-Model',
+    description: 'Decompose into sub-specifications',
     icon: File,
     primary: false,
   },
@@ -168,7 +168,7 @@ export function WelcomeScreen() {
 
   // ─── Handlers ──────────────────────────────────────────────
 
-  const handleCreateEpic = (categoryId?: string) => {
+  const handleCreateModel = (categoryId?: string) => {
     if (categoryId) {
       const cat = EPIC_CATEGORIES.find((c) => c.id === categoryId);
       if (cat) {
@@ -177,7 +177,7 @@ export function WelcomeScreen() {
           setMarkdown(md);
         } else {
           // General category: set minimal prompt so editor enters active mode
-          setMarkdown('# \n\n_Start writing your epic here..._\n');
+          setMarkdown('# \n\n_Start writing your requirements here..._\n');
         }
       }
     }
@@ -191,7 +191,7 @@ export function WelcomeScreen() {
 
   const handleActionClick = (actionId: string) => {
     if (actionId === 'create-parent' || actionId === 'create-sub-epic') {
-      handleCreateEpic();
+      handleCreateModel();
     } else if (actionId === 'modify') {
       handleLoadFromGitLab();
     }
@@ -246,7 +246,7 @@ export function WelcomeScreen() {
               letterSpacing: '-0.5px',
             }}
           >
-            FRAME turns rough ideas into structured, AI-scored epics
+            Your Vision. AI-Engineered Precision.
           </h1>
           <p
             style={{
@@ -258,8 +258,8 @@ export function WelcomeScreen() {
               maxWidth: 440,
             }}
           >
-            Stop writing epics from scratch — get consistent quality across
-            every team
+            Enterprise Requirement Engineering Platform — consistent, governed
+            specifications across every team
           </p>
         </div>
 
@@ -596,7 +596,7 @@ export function WelcomeScreen() {
                 letterSpacing: '-0.3px',
               }}
             >
-              How it works: Epic lifecycle
+              How it works: Model lifecycle
             </h2>
             <p
               style={{
@@ -606,7 +606,7 @@ export function WelcomeScreen() {
                 margin: 0,
               }}
             >
-              Five stages from draft to published epic
+              Five stages from draft to published specification
             </p>
           </div>
 
@@ -844,7 +844,7 @@ export function WelcomeScreen() {
               margin: 0,
             }}
           >
-            Choose a template to match your epic type — hover to see sections
+            Choose a template to match your requirement type — hover to see sections
           </p>
         </div>
 
@@ -862,7 +862,7 @@ export function WelcomeScreen() {
               <button
                 key={cat.id}
                 data-testid={`template-${cat.id}`}
-                onClick={() => handleCreateEpic(cat.id)}
+                onClick={() => handleCreateModel(cat.id)}
                 onMouseEnter={() => setHoveredTemplate(cat.id)}
                 onMouseLeave={() => setHoveredTemplate(null)}
                 style={{
@@ -1101,14 +1101,14 @@ export function WelcomeScreen() {
                 margin: 0,
               }}
             >
-              Create your first epic or import existing work from GitLab
+              Create your first model or import existing work from GitLab
             </p>
           </div>
 
           <div style={{ display: 'flex', gap: 16 }}>
             <button
               data-testid="cta-create"
-              onClick={() => handleCreateEpic()}
+              onClick={() => handleCreateModel()}
               style={{
                 padding: '16px 36px',
                 border: 'none',
@@ -1135,7 +1135,7 @@ export function WelcomeScreen() {
                 e.currentTarget.style.boxShadow = 'none';
               }}
             >
-              Create your first epic
+              Create your first model
               <ArrowRight size={20} weight="bold" />
             </button>
 

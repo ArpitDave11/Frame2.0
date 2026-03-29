@@ -33,7 +33,7 @@ interface SidebarSection {
 const SECTIONS: SidebarSection[] = [
   { id: 'home', label: 'Home', icon: House },
   { id: 'actions', label: 'What You Can Do', icon: Target },
-  { id: 'lifecycle', label: 'Epic Lifecycle', icon: Path },
+  { id: 'lifecycle', label: 'Model Lifecycle', icon: Path },
   { id: 'templates', label: 'Templates', icon: SquaresFour },
   { id: 'quickstart', label: 'Get Started', icon: RocketLaunch },
 ];
