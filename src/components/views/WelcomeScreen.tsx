@@ -250,16 +250,28 @@ export function WelcomeScreen() {
           </h1>
           <p
             style={{
-              fontSize: 17,
-              fontWeight: 300,
-              lineHeight: 1.6,
+              fontSize: 13,
+              fontWeight: 500,
+              letterSpacing: '0.5px',
               color: 'var(--col-text-subtle)',
-              marginBottom: 0,
-              maxWidth: 440,
+              marginBottom: 6,
+              maxWidth: 480,
             }}
           >
-            Feature Requirement Agentic Modeling Engine —
-            consistent, governed specifications across every team
+            Feature Requirement Agentic Modeling Engine
+          </p>
+          <p
+            style={{
+              fontSize: 15,
+              fontWeight: 300,
+              lineHeight: 1.5,
+              color: 'var(--col-text-subtle)',
+              marginBottom: 0,
+              maxWidth: 480,
+              opacity: 0.75,
+            }}
+          >
+            Consistent, governed specifications across every team
           </p>
         </div>
 
