@@ -23,6 +23,7 @@ export interface RefinementPromptVars {
   readonly formatInstruction: string;
   readonly complexityLevel: ComplexityLevel;
   readonly wordTarget: number;
+  readonly maxWords?: number;
   readonly previousFeedback?: string;
   readonly iterationNumber: number;
   readonly documentContext?: string;
@@ -117,7 +118,8 @@ Refine the section titled "${sectionTitle}" for a ${categoryName} document.
 
 ${COMPLEXITY_INSTRUCTIONS[complexityLevel]}
 
-Word target: approximately ${wordTarget} words.
+Word target: approximately ${wordTarget} words${vars.maxWords && vars.maxWords > 0 ? ` (hard maximum: ${vars.maxWords} words)` : ''}.
+${vars.maxWords && vars.maxWords > 0 ? `- Aim for ${wordTarget} words. NEVER exceed ${vars.maxWords} words.\n` : ''}- If this section contains a Mermaid diagram or flowchart, there is NO word limit — focus on diagram completeness.
 ${isRetry ? `\nThis is retry iteration ${iterationNumber}. Pay special attention to the feedback from the previous attempt.` : 'This is the first attempt.'}
 </task>
 

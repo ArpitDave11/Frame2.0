@@ -95,8 +95,11 @@ export async function runStage4Refinement(
         if (result.model) model = result.model;
 
         // F08: enforce word limits — read max from template config, fallback 500
+        // Diagrams and flowcharts are exempt from word limits (max: 0 in template, or mermaid format)
         const cappedSections = result.sections.map((s) => {
           const secCfg = findSectionConfig(s.title, template);
+          const isDiagram = secCfg?.format?.startsWith('mermaid') || s.content.includes('```mermaid');
+          if (isDiagram) return s;
           const maxWords = secCfg?.max ?? 500;
           return { ...s, content: enforceWordLimit(s.content, maxWords) };
         });
@@ -212,6 +215,7 @@ async function refineSingleSection(
     formatInstruction,
     complexityLevel: config.complexity,
     wordTarget,
+    maxWords: sectionConfig?.max ?? undefined,
     previousFeedback: sectionFeedback,
     iterationNumber,
     documentContext: rawContent,

@@ -26,6 +26,11 @@ export interface MandatoryPromptVars {
   readonly fewShotExample?: string;
   readonly sla?: number;
   readonly includeStoryPoints: boolean;
+  readonly diagramPrimaryType?: string;
+  readonly diagramPrimaryPurpose?: string;
+  readonly diagramSecondaryType?: string;
+  readonly diagramSecondaryPurpose?: string;
+  readonly categoryName?: string;
 }
 
 // ─── Complexity Scaling ─────────────────────────────────────
@@ -60,6 +65,11 @@ export function buildMandatoryPrompt(vars: MandatoryPromptVars): string {
     existingEntities,
     sla,
     includeStoryPoints,
+    diagramPrimaryType,
+    diagramPrimaryPurpose,
+    diagramSecondaryType,
+    diagramSecondaryPurpose,
+    categoryName,
   } = vars;
 
   const slaInstructions = sla ? `
@@ -100,10 +110,11 @@ You are an expert software architect and requirements engineer. Your task is to 
 </system>
 
 <task>
-Generate the mandatory sections for this epic document. You must produce three outputs:
-1. An architecture diagram in valid Mermaid syntax
-2. ${storyCountMin}–${storyCountMax} user stories with acceptance criteria
-3. An assembled epic combining all refined sections with the generated content
+Generate the mandatory sections for this epic document. You must produce four outputs:
+1. A primary architecture diagram in valid Mermaid syntax
+2. A secondary process/behavioral diagram in valid Mermaid syntax
+3. ${storyCountMin}–${storyCountMax} user stories with acceptance criteria
+4. An assembled epic combining all refined sections with the generated content
 
 ${COMPLEXITY_INSTRUCTIONS[complexityLevel]}
 </task>
@@ -137,7 +148,8 @@ Respond with a single JSON object matching this exact schema. Do not include any
 
 \`\`\`json
 {
-  "architectureDiagram": "string — valid Mermaid diagram syntax (graph TD, flowchart, or sequence diagram)",
+  "architectureDiagram": "string — primary diagram in valid Mermaid syntax using ${diagramPrimaryType ?? 'flowchart LR'}",
+  "processFlowDiagram": "string — secondary diagram in valid Mermaid syntax using ${diagramSecondaryType ?? 'flowchart TD'}",
   "userStories": [
     {
       "id": "string — unique story identifier (e.g., 'US-001')",
@@ -178,6 +190,8 @@ Respond with a single JSON object matching this exact schema. Do not include any
 
 **architectureDiagram**: Must be valid Mermaid syntax that renders without errors. The diagram string should start with a diagram type declaration (e.g., \`graph TD\`, \`flowchart LR\`, \`sequenceDiagram\`).
 
+**processFlowDiagram**: Must be valid Mermaid syntax. This is a SEPARATE behavioral/process diagram. Start with a diagram type declaration. If you cannot generate a meaningful secondary diagram, return an empty string "".
+
 **userStories**: Generate exactly ${storyCountMin}–${storyCountMax} stories. Each story must:
 - Have a unique sequential ID (US-001, US-002, ...)
 - Follow the format: As a [role], I want [capability], So that [benefit]
@@ -191,16 +205,28 @@ Respond with a single JSON object matching this exact schema. Do not include any
 <instructions>
 Follow these instructions precisely:
 
-### Architecture Diagram Generation
+### Diagram Generation${categoryName ? ` (Category: ${categoryName})` : ''}
+
+**Primary Diagram (architectureDiagram field):**
+Generate a \`${diagramPrimaryType ?? 'flowchart LR'}\` diagram.
+Purpose: ${diagramPrimaryPurpose ?? 'System architecture showing main components and connections'}
+- This is the MAIN diagram for this epic type.
+- Include ALL known entities from the comprehension analysis.
+- Show relationships, data flows, and decision points as appropriate.
+
+**Secondary Diagram (processFlowDiagram field):**
+Generate a \`${diagramSecondaryType ?? 'flowchart TD'}\` diagram.
+Purpose: ${diagramSecondaryPurpose ?? 'Primary workflow with decision points'}
+- This complements the primary diagram with a different perspective.
+- Focus on behavior/flow rather than structure (or vice versa).
+- This is a SEPARATE diagram — do NOT merge it with the primary diagram.
+
+**Rules for BOTH diagrams:**
 1. Review the known entities and their relationships from the comprehension analysis.
-2. Choose the most appropriate Mermaid diagram type:
-   - \`graph TD\` or \`flowchart TD\` for system architecture (top-down component view)
-   - \`flowchart LR\` for data flow or process pipelines (left-to-right)
-   - \`sequenceDiagram\` for interaction-heavy designs (API calls, message flows)
-3. Include ALL known entities as nodes in the diagram.
-4. Show relationships and data flows between entities using labeled edges.
-5. Use Mermaid subgraphs to group related components (e.g., "Frontend", "Backend", "External Services").
-6. Ensure the diagram is syntactically valid:
+2. Include ALL known entities as nodes in the diagram.
+3. Show relationships and data flows between entities using labeled edges.
+4. Use Mermaid subgraphs to group related components (e.g., "Frontend", "Backend", "External Services").
+5. Ensure the diagram is syntactically valid:
    - Node IDs must not contain spaces (use camelCase or underscores)
    - Edge labels should be concise (2–4 words)
    - Use proper Mermaid arrow syntax: \`-->\`, \`-.->>\`, \`==>>\`
@@ -252,6 +278,26 @@ After ALL connections, add linkStyle commands for colored arrows. Index is 0-bas
 - External calls: \`linkStyle 4 stroke:#CC79A7,stroke-width:2px\`
 
 Apply the appropriate color based on what each arrow represents. You do not need to style every arrow — focus on the most important 5-10 connections.
+
+#### Color Classes for Skeleton Consistency
+For flowchart/graph diagrams, also apply these classDef styles for consistent theming:
+
+\`\`\`
+classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
+classDef secondary fill:#56B4E9,stroke:#0072B2,color:#fff
+classDef storage fill:#E69F00,stroke:#CC8800,color:#000
+classDef decision fill:#009E73,stroke:#007A57,color:#fff
+classDef error fill:#D55E00,stroke:#A34600,color:#fff
+\`\`\`
+
+Apply classes to nodes based on their role:
+- Primary services/components: \`class NodeId primary\`
+- Supporting services: \`class NodeId secondary\`
+- Databases/caches/storage: \`class NodeId storage\`
+- Decision diamonds: \`class NodeId decision\`
+- Error/failure paths: \`class NodeId error\`
+
+For sequenceDiagram and stateDiagram-v2: classDef is not supported. The %%{init} theme handles colors.
 
 ### User Story Generation
 1. Derive stories from the extracted requirements in the comprehension analysis.

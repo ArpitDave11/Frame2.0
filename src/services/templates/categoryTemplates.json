@@ -27,15 +27,22 @@
     "architectureFocus": "determined by content classification",
     "expertRole": "senior technical writer",
     "totalWordTarget": { "min": 1500, "max": 4000 },
+    "diagramConfig": {
+      "primary": { "type": "flowchart LR", "purpose": "System context showing main components and connections" },
+      "secondary": { "type": "flowchart TD", "purpose": "Primary workflow with decision points and outcomes" }
+    },
     "requiredSections": {
       "Overview": { "target": 200, "max": 400, "format": "prose", "hint": "High-level summary of the epic" },
       "Objectives": { "target": 200, "max": 400, "format": "bullet-list", "hint": "Key goals and success criteria" },
       "Requirements": { "target": 300, "max": 600, "format": "numbered-list", "hint": "Core requirements" },
       "Scope": { "target": 150, "max": 300, "format": "bullet-list", "hint": "In-scope and out-of-scope" },
+      "Success Metrics": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Measurable outcomes with target values" },
+      "Assumptions & Constraints": { "target": 100, "max": 200, "format": "bullet-list", "hint": "Validated assumptions and known limitations" },
       "User Stories": { "target": 400, "max": 800, "format": "mixed", "hint": "User stories with acceptance criteria", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
     },
     "optionalSections": {
-      "Architecture Overview": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "System design if applicable" },
+      "Architecture Overview": { "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart", "hint": "System design if applicable" },
+      "Risks": { "target": 150, "max": 300, "format": "risk-heat-map", "hint": "Key risks with probability, impact, and mitigation" },
       "Dependencies": { "target": 100, "max": 200, "format": "bullet-list", "hint": "External dependencies" },
       "Timeline": { "target": 100, "max": 200, "format": "phase-table", "hint": "Key milestones" }
     }
@@ -47,6 +54,10 @@
     "architectureFocus": "system architecture and component design",
     "expertRole": "senior software architect",
     "totalWordTarget": { "min": 2000, "max": 5000 },
+    "diagramConfig": {
+      "primary": { "type": "flowchart LR", "purpose": "Component architecture showing services, databases, and data flows" },
+      "secondary": { "type": "sequenceDiagram", "purpose": "Key interaction flow between the most important components" }
+    },
     "requiredSections": {
       "Objective": { "target": 150, "max": 300, "format": "prose", "hint": "Clear problem statement and goals" },
       "Architecture Overview": { "target": 400, "max": 800, "format": "prose", "diagram": "flowchart", "hint": "High-level system design" },
@@ -54,11 +65,14 @@
       "Data Model": { "target": 250, "max": 500, "format": "schema-table", "hint": "Entity definitions and relationships" },
       "API Design": { "target": 300, "max": 600, "format": "endpoint-blocks", "hint": "API endpoints, request/response formats" },
       "Implementation Plan": { "target": 300, "max": 600, "format": "phase-table", "hint": "Phased rollout with milestones" },
+      "Alternatives Considered": { "target": 200, "max": 400, "format": "comparison-table-and-prose", "hint": "Options evaluated with trade-off analysis and decision rationale" },
       "User Stories": { "target": 400, "max": 800, "format": "mixed", "hint": "Detailed user stories with acceptance criteria", "count": { "min": 8, "max": 20 }, "fields": ["title", "description", "acceptance_criteria", "story_points"] },
       "Security & Non-Functional Requirements": { "target": 200, "max": 400, "format": "table", "hint": "Performance, security, scalability targets" }
     },
     "optionalSections": {
-      "Sequence Diagrams": { "target": 150, "max": 300, "format": "mermaid-sequence", "diagram": "sequence", "hint": "Key interaction flows" },
+      "Sequence Diagrams": { "target": 150, "max": 0, "format": "mermaid-sequence", "diagram": "sequence", "hint": "Key interaction flows" },
+      "Open Questions": { "target": 100, "max": 200, "format": "bullet-list", "hint": "Unresolved decisions with owners and target dates" },
+      "Operational Impact": { "target": 150, "max": 300, "format": "prose", "hint": "On-call changes, new runbooks, monitoring requirements" },
       "Error Handling": { "target": 200, "max": 400, "format": "error-table", "hint": "Error codes, recovery strategies" },
       "Migration Strategy": { "target": 200, "max": 400, "format": "numbered-procedure", "hint": "Data migration steps if applicable" },
       "Testing Strategy": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Test approach and coverage targets" },
@@ -72,16 +86,23 @@
     "architectureFocus": "business process and organizational impact",
     "expertRole": "senior business analyst",
     "totalWordTarget": { "min": 1500, "max": 4000 },
+    "diagramConfig": {
+      "primary": { "type": "flowchart TD", "purpose": "Business process flow with decision points, approval gates, and outcomes" },
+      "secondary": { "type": "flowchart LR", "purpose": "System context showing business systems involved" }
+    },
     "requiredSections": {
       "Executive Summary": { "target": 200, "max": 400, "format": "prose", "hint": "High-level overview for leadership" },
       "Business Objective": { "target": 250, "max": 500, "format": "prose", "hint": "Clear business goals and success metrics" },
       "Scope": { "target": 200, "max": 400, "format": "bullet-list", "hint": "In-scope and out-of-scope items" },
+      "Assumptions & Constraints": { "target": 100, "max": 200, "format": "bullet-list", "hint": "Business assumptions and project constraints" },
       "Stakeholder Analysis": { "target": 200, "max": 400, "format": "raci-table", "columns": ["Role", "Responsible", "Accountable", "Consulted", "Informed"], "hint": "RACI matrix for key stakeholders" },
       "Requirements": { "target": 300, "max": 600, "format": "numbered-list", "hint": "Prioritized business requirements" },
-      "Process Flow": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "Current vs proposed process" },
+      "Process Flow": { "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart", "hint": "Current vs proposed process" },
       "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Business-focused user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
     },
     "optionalSections": {
+      "Current State (As-Is)": { "target": 200, "max": 400, "format": "prose", "hint": "How the process works today before changes" },
+      "Acceptance Criteria": { "target": 150, "max": 300, "format": "numbered-list", "hint": "Formal conditions for stakeholder sign-off" },
       "Risk Assessment": { "target": 200, "max": 400, "format": "risk-heat-map", "hint": "Risk probability and impact analysis" },
       "Cost-Benefit Analysis": { "target": 200, "max": 400, "format": "table", "hint": "Expected costs and ROI" },
       "Timeline": { "target": 150, "max": 300, "format": "phase-table", "hint": "Key milestones and deadlines" },
@@ -96,15 +117,21 @@
     "architectureFocus": "feature behavior and user experience",
     "expertRole": "senior product manager",
     "totalWordTarget": { "min": 1500, "max": 4000 },
+    "diagramConfig": {
+      "primary": { "type": "flowchart TD", "purpose": "User journey showing screens, actions, decision points, and error states" },
+      "secondary": { "type": "stateDiagram-v2", "purpose": "Feature state transitions (e.g., draft → submitted → approved → active)" }
+    },
     "requiredSections": {
       "Feature Overview": { "target": 200, "max": 400, "format": "prose", "hint": "What the feature does and why" },
       "User Personas": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Target user segments" },
       "Functional Requirements": { "target": 300, "max": 600, "format": "numbered-list", "hint": "Detailed functional requirements" },
-      "User Flows": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "Primary and secondary user flows" },
+      "Out of Scope": { "target": 100, "max": 200, "format": "bullet-list", "hint": "Explicitly excluded functionality to prevent scope creep" },
+      "User Flows": { "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart", "hint": "Primary and secondary user flows" },
       "Edge Cases": { "target": 200, "max": 400, "format": "table", "hint": "Edge cases and expected behavior" },
       "User Stories": { "target": 400, "max": 800, "format": "mixed", "hint": "Detailed user stories", "count": { "min": 8, "max": 20 }, "fields": ["title", "description", "acceptance_criteria", "story_points"] }
     },
     "optionalSections": {
+      "Release Criteria": { "target": 100, "max": 200, "format": "bullet-list", "hint": "Minimum acceptable quality for launch" },
       "UI/UX Guidelines": { "target": 200, "max": 400, "format": "prose", "hint": "Design principles and constraints" },
       "Analytics Requirements": { "target": 150, "max": 300, "format": "table", "hint": "Events and metrics to track" },
       "Accessibility": { "target": 100, "max": 200, "format": "bullet-list", "hint": "WCAG compliance requirements" },
@@ -118,15 +145,21 @@
     "architectureFocus": "API contract and integration patterns",
     "expertRole": "senior API architect",
     "totalWordTarget": { "min": 2000, "max": 5000 },
+    "diagramConfig": {
+      "primary": { "type": "sequenceDiagram", "purpose": "Primary API request/response flow including auth, validation, and error paths" },
+      "secondary": { "type": "flowchart LR", "purpose": "API topology showing gateway, services, and data stores" }
+    },
     "requiredSections": {
       "API Overview": { "target": 200, "max": 400, "format": "prose", "hint": "Purpose, versioning, base URL" },
       "Authentication": { "target": 200, "max": 400, "format": "prose", "hint": "Auth methods and token management" },
       "Endpoints": { "target": 500, "max": 1000, "format": "endpoint-blocks", "hint": "All endpoints with request/response schemas" },
       "Data Models": { "target": 300, "max": 600, "format": "schema-table", "hint": "Request/response schemas" },
       "Error Handling": { "target": 200, "max": 400, "format": "error-table", "hint": "Error codes and messages" },
+      "Versioning Strategy": { "target": 100, "max": 200, "format": "prose", "hint": "How API versions are managed and deprecated" },
       "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "API consumer stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
     },
     "optionalSections": {
+      "Idempotency": { "target": 100, "max": 200, "format": "prose", "hint": "Which endpoints support idempotent requests and how" },
       "Rate Limiting": { "target": 150, "max": 300, "format": "table", "hint": "Rate limits per endpoint/tier" },
       "Pagination": { "target": 100, "max": 200, "format": "prose", "hint": "Pagination strategy" },
       "Webhooks": { "target": 150, "max": 300, "format": "endpoint-blocks", "hint": "Webhook events and payloads" },
@@ -141,18 +174,23 @@
     "architectureFocus": "infrastructure topology and operations",
     "expertRole": "senior infrastructure architect",
     "totalWordTarget": { "min": 2000, "max": 5000 },
+    "diagramConfig": {
+      "primary": { "type": "flowchart LR", "purpose": "Infrastructure layout showing compute, storage, networking, and external services" },
+      "secondary": { "type": "flowchart TD", "purpose": "CI/CD pipeline stages from commit to production" }
+    },
     "requiredSections": {
       "Infrastructure Overview": { "target": 200, "max": 400, "format": "prose", "hint": "High-level infrastructure goals" },
-      "Architecture Diagram": { "target": 300, "max": 600, "format": "mermaid", "diagram": "flowchart", "hint": "Infrastructure topology" },
+      "Architecture Diagram": { "target": 300, "max": 0, "format": "mermaid", "diagram": "flowchart", "hint": "Infrastructure topology" },
       "Compute & Storage": { "target": 250, "max": 500, "format": "table", "hint": "Resource specifications" },
       "Networking": { "target": 200, "max": 400, "format": "prose", "hint": "Network design, VPCs, load balancing" },
-      "CI/CD Pipeline": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "Build and deploy pipeline" },
+      "CI/CD Pipeline": { "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart", "hint": "Build and deploy pipeline" },
       "Monitoring & Alerting": { "target": 200, "max": 400, "format": "slo-table", "hint": "SLOs, metrics, alerting rules" },
+      "Disaster Recovery": { "target": 200, "max": 400, "format": "numbered-procedure", "hint": "RTO/RPO targets, failover approach, recovery procedures" },
       "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Infrastructure user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] },
       "Security": { "target": 200, "max": 400, "format": "bullet-list", "hint": "Security controls and compliance" }
     },
     "optionalSections": {
-      "Disaster Recovery": { "target": 200, "max": 400, "format": "numbered-procedure", "hint": "DR plan with RTO/RPO" },
+      "Capacity Planning": { "target": 150, "max": 300, "format": "table", "hint": "Growth projections for compute, storage, and network" },
       "Cost Estimation": { "target": 150, "max": 300, "format": "table", "hint": "Monthly/annual cost breakdown" },
       "Scaling Strategy": { "target": 150, "max": 300, "format": "prose", "hint": "Auto-scaling policies" }
     }
@@ -164,16 +202,23 @@
     "architectureFocus": "migration process and data integrity",
     "expertRole": "senior migration architect",
     "totalWordTarget": { "min": 1500, "max": 4000 },
+    "diagramConfig": {
+      "primary": { "type": "flowchart TD", "purpose": "Migration process steps with validation gates, rollback points, and go/no-go decisions" },
+      "secondary": { "type": "flowchart LR", "purpose": "Current state (left) to target state (right) architecture transition" }
+    },
     "requiredSections": {
       "Migration Overview": { "target": 200, "max": 400, "format": "prose", "hint": "What is being migrated and why" },
       "Current State": { "target": 200, "max": 400, "format": "prose", "hint": "Source system description" },
       "Target State": { "target": 200, "max": 400, "format": "prose", "hint": "Destination system description" },
       "Data Mapping": { "target": 300, "max": 600, "format": "mapping-table", "hint": "Source-to-target field mapping" },
       "Migration Steps": { "target": 300, "max": 600, "format": "numbered-procedure", "hint": "Step-by-step migration procedure" },
+      "Validation Criteria": { "target": 150, "max": 300, "format": "numbered-list", "hint": "Data reconciliation checks, go/no-go thresholds, acceptance tests" },
       "Rollback Plan": { "target": 200, "max": 400, "format": "numbered-procedure", "hint": "Rollback steps and criteria" },
       "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Migration user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
     },
     "optionalSections": {
+      "Hypercare Plan": { "target": 100, "max": 200, "format": "prose", "hint": "Post-migration monitoring period with exit criteria" },
+      "Dry Run Plan": { "target": 100, "max": 200, "format": "numbered-procedure", "hint": "Pre-cutover rehearsal steps and success criteria" },
       "Risk Assessment": { "target": 200, "max": 400, "format": "risk-heat-map", "hint": "Migration risks and mitigations" },
       "Testing Strategy": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Validation and smoke tests" },
       "Communication Plan": { "target": 100, "max": 200, "format": "table", "hint": "Stakeholder communications schedule" },
@@ -187,15 +232,21 @@
     "architectureFocus": "system integration and data exchange",
     "expertRole": "senior integration architect",
     "totalWordTarget": { "min": 1500, "max": 4000 },
+    "diagramConfig": {
+      "primary": { "type": "flowchart LR", "purpose": "System landscape showing all integration points and data flows between systems" },
+      "secondary": { "type": "sequenceDiagram", "purpose": "Primary data exchange flow between source and target systems" }
+    },
     "requiredSections": {
       "Integration Overview": { "target": 200, "max": 400, "format": "prose", "hint": "Systems being integrated and purpose" },
-      "System Landscape": { "target": 200, "max": 400, "format": "mermaid", "diagram": "flowchart", "hint": "Integration topology" },
-      "Data Flows": { "target": 300, "max": 600, "format": "mermaid-sequence", "diagram": "sequence", "hint": "Data exchange sequences" },
+      "System Landscape": { "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart", "hint": "Integration topology" },
+      "Sync Cadence": { "target": 100, "max": 200, "format": "prose", "hint": "Real-time vs batch, source of truth, conflict resolution" },
+      "Data Flows": { "target": 300, "max": 0, "format": "mermaid-sequence", "diagram": "sequence", "hint": "Data exchange sequences" },
       "Interface Contracts": { "target": 300, "max": 600, "format": "endpoint-blocks", "hint": "API contracts between systems" },
       "Error Handling": { "target": 200, "max": 400, "format": "error-table", "hint": "Error scenarios and recovery" },
       "User Stories": { "target": 300, "max": 600, "format": "mixed", "hint": "Integration user stories", "count": { "min": 5, "max": 15 }, "fields": ["title", "description", "acceptance_criteria"] }
     },
     "optionalSections": {
+      "Field Mapping": { "target": 200, "max": 400, "format": "mapping-table", "hint": "Source field → target field with transformation rules" },
       "SLA Definition": { "target": 150, "max": 300, "format": "slo-table", "hint": "Service level agreements" },
       "Security": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Auth, encryption, data handling" },
       "Monitoring": { "target": 150, "max": 300, "format": "bullet-list", "hint": "Integration health monitoring" },

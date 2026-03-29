@@ -10,6 +10,7 @@ import { callAI } from '@/services/ai/aiClient';
 import { withRetry } from '@/services/ai/throttler';
 import { buildMandatoryPrompt } from '@/pipeline/prompts/mandatoryPrompt';
 import { summarizeComprehension } from '@/pipeline/stages/runStage2Classification';
+import { getDiagramConfig } from '@/services/templates/templateLoader';
 import type {
   MandatoryInput,
   MandatoryOutput,
@@ -24,11 +25,122 @@ import type {
 
 const STAGE_NAME = 'mandatory';
 
-// 6 stable types for architecture diagrams (removed pie, journey, gantt — not useful for epic blueprints)
+// 5 stable types for architecture diagrams (removed pie, journey, gantt, erDiagram — not useful for epic blueprints)
 const VALID_MERMAID_DIRECTIVES = [
   'graph', 'flowchart', 'sequenceDiagram', 'classDiagram',
-  'stateDiagram', 'erDiagram',
+  'stateDiagram',
 ];
+
+/**
+ * Category-specific skeleton diagrams — LAST RESORT fallback only.
+ * Used when AI returns empty/invalid diagram after all retries.
+ * Each skeleton is a minimal valid Mermaid diagram that makes sense
+ * for the category type. The user can refine via Blueprint chat.
+ */
+const CATEGORY_SKELETONS: Record<string, string> = {
+  general: `flowchart LR
+    Input["Input"] --> Process["Core Process"]
+    Process --> Output["Output"]
+    Process --> Store[("Data Store")]
+    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
+    classDef storage fill:#E69F00,stroke:#CC8800,color:#000
+    class Input,Process,Output primary
+    class Store storage`,
+
+  technical_design: `flowchart LR
+    Client["Client"] --> API["API Layer"]
+    API --> Service["Service Layer"]
+    Service --> DB[("Database")]
+    Service --> Cache[("Cache")]
+    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
+    classDef storage fill:#E69F00,stroke:#CC8800,color:#000
+    class Client,API,Service primary
+    class DB,Cache storage`,
+
+  business_requirement: `flowchart TD
+    Start(["Start"]) --> Step1["Step 1: Initiate"]
+    Step1 --> Decision{"Decision?"}
+    Decision -->|"Approved"| Step2["Step 2: Execute"]
+    Decision -->|"Rejected"| Review["Review & Revise"]
+    Review --> Step1
+    Step2 --> End(["Complete"])
+    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
+    classDef decision fill:#009E73,stroke:#007A57,color:#fff
+    class Step1,Step2,Review primary
+    class Decision decision`,
+
+  feature_specification: `flowchart TD
+    User(["User Action"]) --> Screen1["Screen 1"]
+    Screen1 --> Validate{"Valid Input?"}
+    Validate -->|"Yes"| Success["Success State"]
+    Validate -->|"No"| Error["Error Message"]
+    Error --> Screen1
+    Success --> Next["Next Screen"]
+    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
+    classDef decision fill:#009E73,stroke:#007A57,color:#fff
+    classDef error fill:#D55E00,stroke:#A34600,color:#fff
+    class Screen1,Success,Next primary
+    class Validate decision
+    class Error error`,
+
+  api_specification: `sequenceDiagram
+    participant C as Client
+    participant G as API Gateway
+    participant S as Service
+    participant D as Database
+    C->>G: Request
+    G->>G: Validate Auth
+    G->>S: Forward Request
+    S->>D: Query Data
+    D-->>S: Result
+    S-->>G: Response
+    G-->>C: Response`,
+
+  infrastructure_design: `flowchart LR
+    LB["Load Balancer"] --> App1["App Server 1"]
+    LB --> App2["App Server 2"]
+    App1 --> DB[("Primary DB")]
+    App2 --> DB
+    DB --> Replica[("Read Replica")]
+    App1 --> Cache[("Cache")]
+    App2 --> Cache
+    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
+    classDef storage fill:#E69F00,stroke:#CC8800,color:#000
+    class LB,App1,App2 primary
+    class DB,Replica,Cache storage`,
+
+  migration_plan: `flowchart TD
+    Assess(["Assess Current State"]) --> Plan["Plan Migration"]
+    Plan --> Prep["Prepare Target"]
+    Prep --> DryRun["Dry Run"]
+    DryRun --> Validate{"Validation Pass?"}
+    Validate -->|"Pass"| Execute["Execute Migration"]
+    Validate -->|"Fail"| Fix["Fix Issues"]
+    Fix --> DryRun
+    Execute --> GoNoGo{"Go / No-Go?"}
+    GoNoGo -->|"Go"| Cutover["Cutover"]
+    GoNoGo -->|"No-Go"| Rollback["Rollback"]
+    Cutover --> Hypercare["Hypercare Period"]
+    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
+    classDef decision fill:#009E73,stroke:#007A57,color:#fff
+    classDef error fill:#D55E00,stroke:#A34600,color:#fff
+    class Assess,Plan,Prep,DryRun,Execute,Cutover,Hypercare primary
+    class Validate,GoNoGo decision
+    class Fix,Rollback error`,
+
+  integration_spec: `flowchart LR
+    SystemA["System A"] -->|"Data Flow"| Integration["Integration Layer"]
+    Integration -->|"Transform"| SystemB["System B"]
+    Integration --> Monitor["Monitoring"]
+    Integration --> ErrorQ["Error Queue"]
+    ErrorQ -->|"Retry"| Integration
+    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
+    classDef secondary fill:#56B4E9,stroke:#0072B2,color:#fff
+    classDef error fill:#D55E00,stroke:#A34600,color:#fff
+    class SystemA,SystemB primary
+    class Integration,Monitor secondary
+    class ErrorQ error`,
+};
 
 // ─── Main Stage Function ────────────────────────────────────
 
@@ -51,6 +163,8 @@ export async function runStage5Mandatory(
     const entityNames = input.comprehension.keyEntities.map((e) => e.name);
     const [storyMin, storyMax] = config.storyCountRange;
 
+    const diagramCfg = getDiagramConfig(input.classification.primaryCategory);
+
     const prompt = buildMandatoryPrompt({
       refinedSections: JSON.stringify(input.refinement.refinedSections),
       classificationResult: JSON.stringify(input.classification),
@@ -61,6 +175,11 @@ export async function runStage5Mandatory(
       existingEntities: entityNames,
       sla: config.sla,
       includeStoryPoints: config.sla !== undefined || config.complexity !== 'simple',
+      diagramPrimaryType: diagramCfg.primary.type,
+      diagramPrimaryPurpose: diagramCfg.primary.purpose,
+      diagramSecondaryType: diagramCfg.secondary.type,
+      diagramSecondaryPurpose: diagramCfg.secondary.purpose,
+      categoryName: input.classification.primaryCategory,
     });
 
     const response = await withRetry(
@@ -96,15 +215,33 @@ export async function runStage5Mandatory(
     }
 
     // Validate and adjust story count
+    const category = input.classification.primaryCategory;
     const validatedStories = validateStoryCount(parsed.userStories, storyMin, storyMax);
-    const syntaxChecked = validateMermaidSyntax(parsed.architectureDiagram);
+
+    // Primary diagram — mandatory, falls back to skeleton
+    const syntaxChecked = validateMermaidSyntax(parsed.architectureDiagram, category);
     const validatedDiagram = await fixMermaidWithAI(syntaxChecked, aiConfig, config.generationTemperature);
     const themedDiagram = applyDiagramTheme(validatedDiagram);
+
+    // Secondary diagram — optional, skip on any failure (no skeleton fallback)
+    let themedSecondary = '';
+    try {
+      const rawSecondary = parsed.processFlowDiagram ?? '';
+      if (rawSecondary.trim()) {
+        const secondarySyntaxChecked = validateMermaidSyntax(rawSecondary);
+        // NO category fallback — empty means skip
+        const secondaryFixed = await fixMermaidWithAI(secondarySyntaxChecked, aiConfig, config.generationTemperature);
+        themedSecondary = applyDiagramTheme(secondaryFixed);
+      }
+    } catch {
+      // Silent — secondary is optional
+    }
 
     // Assemble epic from refined sections + generated content
     const assembledEpic = assembleEpic(
       input.refinement.refinedSections,
       themedDiagram,
+      themedSecondary,
       validatedStories,
       input.title || parsed.generatedTitle,
     );
@@ -157,16 +294,32 @@ export async function runStage5Mandatory(
 
 // ─── Mermaid Validation ─────────────────────────────────────
 
-export function validateMermaidSyntax(diagram: string): string {
+export function validateMermaidSyntax(diagram: string, category?: string): string {
   const trimmed = diagram.trim();
-  if (!trimmed) return 'graph TD\n  A[No diagram generated]';
+  if (!trimmed) {
+    // LAST RESORT: Use category-specific skeleton if AI returned nothing
+    const skeleton = category ? CATEGORY_SKELETONS[category] : undefined;
+    if (skeleton) {
+      console.warn(`[Stage 5] AI returned empty diagram — using ${category} skeleton fallback`);
+      return skeleton;
+    }
+    return 'graph TD\n  A["No diagram generated — refine via Blueprint"]';
+  }
 
   const firstLine = trimmed.split('\n')[0]!.trim();
   const isValid = VALID_MERMAID_DIRECTIVES.some(
     (d) => firstLine.startsWith(d),
   );
 
-  return isValid ? trimmed : `graph TD\n  A[Invalid diagram]\n  B[Original: ${firstLine.slice(0, 50)}]`;
+  if (isValid) return trimmed;
+
+  // Invalid syntax — try category skeleton before showing error placeholder
+  const skeleton = category ? CATEGORY_SKELETONS[category] : undefined;
+  if (skeleton) {
+    console.warn(`[Stage 5] Invalid diagram syntax — using ${category} skeleton fallback`);
+    return skeleton;
+  }
+  return `graph TD\n  A["Invalid diagram"]\n  B["Original: ${firstLine.slice(0, 50)}"]`;
 }
 
 /**
@@ -247,6 +400,9 @@ function validateStory(raw: PipelineUserStory): PipelineUserStory {
 const MANDATORY_SECTION_TITLES = new Set([
   'architecture diagram',
   'architecture overview',
+  'deployment architecture',
+  'process flow',
+  'process flow diagram',
   'user stories',
 ]);
 
@@ -255,6 +411,7 @@ const MANDATORY_SECTION_TITLES = new Set([
 function assembleEpic(
   refinedSections: MandatoryInput['refinement']['refinedSections'],
   diagram: string,
+  processFlowDiagram: string,
   stories: readonly PipelineUserStory[],
   epicTitle: string,
 ): AssembledEpic {
@@ -272,6 +429,15 @@ function assembleEpic(
     title: 'Deployment Architecture \u2014 Component and Flow Diagram',
     content: `\`\`\`mermaid\n${diagram}\n\`\`\``,
   });
+
+  // Add process flow diagram section (only if generated — no fallback, static in markdown)
+  if (processFlowDiagram && processFlowDiagram.trim()) {
+    sections.push({
+      id: 'process-flow-diagram',
+      title: 'Process Flow',
+      content: `\`\`\`mermaid\n${processFlowDiagram}\n\`\`\``,
+    });
+  }
 
   // Add user stories section
   const storyLines = stories.map((s) => {
@@ -325,11 +491,14 @@ function parseMandatoryResponse(content: string): ParsedMandatory | null {
     ? asmEpic['title']
     : 'Untitled Epic';
 
-  return { architectureDiagram: diagram, userStories: stories, generatedTitle };
+  const processFlowDiagram = typeof obj['processFlowDiagram'] === 'string' ? obj['processFlowDiagram'] : '';
+
+  return { architectureDiagram: diagram, processFlowDiagram, userStories: stories, generatedTitle };
 }
 
 interface ParsedMandatory {
   architectureDiagram: string;
+  processFlowDiagram: string;
   userStories: PipelineUserStory[];
   generatedTitle: string;
 }

@@ -12,7 +12,33 @@ import templateData from './categoryTemplates.json';
 
 // ─── Types ─────────────────────────────────────────────────
 
-export type MermaidDiagramType = 'flowchart' | 'sequence' | 'classDiagram' | 'stateDiagram' | 'erDiagram' | 'gantt';
+export type MermaidDiagramType = 'flowchart' | 'sequence' | 'classDiagram' | 'stateDiagram' | 'gantt';
+
+// ─── Diagram Config ────────────────────────────────────────
+
+export interface DiagramConfigEntry {
+  type: string;
+  purpose: string;
+}
+
+export interface TemplateDiagramConfig {
+  primary: DiagramConfigEntry;
+  secondary: DiagramConfigEntry;
+}
+
+const DEFAULT_DIAGRAM_CONFIG: TemplateDiagramConfig = {
+  primary: { type: 'flowchart LR', purpose: 'System architecture showing main components and connections' },
+  secondary: { type: 'flowchart TD', purpose: 'Primary workflow with decision points' },
+};
+
+export function getDiagramConfig(category: EpicCategory): TemplateDiagramConfig {
+  const template = data[category] as Record<string, unknown> | undefined;
+  const dc = template?.diagramConfig as TemplateDiagramConfig | undefined;
+
+  // Shape check — fallback if template has malformed or missing diagramConfig
+  if (!dc?.primary?.type || !dc?.secondary?.type) return DEFAULT_DIAGRAM_CONFIG;
+  return dc;
+}
 
 export interface ProgressiveDisclosure {
   summary: string[];
