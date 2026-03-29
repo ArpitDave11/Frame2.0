@@ -246,7 +246,7 @@ export function WelcomeScreen() {
               letterSpacing: '-0.5px',
             }}
           >
-            Your Vision. AI-Engineered Precision.
+            FRAME — Your Vision. AI-Engineered Precision.
           </h1>
           <p
             style={{
