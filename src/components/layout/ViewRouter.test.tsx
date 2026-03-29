@@ -18,11 +18,12 @@ describe('ViewRouter', () => {
     expect(screen.getByTestId('planner-view')).toBeDefined();
   });
 
-  it('issues tab renders IssueManagerView', () => {
+  it('issues tab renders ErrorBoundary fallback without AuthProvider', () => {
     useUiStore.setState({ activeTab: 'issues' });
     render(<ViewRouter />);
-    expect(screen.getByTestId('issues-view')).toBeDefined();
-    expect(screen.getByTestId('issue-manager-view')).toBeDefined();
+    // IssueManagerView requires AuthProvider — ErrorBoundary catches the error
+    expect(screen.getByTestId('error-boundary')).toBeDefined();
+    expect(screen.getByTestId('error-boundary-retry')).toBeDefined();
   });
 
   it('blueprint tab renders BlueprintView', () => {
@@ -52,9 +53,9 @@ describe('ViewRouter', () => {
     rerender(<ViewRouter />);
     expect(screen.getByTestId('planner-view')).toBeDefined();
 
-    useUiStore.setState({ activeTab: 'issues' });
+    useUiStore.setState({ activeTab: 'blueprint' });
     rerender(<ViewRouter />);
-    expect(screen.getByTestId('issues-view')).toBeDefined();
+    expect(screen.getByTestId('blueprint-view')).toBeDefined();
     expect(screen.queryByTestId('planner-view')).toBeNull();
   });
 

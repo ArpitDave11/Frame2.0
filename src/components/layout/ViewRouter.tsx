@@ -15,6 +15,7 @@ import { WorkspaceHeader } from '@/components/editor/WorkspaceHeader';
 import { SplitPane } from '@/components/layout/SplitPane';
 import { EditorPane } from '@/components/editor/EditorPane';
 import { PreviewPane } from '@/components/editor/PreviewPane';
+import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 
 // ─── Planner View ───────────────────────────────────────────
 
@@ -70,14 +71,14 @@ export function ViewRouter() {
 
   switch (activeTab) {
     case 'planner':
-      return <PlannerView />;
+      return <ErrorBoundary viewName="Epic Planner"><PlannerView /></ErrorBoundary>;
     case 'issues':
-      return <IssueManagerViewWrapper />;
+      return <ErrorBoundary viewName="Issue Manager"><IssueManagerViewWrapper /></ErrorBoundary>;
     case 'blueprint':
-      return <BlueprintView />;
+      return <ErrorBoundary viewName="Blueprint"><BlueprintView /></ErrorBoundary>;
     case 'analytics':
-      return <AnalyticsView />;
+      return <ErrorBoundary viewName="Analytics"><AnalyticsView /></ErrorBoundary>;
     default:
-      return <PlannerView />;
+      return <ErrorBoundary viewName="Epic Planner"><PlannerView /></ErrorBoundary>;
   }
 }

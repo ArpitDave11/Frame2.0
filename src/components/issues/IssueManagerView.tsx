@@ -31,7 +31,9 @@ function mapGitLabIssueToMock(issue: GitLabIssue): MockIssue {
     status: issue.state === 'opened' ? 'in-progress' : 'done',
     priority: 'medium',
     updated: issue.created_at ? new Date(issue.created_at).toLocaleDateString() : '',
-    assignee: issue.assignee ?? 'Unassigned',
+    assignee: issue.assignees?.[0]?.name
+      ?? (typeof issue.assignee === 'object' ? issue.assignee?.name : issue.assignee)
+      ?? 'Unassigned',
     web_url: issue.web_url,
     project_id: issue.project_id,
     iid: issue.iid,
@@ -378,14 +380,16 @@ export function IssueManagerView() {
       )}
 
       {/* Sprint empty state */}
-      {activeTab === 'sprint' && !loadingSprint && sprintIssues.length === 0 && isConfigured && (
+      {activeTab === 'sprint' && !loadingSprint && sprintIssues.length === 0 && (
         <div style={{
           padding: '24px', fontSize: 13, fontWeight: 300,
           color: 'var(--col-text-subtle)', fontFamily: F, textAlign: 'center',
         }}>
-          {viewingUser
-            ? `No issues found for ${viewingUser.name} in the current sprint`
-            : 'Select a user to view their sprint issues'
+          {!isConfigured
+            ? 'Configure GitLab in Settings to view sprint issues'
+            : viewingUser
+              ? `No issues found for ${viewingUser.name} in the current sprint`
+              : 'Select a user to view their sprint issues'
           }
         </div>
       )}

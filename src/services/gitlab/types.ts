@@ -34,6 +34,15 @@ export interface GitLabLabel {
   description?: string;
 }
 
+export interface GitLabUser {
+  id: number;
+  username: string;
+  name: string;
+  state: string;
+  avatar_url?: string | null;
+  web_url?: string;
+}
+
 export interface GitLabIssue {
   id: number;
   iid: number;
@@ -42,7 +51,8 @@ export interface GitLabIssue {
   state: string;
   web_url: string;
   labels: string[];
-  assignee?: string | null;
+  assignee?: GitLabUser | null;
+  assignees?: GitLabUser[];
   created_at?: string;
   project_id?: number;
   due_date?: string | null;

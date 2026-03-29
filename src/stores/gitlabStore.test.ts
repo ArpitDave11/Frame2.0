@@ -225,7 +225,8 @@ const MOCK_ISSUE: GitLabIssue = {
   title: 'Fix login bug',
   state: 'opened',
   labels: ['bug'],
-  assignee: 'user1',
+  assignee: { id: 1, username: 'user1', name: 'User One', state: 'active' },
+  assignees: [{ id: 1, username: 'user1', name: 'User One', state: 'active' }],
   web_url: 'https://gitlab.com/issue/1',
   created_at: '2026-01-01T00:00:00Z',
 };
