@@ -62,7 +62,9 @@ export function IssueManagerView() {
   const [filter, setFilter] = useState<IssueFilter>('all');
   const [search, setSearch] = useState('');
   const activeTab = useUiStore((s) => s.issueSubTab);
-  const setActiveTab = useUiStore((s) => s.setIssueSubTab);
+
+  // Clear selection when switching views via sidebar
+  useEffect(() => { setSelectedId(null); }, [activeTab]);
 
   // Sprint issues state
   const [sprintIssues, setSprintIssues] = useState<MockIssue[]>([]);
@@ -256,28 +258,6 @@ export function IssueManagerView() {
         gap: 12,
         flexShrink: 0,
       }}>
-        {/* Tabs */}
-        {(['sprint', 'epic'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => { setActiveTab(tab); setSelectedId(null); }}
-            data-testid={`tab-${tab}`}
-            style={{
-              padding: '6px 14px',
-              border: 'none',
-              borderBottom: activeTab === tab ? '2px solid #E60000' : '2px solid transparent',
-              background: 'transparent',
-              color: activeTab === tab ? 'var(--col-text-primary)' : 'var(--col-text-subtle)',
-              fontSize: 12,
-              fontWeight: activeTab === tab ? 500 : 300,
-              fontFamily: F,
-              cursor: 'pointer',
-            }}
-          >
-            {tab === 'sprint' ? 'My Sprint' : 'Linked Issues'}
-          </button>
-        ))}
-
         {/* Unified user search bar (sprint tab only) */}
         {activeTab === 'sprint' && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, position: 'relative', marginLeft: 8 }}>

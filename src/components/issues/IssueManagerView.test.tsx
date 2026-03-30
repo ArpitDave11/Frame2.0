@@ -1,9 +1,10 @@
 /**
- * Tests for IssueManagerView — Issue Manager with sprint view.
+ * Tests for IssueManagerView — Issue Manager (standalone views, no tab bar).
+ * Sidebar controls which view is shown via uiStore.issueSubTab.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { IssueManagerView } from './IssueManagerView';
 import { AuthContext } from '@/components/auth/AuthContext';
 import { useConfigStore } from '@/stores/configStore';
@@ -48,25 +49,19 @@ beforeEach(() => {
   useUiStore.setState(useUiStore.getInitialState());
 });
 
-describe('IssueManagerView', () => {
-  it('renders the tab bar with My Sprint and Linked Issues', () => {
-    renderWithAuth(<IssueManagerView />);
-    expect(screen.getByTestId('tab-sprint')).toBeTruthy();
-    expect(screen.getByTestId('tab-epic')).toBeTruthy();
-  });
-
+describe('IssueManagerView — Sprint view (default)', () => {
   it('renders the issue list panel', () => {
     renderWithAuth(<IssueManagerView />);
     expect(screen.getByTestId('issue-list-panel')).toBeTruthy();
   });
 
-  it('defaults to My Sprint tab', () => {
+  it('no tab bar rendered', () => {
     renderWithAuth(<IssueManagerView />);
-    const sprintTab = screen.getByTestId('tab-sprint');
-    expect(sprintTab.style.borderBottom).toContain('rgb(230, 0, 0)');
+    expect(screen.queryByTestId('tab-sprint')).toBeNull();
+    expect(screen.queryByTestId('tab-epic')).toBeNull();
   });
 
-  it('shows user search input on sprint tab', () => {
+  it('shows user search input on sprint view', () => {
     renderWithAuth(<IssueManagerView />);
     expect(screen.getByTestId('user-search-input')).toBeTruthy();
   });
@@ -76,22 +71,31 @@ describe('IssueManagerView', () => {
     await waitFor(() => expect(screen.getByText('Dev User')).toBeTruthy());
   });
 
-  it('switching to Linked Issues tab hides user search', () => {
+  it('renders filter tabs', () => {
     renderWithAuth(<IssueManagerView />);
-    fireEvent.click(screen.getByTestId('tab-epic'));
+    expect(screen.getByTestId('filter-tab-all')).toBeTruthy();
+    expect(screen.getByTestId('filter-tab-active')).toBeTruthy();
+    expect(screen.getByTestId('filter-tab-blocked')).toBeTruthy();
+  });
+});
+
+describe('IssueManagerView — Linked Issues view', () => {
+  beforeEach(() => {
+    useUiStore.setState({ issueSubTab: 'epic' });
+  });
+
+  it('hides user search when in epic view', () => {
+    renderWithAuth(<IssueManagerView />);
     expect(screen.queryByTestId('user-search-input')).toBeNull();
   });
 
-  it('shows empty state on epic tab when no epic loaded', () => {
+  it('shows empty state when no epic loaded', () => {
     renderWithAuth(<IssueManagerView />);
-    fireEvent.click(screen.getByTestId('tab-epic'));
     expect(screen.getByText('Load an epic from GitLab to see its linked issues.')).toBeTruthy();
   });
 
   it('renders filter tabs', () => {
     renderWithAuth(<IssueManagerView />);
-    // Switch to epic tab to see mock issues with filter tabs
-    fireEvent.click(screen.getByTestId('tab-epic'));
     expect(screen.getByTestId('filter-tab-all')).toBeTruthy();
     expect(screen.getByTestId('filter-tab-active')).toBeTruthy();
     expect(screen.getByTestId('filter-tab-blocked')).toBeTruthy();
@@ -114,7 +118,7 @@ describe('Iteration Dropdown', () => {
     enableGitLab();
   });
 
-  it('renders iteration dropdown on sprint tab when GitLab is configured', async () => {
+  it('renders iteration dropdown on sprint view when GitLab is configured', async () => {
     renderWithAuth(<IssueManagerView />);
     await waitFor(() => expect(screen.getByTestId('iteration-dropdown')).toBeTruthy());
   });
@@ -145,10 +149,12 @@ describe('Iteration Dropdown', () => {
     });
   });
 
-  it('iteration dropdown hidden on epic tab', async () => {
+  it('iteration dropdown hidden on epic view', async () => {
     renderWithAuth(<IssueManagerView />);
     await waitFor(() => expect(screen.getByTestId('iteration-dropdown')).toBeTruthy());
-    fireEvent.click(screen.getByTestId('tab-epic'));
+    useUiStore.setState({ issueSubTab: 'epic' });
+    // Re-render to pick up store change
+    renderWithAuth(<IssueManagerView />);
     expect(screen.queryByTestId('iteration-dropdown')).toBeNull();
   });
 });
