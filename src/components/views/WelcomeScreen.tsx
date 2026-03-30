@@ -230,18 +230,18 @@ export function WelcomeScreen() {
             style={{
               position: 'absolute',
               left: -24,
-              top: 6,
+              top: 15,
+              bottom: 15,
               width: 4,
-              height: 72,
               background: 'var(--col-background-brand)',
               borderRadius: 2,
             }}
           />
           <h1
             style={{
-              fontSize: 42,
-              fontWeight: 400,
-              lineHeight: 1.25,
+              fontSize: 48,
+              fontWeight: 300,
+              lineHeight: '57px',
               marginBottom: 20,
               color: 'var(--col-text-primary)',
               letterSpacing: '-0.5px',
@@ -249,27 +249,57 @@ export function WelcomeScreen() {
           >
             FRAME — Your Vision.<br />AI-Engineered Precision.
           </h1>
+          {/* Acronym Decode */}
           <p
             style={{
-              fontSize: 13,
-              fontWeight: 500,
+              fontSize: 16,
+              fontWeight: 300,
+              lineHeight: '26px',
               letterSpacing: '0.5px',
               color: 'var(--col-text-subtle)',
-              marginBottom: 6,
+              marginBottom: 12,
               maxWidth: 480,
             }}
           >
-            Feature Requirement Agentic Modeling Engine
+            {['Feature', 'Requirement', 'Agentic', 'Modeling', 'Engine'].map(
+              (word, i) => (
+                <span key={i}>
+                  {i > 0 && (
+                    <span style={{ color: 'var(--col-text-disabled)', margin: '0 6px' }}>
+                      ·
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      color: 'var(--col-background-brand)',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {word[0]}
+                  </span>
+                  {word.slice(1)}
+                </span>
+              ),
+            )}
           </p>
+          {/* Divider */}
+          <div
+            style={{
+              width: 60,
+              height: 4,
+              background: 'var(--col-background-brand)',
+              borderRadius: 2,
+              marginBottom: 16,
+            }}
+          />
           <p
             style={{
-              fontSize: 15,
+              fontSize: 20,
               fontWeight: 300,
-              lineHeight: 1.5,
+              lineHeight: '24px',
               color: 'var(--col-text-subtle)',
               marginBottom: 0,
               maxWidth: 480,
-              opacity: 0.75,
             }}
           >
             Consistent, governed specifications across every team
