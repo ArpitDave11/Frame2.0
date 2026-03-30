@@ -67,12 +67,14 @@ describe('WelcomeScreen', () => {
     expect(useUiStore.getState().activeModal).toBe('loadEpic');
   });
 
-  it('all 8 template cards rendered', () => {
+  it('all template cards rendered (general excluded)', () => {
     render(<WelcomeScreen />);
-    for (const cat of EPIC_CATEGORIES) {
+    const displayed = EPIC_CATEGORIES.filter((c) => c.id !== 'general');
+    for (const cat of displayed) {
       expect(screen.getByTestId(`template-${cat.id}`)).toBeDefined();
     }
-    expect(EPIC_CATEGORIES).toHaveLength(8);
+    expect(screen.queryByTestId('template-general')).toBeNull();
+    expect(displayed).toHaveLength(7);
   });
 
   it('lifecycle shows 5 stages', () => {

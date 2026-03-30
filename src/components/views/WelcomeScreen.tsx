@@ -867,7 +867,7 @@ export function WelcomeScreen() {
             gap: 24,
           }}
         >
-          {EPIC_CATEGORIES.map((cat, idx) => {
+          {EPIC_CATEGORIES.filter((cat) => cat.id !== 'general').map((cat, idx) => {
             const isHovered = hoveredTemplate === cat.id;
 
             return (
