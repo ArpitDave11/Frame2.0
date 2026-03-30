@@ -55,8 +55,6 @@ function formatIterationLabel(iter: GitLabIteration, currentId: number | null): 
   return iter.id === currentId ? `${label} \u00b7 Current` : label;
 }
 
-type ViewTab = 'sprint' | 'epic';
-
 export function IssueManagerView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<IssueFilter>('all');
@@ -248,7 +246,8 @@ export function IssueManagerView() {
       data-testid="issue-manager-view"
       style={{ display: 'flex', flex: 1, overflow: 'hidden', background: '#f7f7f5', flexDirection: 'column' }}
     >
-      {/* Tab bar + User search */}
+      {/* User search + iteration dropdown (sprint view only) */}
+      {activeTab === 'sprint' && (
       <div style={{
         padding: '8px 16px',
         background: '#fff',
@@ -258,9 +257,8 @@ export function IssueManagerView() {
         gap: 12,
         flexShrink: 0,
       }}>
-        {/* Unified user search bar (sprint tab only) */}
-        {activeTab === 'sprint' && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, position: 'relative', marginLeft: 8 }}>
+        {/* User search bar */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
             {/* Current user chip */}
             {viewingUser && (
               <span style={{
@@ -385,13 +383,13 @@ export function IssueManagerView() {
               </select>
             )}
           </div>
-        )}
 
         {/* Loading indicator */}
-        {loadingSprint && activeTab === 'sprint' && (
+        {loadingSprint && (
           <span style={{ fontSize: 11, color: 'var(--col-text-subtle)', fontStyle: 'italic' }}>Loading...</span>
         )}
       </div>
+      )}
 
       {/* Epic tab loading indicator */}
       {loadingEpicIssues && activeTab === 'epic' && (
