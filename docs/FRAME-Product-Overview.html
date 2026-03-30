@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FRAME — Full Requirement Automation & Management Engine</title>
+  <style>
+    /* ===== UBS FONT SYSTEM ===== */
+    @font-face {
+      font-family: 'Frutiger';
+      src: url('../src/fonts/Frutiger-Light.woff2') format('woff2'),
+           url('../src/fonts/Frutiger-Light.woff') format('woff');
+      font-weight: 300;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Frutiger';
+      src: url('../src/fonts/Frutiger-Regular.woff2') format('woff2'),
+           url('../src/fonts/Frutiger-Regular.woff') format('woff');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Frutiger';
+      src: url('../src/fonts/Frutiger-Medium.woff2') format('woff2'),
+           url('../src/fonts/Frutiger-Medium.woff') format('woff');
+      font-weight: 500;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Frutiger';
+      src: url('../src/fonts/Frutiger-Bold.woff2') format('woff2'),
+           url('../src/fonts/Frutiger-Bold.woff') format('woff');
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    /* ===== UBS CSS CUSTOM PROPERTIES ===== */
+    :root {
+      --col-background-brand: #E60000;
+      --col-text-primary: #000000;
+      --col-text-subtle: #666666;
+      --col-text-inverted: #FFFFFF;
+      --col-background-primary: #000000;
+      --col-background-ui-10: #FFFFFF;
+      --col-border-illustrative: #E0E0E0;
+      --col-link-text-brand: #E60000;
+      --font-size: 16px;
+      --grid-absolute-gutter: 20px;
+      --grid-container-width: 1920px;
+      --radius: 0.625rem;
+      --radius-lg: 0.625rem;
+      --radius-md: calc(0.625rem - 2px);
+    }
+
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: var(--font-size); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    body {
+      font-family: Frutiger, Arial, Helvetica, sans-serif;
+      font-weight: 300;
+      color: var(--col-text-primary);
+      background: #FFFFFF;
+      line-height: 1.6;
+    }
+
+    /* ===== LAYOUT ===== */
+    .container {
+      max-width: var(--grid-container-width);
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    /* ===== HEADER ===== */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      width: 100%;
+      background: #FFFFFF;
+      border-bottom: 1px solid #E5E7EB;
+    }
+    .header-inner {
+      max-width: var(--grid-container-width);
+      margin: 0 auto;
+      padding: 12px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-logo .ubs-logo-mark {
+      width: 83px;
+      height: auto;
+    }
+    .header-logo-text {
+      font-size: 0.8125rem;
+      line-height: 1rem;
+      font-weight: 300;
+      color: #666666;
+      letter-spacing: 0.08em;
+    }
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    .header-nav a {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #374151;
+      text-decoration: none;
+      transition: color 150ms ease;
+    }
+    .header-nav a:hover { color: #111827; }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .btn-login {
+      padding: 8px 16px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #374151;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: Frutiger, Arial, Helvetica, sans-serif;
+    }
+    .btn-cta {
+      padding: 8px 24px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #FFFFFF;
+      background: #DC2626;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 150ms ease;
+      font-family: Frutiger, Arial, Helvetica, sans-serif;
+    }
+    .btn-cta:hover { background: #B91C1C; }
+
+    /* ===== HERO / COVER ===== */
+    .hero {
+      background: #000000;
+      color: #FFFFFF;
+      padding: 120px 0 100px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(230,0,0,0.15) 0%, transparent 50%, rgba(0,0,0,0.3) 100%);
+      pointer-events: none;
+    }
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+    }
+    .hero-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--col-background-brand);
+      border: 1px solid var(--col-background-brand);
+      padding: 6px 16px;
+      border-radius: 100px;
+      margin-bottom: 32px;
+    }
+    .hero h1 {
+      font-size: 3.75rem;
+      line-height: 4.5rem;
+      font-weight: 300;
+      margin-bottom: 24px;
+      letter-spacing: -0.01em;
+    }
+    .hero h1 span {
+      color: var(--col-background-brand);
+      font-weight: 300;
+    }
+    .hero-subtitle {
+      font-size: 1.5rem;
+      line-height: 2.25rem;
+      font-weight: 300;
+      color: rgba(255,255,255,0.85);
+      margin-bottom: 48px;
+      max-width: 700px;
+    }
+    .hero-cta-row {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .hero-btn-primary {
+      padding: 14px 40px;
+      font-size: 1rem;
+      font-weight: 500;
+      color: #FFFFFF;
+      background: var(--col-background-brand);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 150ms ease;
+      font-family: Frutiger, Arial, Helvetica, sans-serif;
+      letter-spacing: 0.02em;
+    }
+    .hero-btn-primary:hover { background: #CC0000; }
+    .hero-btn-secondary {
+      padding: 14px 40px;
+      font-size: 1rem;
+      font-weight: 500;
+      color: #FFFFFF;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 150ms ease;
+      font-family: Frutiger, Arial, Helvetica, sans-serif;
+    }
+    .hero-btn-secondary:hover {
+      border-color: #FFFFFF;
+      background: rgba(255,255,255,0.08);
+    }
+
+    /* ===== IMPULSE LINE (UBS Signature) ===== */
+    .impulse-section {
+      position: relative;
+      padding-left: 24px;
+    }
+    .impulse-section::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.9375rem;
+      bottom: 0.9375rem;
+      width: 4px;
+      background: var(--col-background-brand);
+    }
+
+    /* ===== SECTION STYLES ===== */
+    .section {
+      padding: 80px 0;
+    }
+    .section-alt {
+      background: #F9FAFB;
+    }
+    .section-dark {
+      background: var(--col-background-primary);
+      color: var(--col-text-inverted);
+    }
+    .section-header {
+      margin-bottom: 60px;
+    }
+    .section-caption {
+      font-size: 0.875rem;
+      line-height: 1.375rem;
+      font-weight: 500;
+      color: var(--col-background-brand);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 2.5rem;
+      line-height: 3rem;
+      font-weight: 300;
+      margin-bottom: 16px;
+    }
+    .section-title-underline {
+      display: block;
+      width: 80px;
+      height: 4px;
+      background: var(--col-background-brand);
+      margin-top: 12px;
+    }
+    .section-description {
+      font-size: 1.25rem;
+      line-height: 1.75rem;
+      font-weight: 300;
+      color: var(--col-text-subtle);
+      max-width: 700px;
+      margin-top: 20px;
+    }
+
+    /* ===== PROBLEM SECTION ===== */
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 32px;
+      margin-top: 48px;
+    }
+    .problem-card {
+      background: #FFFFFF;
+      border: 1px solid var(--col-border-illustrative);
+      border-radius: 8px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .problem-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--col-background-brand);
+    }
+    .problem-card .problem-icon {
+      font-size: 2rem;
+      margin-bottom: 16px;
+    }
+    .problem-card h3 {
+      font-size: 1.25rem;
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+    .problem-card p {
+      font-size: 1rem;
+      line-height: 1.625rem;
+      font-weight: 300;
+      color: var(--col-text-subtle);
+    }
+
+    /* ===== PIPELINE SECTION ===== */
+    .pipeline-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-top: 48px;
+      position: relative;
+    }
+    .pipeline-flow::before {
+      content: '';
+      position: absolute;
+      left: 31px;
+      top: 40px;
+      bottom: 40px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--col-background-brand), var(--col-border-illustrative), var(--col-background-brand));
+    }
+    .pipeline-stage {
+      display: flex;
+      align-items: flex-start;
+      gap: 32px;
+      padding: 28px 0;
+      position: relative;
+    }
+    .stage-number {
+      flex-shrink: 0;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 500;
+      position: relative;
+      z-index: 1;
+    }
+    .stage-number-red {
+      background: var(--col-background-brand);
+      color: #FFFFFF;
+    }
+    .stage-number-dark {
+      background: var(--col-background-primary);
+      color: #FFFFFF;
+    }
+    .stage-content h3 {
+      font-size: 1.375rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .stage-content p {
+      font-size: 1rem;
+      line-height: 1.625rem;
+      font-weight: 300;
+      color: var(--col-text-subtle);
+    }
+    .stage-tag {
+      display: inline-block;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 3px 10px;
+      border-radius: 100px;
+      margin-top: 10px;
+    }
+    .stage-tag-ai {
+      background: rgba(230, 0, 0, 0.08);
+      color: var(--col-background-brand);
+    }
+    .stage-tag-quality {
+      background: rgba(0, 0, 0, 0.06);
+      color: var(--col-text-primary);
+    }
+    .pipeline-callout {
+      margin-top: 48px;
+      background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+      color: #FFFFFF;
+      border-radius: 12px;
+      padding: 40px 48px;
+      position: relative;
+      overflow: hidden;
+    }
+    .pipeline-callout::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--col-background-brand);
+    }
+    .pipeline-callout p {
+      font-size: 1.375rem;
+      line-height: 2rem;
+      font-weight: 300;
+      color: rgba(255,255,255,0.9);
+    }
+    .pipeline-callout strong {
+      color: #FFFFFF;
+      font-weight: 500;
+    }
+
+    /* ===== FEATURE CARDS (Service Card Pattern) ===== */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      margin-top: 48px;
+    }
+    .feature-card {
+      background: #FFFFFF;
+      padding: 32px;
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      border: 1px solid var(--col-border-illustrative);
+      transition: box-shadow 200ms ease, transform 200ms ease;
+    }
+    .feature-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      transform: translateY(-2px);
+    }
+    .feature-card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+    }
+    .icon-red { background: rgba(230, 0, 0, 0.08); }
+    .icon-dark { background: rgba(0, 0, 0, 0.06); }
+    .icon-subtle { background: rgba(102, 102, 102, 0.08); }
+    .feature-card h3 {
+      font-size: 1.25rem;
+      font-weight: 500;
+      margin-bottom: 10px;
+    }
+    .feature-card p {
+      font-size: 1rem;
+      line-height: 1.625rem;
+      font-weight: 300;
+      color: #4B5563;
+    }
+
+    /* ===== NUMBERS / IMPACT SECTION ===== */
+    .numbers-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 48px;
+      margin-top: 60px;
+    }
+    .number-item {
+      text-align: center;
+    }
+    .number-value {
+      font-size: 3.75rem;
+      line-height: 1;
+      font-weight: 300;
+      color: var(--col-background-brand);
+      margin-bottom: 12px;
+    }
+    .number-label {
+      font-size: 1.125rem;
+      line-height: 1.625rem;
+      font-weight: 300;
+      color: var(--col-text-subtle);
+    }
+
+    /* ===== ROLE COMPARISON TABLE ===== */
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 48px;
+      font-weight: 300;
+    }
+    .comparison-table thead th {
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--col-text-subtle);
+      padding: 16px 24px;
+      text-align: left;
+      border-bottom: 2px solid var(--col-background-primary);
+    }
+    .comparison-table thead th:first-child {
+      border-bottom-color: var(--col-background-brand);
+    }
+    .comparison-table tbody td {
+      padding: 20px 24px;
+      font-size: 1rem;
+      line-height: 1.5rem;
+      border-bottom: 1px solid var(--col-border-illustrative);
+      vertical-align: top;
+    }
+    .comparison-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .comparison-table .role-name {
+      font-weight: 500;
+      color: var(--col-text-primary);
+      white-space: nowrap;
+    }
+    .comparison-table .before-col {
+      color: var(--col-text-subtle);
+    }
+    .comparison-table .after-col {
+      color: var(--col-text-primary);
+    }
+    .comparison-table .after-col strong {
+      color: var(--col-background-brand);
+      font-weight: 500;
+    }
+
+    /* ===== BLUEPRINT SECTION ===== */
+    .split-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+      margin-top: 48px;
+    }
+    .split-text h3 {
+      font-size: 1.75rem;
+      line-height: 2.0625rem;
+      font-weight: 300;
+      margin-bottom: 20px;
+    }
+    .split-text p {
+      font-size: 1.125rem;
+      line-height: 1.75rem;
+      font-weight: 300;
+      color: var(--col-text-subtle);
+      margin-bottom: 16px;
+    }
+    .split-visual {
+      background: #0d1117;
+      border-radius: 12px;
+      padding: 40px;
+      color: #c9d1d9;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      overflow: hidden;
+      position: relative;
+    }
+    .split-visual::before {
+      content: 'Blueprint';
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      color: var(--col-background-brand);
+      font-family: Frutiger, Arial, Helvetica, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .check-list {
+      list-style: none;
+      padding: 0;
+      margin-top: 24px;
+    }
+    .check-list li {
+      font-size: 1rem;
+      line-height: 1.625rem;
+      font-weight: 300;
+      color: var(--col-text-subtle);
+      padding: 8px 0 8px 32px;
+      position: relative;
+    }
+    .check-list li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 12px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--col-background-brand);
+      opacity: 0.15;
+    }
+    .check-list li::after {
+      content: '\2713';
+      position: absolute;
+      left: 3px;
+      top: 10px;
+      font-size: 0.75rem;
+      color: var(--col-background-brand);
+      font-weight: 700;
+    }
+
+    /* ===== QUALITY GATE SECTION ===== */
+    .quality-bar-container {
+      margin-top: 48px;
+    }
+    .quality-bar {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 24px 0;
+      border-bottom: 1px solid var(--col-border-illustrative);
+    }
+    .quality-bar:last-child { border-bottom: none; }
+    .quality-bar-label {
+      flex-shrink: 0;
+      width: 180px;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+    .quality-bar-track {
+      flex: 1;
+      height: 8px;
+      background: #ECECF0;
+      border-radius: 100px;
+      overflow: hidden;
+    }
+    .quality-bar-fill {
+      height: 100%;
+      border-radius: 100px;
+      transition: width 600ms ease;
+    }
+    .quality-bar-fill-red { background: var(--col-background-brand); }
+    .quality-bar-fill-dark { background: var(--col-background-primary); }
+    .quality-bar-value {
+      flex-shrink: 0;
+      width: 50px;
+      text-align: right;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    /* ===== ENTERPRISE SECTION ===== */
+    .integration-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .integration-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      background: #FFFFFF;
+      border: 1px solid var(--col-border-illustrative);
+      border-radius: 100px;
+      font-size: 0.9375rem;
+      font-weight: 300;
+      color: var(--col-text-primary);
+      transition: border-color 200ms ease;
+    }
+    .integration-badge:hover {
+      border-color: var(--col-background-brand);
+    }
+    .integration-badge .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--col-background-brand);
+    }
+
+    /* ===== CTA / CLOSING ===== */
+    .cta-section {
+      background: linear-gradient(135deg, #000000 0%, #111111 100%);
+      color: #FFFFFF;
+      padding: 100px 0;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--col-background-brand);
+    }
+    .cta-section h2 {
+      font-size: 3.125rem;
+      line-height: 3.75rem;
+      font-weight: 300;
+      margin-bottom: 20px;
+    }
+    .cta-section h2 span {
+      color: var(--col-background-brand);
+    }
+    .cta-section p {
+      font-size: 1.375rem;
+      line-height: 2rem;
+      font-weight: 300;
+      color: rgba(255,255,255,0.7);
+      max-width: 600px;
+      margin: 0 auto 48px;
+    }
+    .cta-btn {
+      display: inline-block;
+      padding: 16px 48px;
+      font-size: 1rem;
+      font-weight: 500;
+      color: #FFFFFF;
+      background: var(--col-background-brand);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 150ms ease;
+      font-family: Frutiger, Arial, Helvetica, sans-serif;
+      text-decoration: none;
+      letter-spacing: 0.02em;
+    }
+    .cta-btn:hover { background: #CC0000; }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      background: var(--col-background-ui-10);
+      border-top: 1px solid var(--col-border-illustrative);
+      padding: 48px 0 64px;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 48px;
+    }
+    .footer-col-title {
+      font: 500 0.875rem/1.25rem Frutiger, Arial, Helvetica, sans-serif;
+      color: var(--col-text-subtle);
+      padding: 4px 0;
+      margin-bottom: 8px;
+    }
+    .footer-links {
+      list-style: none;
+      padding: 0;
+    }
+    .footer-links li { margin-top: 4px; }
+    .footer-links a {
+      font: 300 0.875rem/1.25rem Frutiger, Arial, Helvetica, sans-serif;
+      color: var(--col-text-subtle);
+      text-decoration: none;
+      background-image:
+        linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0)),
+        linear-gradient(var(--col-background-brand), var(--col-background-brand));
+      background-size: 100% 1px, 0 1px;
+      background-position: 100% 100%, 0 100%;
+      background-repeat: no-repeat;
+      transition: background-size 0.2s cubic-bezier(1, 0, 0.3, 1), color 0.2s ease;
+    }
+    .footer-links a:hover {
+      color: var(--col-text-primary);
+      background-size: 0 1px, 100% 1px;
+    }
+    .footer-legal {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--col-border-illustrative);
+      font-size: 0.8125rem;
+      font-weight: 300;
+      color: var(--col-text-subtle);
+    }
+
+    /* ===== PRINT STYLES ===== */
+    @media print {
+      .header { position: static; }
+      .hero { padding: 60px 0 50px; }
+      .section { padding: 40px 0; }
+      .feature-card:hover { transform: none; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1024px) {
+      .hero h1 { font-size: 2.5rem; line-height: 3rem; }
+      .feature-grid { grid-template-columns: repeat(2, 1fr); }
+      .numbers-grid { grid-template-columns: repeat(3, 1fr); gap: 32px; }
+      .split-content { grid-template-columns: 1fr; gap: 32px; }
+      .footer-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 1.875rem; line-height: 2.25rem; }
+      .hero-subtitle { font-size: 1.125rem; line-height: 1.625rem; }
+      .section-title { font-size: 1.75rem; line-height: 2.0625rem; }
+      .problem-grid { grid-template-columns: 1fr; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .numbers-grid { grid-template-columns: 1fr; gap: 24px; }
+      .footer-grid { grid-template-columns: 1fr; }
+      .hero-cta-row { flex-direction: column; align-items: flex-start; }
+      .comparison-table { font-size: 0.875rem; }
+    }
+
+    /* ===== UTILITY ===== */
+    .text-red { color: var(--col-background-brand); }
+    .text-subtle { color: var(--col-text-subtle); }
+    .fw-500 { font-weight: 500; }
+    .mt-0 { margin-top: 0; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-logo">
+        <!-- UBS Keys Logo SVG -->
+        <svg class="ubs-logo-mark" viewBox="0 0 83 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="83" height="28" rx="2" fill="#000"/>
+          <text x="10" y="20" font-family="Frutiger, Arial, Helvetica, sans-serif" font-weight="700" font-size="16" fill="#FFF">UBS</text>
+          <rect x="50" y="8" width="4" height="12" rx="1" fill="#E60000"/>
+          <rect x="57" y="8" width="4" height="12" rx="1" fill="#E60000"/>
+          <rect x="64" y="8" width="4" height="12" rx="1" fill="#E60000"/>
+        </svg>
+        <span class="header-logo-text">FRAME</span>
+      </div>
+      <nav class="header-nav">
+        <a href="#pipeline">Pipeline</a>
+        <a href="#features">Features</a>
+        <a href="#blueprint">Blueprint</a>
+        <a href="#impact">Impact</a>
+        <a href="#roles">Who It's For</a>
+      </nav>
+      <div class="header-actions">
+        <button class="btn-login">Sign In</button>
+        <button class="btn-cta">Request Demo</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-badge">Enterprise AI-Powered Documentation</div>
+        <h1>From Rough Idea to<br>Production-Grade Epic.<br><span>In Minutes, Not Weeks.</span></h1>
+        <p class="hero-subtitle">
+          FRAME is the Full Requirement Automation & Management Engine. It transforms unstructured ideas into validated, enterprise-grade specifications with architecture diagrams, user stories, and full GitLab integration — powered by a 6-stage AI pipeline that ensures nothing ships below standard.
+        </p>
+        <div class="hero-cta-row">
+          <button class="hero-btn-primary">Get Started</button>
+          <button class="hero-btn-secondary">Watch the Demo</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== THE PROBLEM ===== -->
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-header impulse-section">
+        <div class="section-caption">The Problem</div>
+        <h2 class="section-title">Requirements Documentation Is Broken</h2>
+        <span class="section-title-underline"></span>
+        <p class="section-description">
+          Every enterprise team feels it. The process that should drive delivery is the one that slows it down the most.
+        </p>
+      </div>
+      <div class="problem-grid">
+        <div class="problem-card">
+          <div class="problem-icon">&#9203;</div>
+          <h3>40-60 Hours Per Sprint</h3>
+          <p>Teams spend entire sprint cycles manually writing, reviewing, and iterating on epic specifications. That's engineering capacity burned on documentation instead of delivery.</p>
+        </div>
+        <div class="problem-card">
+          <div class="problem-icon">&#9888;</div>
+          <h3>Inconsistent Quality</h3>
+          <p>Every team writes differently. Every product owner has their own format. The result? Scope creep, ambiguous requirements, rework, and missed deadlines — every single sprint.</p>
+        </div>
+        <div class="problem-card">
+          <div class="problem-icon">&#128260;</div>
+          <h3>Context Switching Tax</h3>
+          <p>Write in Confluence. Manage issues in GitLab. Track sprints in another tool. Copy-paste between them. The workflow is fragmented and every switch costs cognitive load.</p>
+        </div>
+        <div class="problem-card">
+          <div class="problem-icon">&#128269;</div>
+          <h3>Invisible Sprint Status</h3>
+          <p>Scrum Masters spend standup time chasing updates. "What's the status?" is the most asked question in every retro. Status should be generated, not gathered.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== THE PIPELINE ===== -->
+  <section class="section" id="pipeline">
+    <div class="container">
+      <div class="section-header impulse-section">
+        <div class="section-caption">The Engine</div>
+        <h2 class="section-title">A 6-Stage AI Pipeline<br>That Thinks Before It Writes</h2>
+        <span class="section-title-underline"></span>
+        <p class="section-description">
+          Not a chatbot. Not a template filler. FRAME runs your input through six distinct AI stages — each with a specific purpose, calibrated temperature, and quality gate.
+        </p>
+      </div>
+      <div class="pipeline-flow">
+        <div class="pipeline-stage">
+          <div class="stage-number stage-number-red">1</div>
+          <div class="stage-content">
+            <h3>Comprehension</h3>
+            <p>AI reads your rough input and extracts entities, requirements, gaps, risks, and dependencies. It understands what you meant — even when you didn't say it all.</p>
+            <span class="stage-tag stage-tag-ai">AI-Powered Analysis</span>
+          </div>
+        </div>
+        <div class="pipeline-stage">
+          <div class="stage-number stage-number-dark">2</div>
+          <div class="stage-content">
+            <h3>Classification</h3>
+            <p>Three-vote consensus assigns your epic to one of 10 enterprise categories — API, Frontend, Data Pipeline, Security, Infrastructure, and more. Each category unlocks domain-specific templates and quality criteria.</p>
+            <span class="stage-tag stage-tag-quality">3-Vote Consensus</span>
+          </div>
+        </div>
+        <div class="pipeline-stage">
+          <div class="stage-number stage-number-red">3</div>
+          <div class="stage-content">
+            <h3>Structural Analysis</h3>
+            <p>Every section of your epic is scored 1-10 on completeness, clarity, and specificity. The AI generates a transformation plan — a surgical roadmap for what needs to be rewritten, expanded, or restructured.</p>
+            <span class="stage-tag stage-tag-quality">Section-Level Scoring</span>
+          </div>
+        </div>
+        <div class="pipeline-stage">
+          <div class="stage-number stage-number-dark">4</div>
+          <div class="stage-content">
+            <h3>Intelligent Refinement</h3>
+            <p>Per-section rewriting powered by iterative feedback loops. Each section is refined independently, then cross-validated for coherence. Contradictions are caught. Cross-references are aligned. Nothing falls through the cracks.</p>
+            <span class="stage-tag stage-tag-ai">Iterative Feedback Loop</span>
+          </div>
+        </div>
+        <div class="pipeline-stage">
+          <div class="stage-number stage-number-red">5</div>
+          <div class="stage-content">
+            <h3>Structured Output</h3>
+            <p>Auto-generated architecture diagrams (flowcharts, sequence diagrams, state machines) and user stories with full acceptance criteria. Your epic arrives with visual documentation that stakeholders can immediately understand.</p>
+            <span class="stage-tag stage-tag-ai">Diagrams + User Stories</span>
+          </div>
+        </div>
+        <div class="pipeline-stage">
+          <div class="stage-number stage-number-dark">6</div>
+          <div class="stage-content">
+            <h3>Validation Gate</h3>
+            <p>Quality metrics. Requirement traceability. Pass/fail gate. The pipeline loops Stages 4-6 until the document meets the quality threshold — or reports exactly where it falls short. Nothing ships unless it passes.</p>
+            <span class="stage-tag stage-tag-quality">Quality Gate</span>
+          </div>
+        </div>
+      </div>
+      <div class="pipeline-callout">
+        <p><strong>Your 2-paragraph idea becomes a 15-section enterprise specification</strong> — with architecture diagrams, user stories, acceptance criteria, and requirement traceability — <strong>fully validated before anyone reviews it.</strong></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FEATURES ===== -->
+  <section class="section section-alt" id="features">
+    <div class="container">
+      <div class="section-header impulse-section">
+        <div class="section-caption">Capabilities</div>
+        <h2 class="section-title">Everything You Need.<br>Nothing You Don't.</h2>
+        <span class="section-title-underline"></span>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-card-icon icon-red">&#9889;</div>
+          <h3>One-Click Issue Creation</h3>
+          <p>User stories generated by the AI pipeline become GitLab issues instantly. Labels, weights, story points, acceptance criteria — all populated automatically. No copy-paste. No manual entry.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon icon-dark">&#128172;</div>
+          <h3>Context-Aware AI Updates</h3>
+          <p>Click once, get a professionally written sprint update. FRAME reads the parent Epic, the last 10 activity notes, and generates an update that reflects what actually happened — not a template.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon icon-red">&#128202;</div>
+          <h3>Iteration Tracking</h3>
+          <p>Filter by sprint. See status at a glance. Assign team members with intelligent autocomplete. Track velocity, completion forecasts, and burndown — all without leaving FRAME.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon icon-dark">&#128736;</div>
+          <h3>Full Issue Management</h3>
+          <p>Time estimates, status changes, comments, labels, assignees — everything managed inline. FRAME is your sprint command center. GitLab is the backend. You never need to switch.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon icon-red">&#128196;</div>
+          <h3>GitLab Publishing</h3>
+          <p>Publish epics to any GitLab group with parent-child hierarchy. Update existing epics in place. Cache syncs instantly. Requirement tags are stripped at every boundary — clean output, always.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon icon-subtle">&#128200;</div>
+          <h3>Quality Scoring</h3>
+          <p>BM25-powered local scoring (30%) blended with AI critique (70%). Section-by-section quality breakdown. Know exactly where your spec is strong and where it needs work — before review.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== BLUEPRINT ===== -->
+  <section class="section" id="blueprint">
+    <div class="container">
+      <div class="section-header impulse-section">
+        <div class="section-caption">Blueprint</div>
+        <h2 class="section-title">Architecture Visualization,<br>Built Into the Spec</h2>
+        <span class="section-title-underline"></span>
+      </div>
+      <div class="split-content">
+        <div class="split-text">
+          <h3>AI-Generated Diagrams That Stakeholders Actually Read</h3>
+          <p>
+            FRAME's Blueprint engine generates Mermaid diagrams — flowcharts, sequence diagrams, state machines — directly from your epic content. No separate diagramming tool. No manual drawing.
+          </p>
+          <p>
+            Edit in-app with zoom, pan, and fullscreen. Diagrams are embedded in the epic body when published to GitLab, so stakeholders see the architecture alongside the specification.
+          </p>
+          <ul class="check-list">
+            <li>Flowcharts, sequence diagrams, state machines</li>
+            <li>Editable in-app with zoom, pan, fullscreen</li>
+            <li>Embedded in GitLab epic on publish</li>
+            <li>Auto-regenerated on refinement cycles</li>
+          </ul>
+        </div>
+        <div class="split-visual">
+          <pre style="margin:0;white-space:pre-wrap;font-size:0.8rem;">
+graph TD
+  A[User Input] -->|Raw Epic| B(Comprehension)
+  B --> C{Classification}
+  C -->|API| D[API Template]
+  C -->|Frontend| E[Frontend Template]
+  C -->|Security| F[Security Template]
+  D --> G[Structural Analysis]
+  E --> G
+  F --> G
+  G --> H[Refinement Loop]
+  H --> I[Coherence Check]
+  I --> J{Quality Gate}
+  J -->|Pass| K[Validated Epic]
+  J -->|Fail| H
+
+  style A fill:#E60000,color:#fff
+  style K fill:#E60000,color:#fff
+  style J fill:#000,color:#fff</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== QUALITY GATE ===== -->
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-header impulse-section">
+        <div class="section-caption">Quality Assurance</div>
+        <h2 class="section-title">No More "Good Enough"</h2>
+        <span class="section-title-underline"></span>
+        <p class="section-description">
+          Every specification passes through a blended scoring engine. If it doesn't meet the threshold, the pipeline loops until it does — or tells you exactly where it falls short.
+        </p>
+      </div>
+      <div class="quality-bar-container">
+        <div class="quality-bar">
+          <span class="quality-bar-label">Completeness</span>
+          <div class="quality-bar-track"><div class="quality-bar-fill quality-bar-fill-red" style="width:94%"></div></div>
+          <span class="quality-bar-value text-red">94%</span>
+        </div>
+        <div class="quality-bar">
+          <span class="quality-bar-label">Clarity</span>
+          <div class="quality-bar-track"><div class="quality-bar-fill quality-bar-fill-dark" style="width:91%"></div></div>
+          <span class="quality-bar-value">91%</span>
+        </div>
+        <div class="quality-bar">
+          <span class="quality-bar-label">Traceability</span>
+          <div class="quality-bar-track"><div class="quality-bar-fill quality-bar-fill-red" style="width:97%"></div></div>
+          <span class="quality-bar-value text-red">97%</span>
+        </div>
+        <div class="quality-bar">
+          <span class="quality-bar-label">Coherence</span>
+          <div class="quality-bar-track"><div class="quality-bar-fill quality-bar-fill-dark" style="width:89%"></div></div>
+          <span class="quality-bar-value">89%</span>
+        </div>
+        <div class="quality-bar">
+          <span class="quality-bar-label">Architecture Coverage</span>
+          <div class="quality-bar-track"><div class="quality-bar-fill quality-bar-fill-red" style="width:92%"></div></div>
+          <span class="quality-bar-value text-red">92%</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== BY THE NUMBERS ===== -->
+  <section class="section section-dark" id="impact">
+    <div class="container">
+      <div class="section-header" style="text-align:center;">
+        <div class="section-caption" style="color:var(--col-background-brand);">Impact</div>
+        <h2 class="section-title" style="color:#FFFFFF;">Built for Enterprise Scale</h2>
+        <span class="section-title-underline" style="margin:12px auto 0;"></span>
+      </div>
+      <div class="numbers-grid">
+        <div class="number-item">
+          <div class="number-value">6</div>
+          <div class="number-label" style="color:rgba(255,255,255,0.7);">AI Pipeline Stages<br>with iterative refinement</div>
+        </div>
+        <div class="number-item">
+          <div class="number-value">10</div>
+          <div class="number-label" style="color:rgba(255,255,255,0.7);">Enterprise Categories<br>with domain-specific templates</div>
+        </div>
+        <div class="number-item">
+          <div class="number-value">1,237+</div>
+          <div class="number-label" style="color:rgba(255,255,255,0.7);">Automated Tests<br>production-grade reliability</div>
+        </div>
+        <div class="number-item">
+          <div class="number-value">&lt;5 min</div>
+          <div class="number-label" style="color:rgba(255,255,255,0.7);">Idea to Validated Spec<br>fully refined with diagrams</div>
+        </div>
+        <div class="number-item">
+          <div class="number-value">1 click</div>
+          <div class="number-label" style="color:rgba(255,255,255,0.7);">Publish to GitLab<br>with parent-child hierarchy</div>
+        </div>
+        <div class="number-item">
+          <div class="number-value">0</div>
+          <div class="number-label" style="color:rgba(255,255,255,0.7);">Context Switches<br>everything lives in one tool</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ENTERPRISE INTEGRATION ===== -->
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-header impulse-section">
+        <div class="section-caption">Enterprise Ready</div>
+        <h2 class="section-title">Integrates With Your Stack.<br>Secures Like Your Stack.</h2>
+        <span class="section-title-underline"></span>
+        <p class="section-description">
+          FRAME is built for enterprise environments from day one. Azure AD SSO, flexible AI model routing, and full GitLab Enterprise API integration — no workarounds, no middleware.
+        </p>
+      </div>
+      <div class="integration-badges">
+        <div class="integration-badge"><span class="badge-dot"></span> Azure Active Directory (MSAL)</div>
+        <div class="integration-badge"><span class="badge-dot"></span> Azure OpenAI Service</div>
+        <div class="integration-badge"><span class="badge-dot"></span> OpenAI Direct API</div>
+        <div class="integration-badge"><span class="badge-dot"></span> GitLab Enterprise (devcloud)</div>
+        <div class="integration-badge"><span class="badge-dot"></span> GPT-4.1 + GPT-5 Reasoning Models</div>
+        <div class="integration-badge"><span class="badge-dot"></span> SSO / Single Sign-On</div>
+        <div class="integration-badge"><span class="badge-dot"></span> Role-Based Access</div>
+        <div class="integration-badge"><span class="badge-dot"></span> Enterprise Proxy Support</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== WHO USES FRAME ===== -->
+  <section class="section" id="roles">
+    <div class="container">
+      <div class="section-header impulse-section">
+        <div class="section-caption">Who It's For</div>
+        <h2 class="section-title">Before FRAME vs. With FRAME</h2>
+        <span class="section-title-underline"></span>
+        <p class="section-description">
+          Every role in the delivery chain benefits. FRAME doesn't replace your team — it removes the friction that slows them down.
+        </p>
+      </div>
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Before FRAME</th>
+            <th>With FRAME</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="role-name">Product Owner</td>
+            <td class="before-col">2-3 days writing and iterating on epic specifications. Inconsistent formats across teams. Constant rework after review.</td>
+            <td class="after-col"><strong>5 minutes</strong> from rough idea to a validated, 15-section enterprise specification with diagrams and user stories.</td>
+          </tr>
+          <tr>
+            <td class="role-name">Scrum Master</td>
+            <td class="before-col">Manually chasing status updates in standup. Copy-pasting between GitLab and slide decks. Hours spent on sprint reports.</td>
+            <td class="after-col"><strong>One-click AI sprint updates</strong> enriched with full Epic context and the last 10 activity notes. Status is generated, not gathered.</td>
+          </tr>
+          <tr>
+            <td class="role-name">Tech Lead</td>
+            <td class="before-col">Reviewing inconsistent documentation. Architecture assumptions buried in text. No diagrams. No traceability.</td>
+            <td class="after-col"><strong>Every spec hits a quality gate</strong> before it reaches review. Architecture diagrams are auto-generated. Requirements are traceable end-to-end.</td>
+          </tr>
+          <tr>
+            <td class="role-name">Developer</td>
+            <td class="before-col">Unclear user stories. Missing acceptance criteria. Ambiguous requirements that require multiple rounds of clarification.</td>
+            <td class="after-col"><strong>Auto-generated user stories</strong> with acceptance criteria, labels, weights, and story points — created as GitLab issues in one click.</td>
+          </tr>
+          <tr>
+            <td class="role-name">Engineering Manager</td>
+            <td class="before-col">No visibility into specification quality. No metrics on documentation completeness. Surprises surface in review, not before.</td>
+            <td class="after-col"><strong>Quality scores, analytics dashboard,</strong> and section-by-section breakdown — know the state of every specification before anyone reviews it.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== CTA ===== -->
+  <section class="cta-section">
+    <div class="container">
+      <h2>Stop Writing Epics.<br><span>Start Generating Them.</span></h2>
+      <p>Transform your requirements workflow from days of manual effort to minutes of AI-powered precision. FRAME is ready for your team.</p>
+      <a href="#" class="cta-btn">Request a Demo</a>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-col-title">Product</div>
+          <ul class="footer-links">
+            <li><a href="#">AI Pipeline</a></li>
+            <li><a href="#">Issue Management</a></li>
+            <li><a href="#">Blueprint Diagrams</a></li>
+            <li><a href="#">Quality Scoring</a></li>
+            <li><a href="#">GitLab Integration</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Enterprise</div>
+          <ul class="footer-links">
+            <li><a href="#">Azure AD SSO</a></li>
+            <li><a href="#">Security & Compliance</a></li>
+            <li><a href="#">Deployment Options</a></li>
+            <li><a href="#">API Documentation</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Resources</div>
+          <ul class="footer-links">
+            <li><a href="#">Documentation</a></li>
+            <li><a href="#">Getting Started Guide</a></li>
+            <li><a href="#">Release Notes</a></li>
+            <li><a href="#">Template Library</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Contact</div>
+          <ul class="footer-links">
+            <li><a href="#">Request a Demo</a></li>
+            <li><a href="#">Support</a></li>
+            <li><a href="#">Engineering Team</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-legal">
+        &copy; 2026 UBS Group AG. All rights reserved. FRAME — Full Requirement Automation & Management Engine. Internal use only. Confidential.
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
