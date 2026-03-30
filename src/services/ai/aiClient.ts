@@ -153,11 +153,11 @@ export function getActiveAIProvider(config: AppConfig): string {
 export function detectModelFamily(modelName: string): ModelFamily {
   const name = modelName.toLowerCase();
 
-  // Nano models — lightweight, fast, cheap
-  if (name.includes('nano')) return 'nano';
-
-  // GPT-5 series — all are reasoning models
+  // GPT-5 series — all are reasoning models (must check before nano, since gpt-5.4-nano contains both)
   if (name.includes('gpt-5')) return 'reasoning';
+
+  // Nano models — lightweight, fast, cheap (non-GPT-5 variants only)
+  if (name.includes('nano')) return 'nano';
 
   // o-series — all are reasoning models
   if (name.includes('o1') || name.includes('o3') || name.includes('o4')) return 'reasoning';
