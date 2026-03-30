@@ -11,6 +11,7 @@ import { withRetry } from '@/services/ai/throttler';
 import { buildMandatoryPrompt } from '@/pipeline/prompts/mandatoryPrompt';
 import { summarizeComprehension } from '@/pipeline/stages/runStage2Classification';
 import { getDiagramConfig } from '@/services/templates/templateLoader';
+import { applyDiagramTheme } from '@/pipeline/utils/diagramTheme';
 import type {
   MandatoryInput,
   MandatoryOutput,
@@ -42,8 +43,8 @@ const CATEGORY_SKELETONS: Record<string, string> = {
     Input["Input"] --> Process["Core Process"]
     Process --> Output["Output"]
     Process --> Store[("Data Store")]
-    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
-    classDef storage fill:#E69F00,stroke:#CC8800,color:#000
+    classDef primary fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+    classDef storage fill:#DDCC77,stroke:#AA9944,stroke-width:2px,color:#1A1A2E
     class Input,Process,Output primary
     class Store storage`,
 
@@ -52,8 +53,8 @@ const CATEGORY_SKELETONS: Record<string, string> = {
     API --> Service["Service Layer"]
     Service --> DB[("Database")]
     Service --> Cache[("Cache")]
-    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
-    classDef storage fill:#E69F00,stroke:#CC8800,color:#000
+    classDef primary fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+    classDef storage fill:#DDCC77,stroke:#AA9944,stroke-width:2px,color:#1A1A2E
     class Client,API,Service primary
     class DB,Cache storage`,
 
@@ -64,8 +65,8 @@ const CATEGORY_SKELETONS: Record<string, string> = {
     Decision -->|"Rejected"| Review["Review & Revise"]
     Review --> Step1
     Step2 --> End(["Complete"])
-    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
-    classDef decision fill:#009E73,stroke:#007A57,color:#fff
+    classDef primary fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+    classDef decision fill:#44BB99,stroke:#228877,stroke-width:1.5px,color:#1A1A2E
     class Step1,Step2,Review primary
     class Decision decision`,
 
@@ -76,9 +77,9 @@ const CATEGORY_SKELETONS: Record<string, string> = {
     Validate -->|"No"| Error["Error Message"]
     Error --> Screen1
     Success --> Next["Next Screen"]
-    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
-    classDef decision fill:#009E73,stroke:#007A57,color:#fff
-    classDef error fill:#D55E00,stroke:#A34600,color:#fff
+    classDef primary fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+    classDef decision fill:#44BB99,stroke:#228877,stroke-width:1.5px,color:#1A1A2E
+    classDef error fill:#EE8866,stroke:#C56040,stroke-width:2px,color:#1A1A2E
     class Screen1,Success,Next primary
     class Validate decision
     class Error error`,
@@ -104,8 +105,8 @@ const CATEGORY_SKELETONS: Record<string, string> = {
     DB --> Replica[("Read Replica")]
     App1 --> Cache[("Cache")]
     App2 --> Cache
-    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
-    classDef storage fill:#E69F00,stroke:#CC8800,color:#000
+    classDef primary fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+    classDef storage fill:#DDCC77,stroke:#AA9944,stroke-width:2px,color:#1A1A2E
     class LB,App1,App2 primary
     class DB,Replica,Cache storage`,
 
@@ -121,9 +122,9 @@ const CATEGORY_SKELETONS: Record<string, string> = {
     GoNoGo -->|"Go"| Cutover["Cutover"]
     GoNoGo -->|"No-Go"| Rollback["Rollback"]
     Cutover --> Hypercare["Hypercare Period"]
-    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
-    classDef decision fill:#009E73,stroke:#007A57,color:#fff
-    classDef error fill:#D55E00,stroke:#A34600,color:#fff
+    classDef primary fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+    classDef decision fill:#44BB99,stroke:#228877,stroke-width:1.5px,color:#1A1A2E
+    classDef error fill:#EE8866,stroke:#C56040,stroke-width:2px,color:#1A1A2E
     class Assess,Plan,Prep,DryRun,Execute,Cutover,Hypercare primary
     class Validate,GoNoGo decision
     class Fix,Rollback error`,
@@ -134,9 +135,9 @@ const CATEGORY_SKELETONS: Record<string, string> = {
     Integration --> Monitor["Monitoring"]
     Integration --> ErrorQ["Error Queue"]
     ErrorQ -->|"Retry"| Integration
-    classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
-    classDef secondary fill:#56B4E9,stroke:#0072B2,color:#fff
-    classDef error fill:#D55E00,stroke:#A34600,color:#fff
+    classDef primary fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+    classDef secondary fill:#8DA0CB,stroke:#6070A8,stroke-width:1.5px,color:#1A1A2E
+    classDef error fill:#EE8866,stroke:#C56040,stroke-width:2px,color:#1A1A2E
     class SystemA,SystemB primary
     class Integration,Monitor secondary
     class ErrorQ error`,
@@ -543,33 +544,8 @@ function tryExtractFromCodeBlock(text: string): unknown {
   return tryParseJSON(match[1]);
 }
 
-// ─── Diagram Theme Injection (colorblind-safe palette) ──────
-
-function applyDiagramTheme(diagramCode: string): string {
-  if (diagramCode.includes('%%{init:')) return diagramCode;
-
-  const themeInit = `%%{init: {'theme': 'base', 'themeVariables': {
-  'primaryColor': '#0072B2',
-  'primaryTextColor': '#ffffff',
-  'primaryBorderColor': '#005A8C',
-  'secondaryColor': '#56B4E9',
-  'secondaryTextColor': '#ffffff',
-  'secondaryBorderColor': '#0072B2',
-  'tertiaryColor': '#E69F00',
-  'tertiaryTextColor': '#000000',
-  'tertiaryBorderColor': '#CC8800',
-  'lineColor': '#64748B',
-  'textColor': '#1F2937',
-  'mainBkg': '#FAFAFA',
-  'nodeBorder': '#E5E7EB',
-  'clusterBkg': '#F0F9FF',
-  'clusterBorder': '#BAE6FD',
-  'edgeLabelBackground': 'transparent',
-  'fontSize': '14px'
-}}}%%
-`;
-  return themeInit + diagramCode;
-}
+// ─── Diagram Theme Injection ────────────────────────────────
+// Shared: src/pipeline/utils/diagramTheme.ts
 
 // ─── Empty Output ───────────────────────────────────────────
 

@@ -68,6 +68,28 @@ describe('setCode', () => {
   });
 });
 
+// ─── version auto-labeling ─────────────────────────────────
+
+describe('version auto-labeling', () => {
+  it('auto-generates v1, v2 labels', () => {
+    useBlueprintStore.getState().setCode('graph TD\nA-->B', 'flowchart');
+    expect(useBlueprintStore.getState().versions[0]!.label).toBe('v1');
+    useBlueprintStore.getState().setCode('graph TD\nA-->B-->C', 'flowchart');
+    expect(useBlueprintStore.getState().versions[1]!.label).toBe('v2');
+  });
+
+  it('appends activity suffix to version label', () => {
+    useBlueprintStore.getState().setCode('graph TD\nA-->B', 'flowchart');
+    useBlueprintStore.getState().setCode('graph TD\nA-->B-->C', 'flowchart', '', 'simplify');
+    expect(useBlueprintStore.getState().versions[1]!.label).toBe('v2-simplify');
+  });
+
+  it('handles labels with spaces', () => {
+    useBlueprintStore.getState().setCode('graph TD\nA-->B', 'flowchart', '', 'Added Detail');
+    expect(useBlueprintStore.getState().versions[0]!.label).toBe('v1-added-detail');
+  });
+});
+
 // ─── setSvg ─────────────────────────────────────────────────
 
 describe('setSvg', () => {

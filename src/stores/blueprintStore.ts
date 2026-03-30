@@ -79,11 +79,15 @@ export const useBlueprintStore = create<BlueprintStore>()((set, get) => ({
 
   setCode: (code, type, reasoning, label) => {
     const { versions } = get();
+    const versionNumber = versions.length + 1;
+    const autoLabel = label
+      ? `v${versionNumber}-${label.toLowerCase().replace(/\s+/g, '-')}`
+      : `v${versionNumber}`;
     const newVersion: DiagramVersion = {
       code,
       type: type ?? '',
       timestamp: Date.now(),
-      label,
+      label: autoLabel,
     };
     const newVersions = [...versions, newVersion];
     set({

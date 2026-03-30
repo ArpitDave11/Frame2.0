@@ -12,30 +12,7 @@ import { useBlueprintStore } from '@/stores/blueprintStore';
 import { useUiStore } from '@/stores/uiStore';
 import { callAI, isAIEnabled } from '@/services/ai/aiClient';
 import type { AIClientConfig } from '@/services/ai/types';
-
-function applyDiagramTheme(diagramCode: string): string {
-  if (diagramCode.includes('%%{init:')) return diagramCode;
-  const themeInit = `%%{init: {'theme': 'base', 'themeVariables': {
-  'primaryColor': '#0072B2',
-  'primaryTextColor': '#ffffff',
-  'primaryBorderColor': '#005A8C',
-  'secondaryColor': '#56B4E9',
-  'secondaryTextColor': '#ffffff',
-  'secondaryBorderColor': '#0072B2',
-  'tertiaryColor': '#E69F00',
-  'tertiaryTextColor': '#000000',
-  'tertiaryBorderColor': '#CC8800',
-  'lineColor': '#64748B',
-  'textColor': '#1F2937',
-  'mainBkg': '#FAFAFA',
-  'nodeBorder': '#E5E7EB',
-  'clusterBkg': '#F0F9FF',
-  'clusterBorder': '#BAE6FD',
-  'edgeLabelBackground': 'transparent',
-  'fontSize': '14px'
-}}}%%\n`;
-  return themeInit + diagramCode;
-}
+import { applyDiagramTheme } from '@/pipeline/utils/diagramTheme';
 
 export async function regenerateBlueprintAction(instruction?: string): Promise<void> {
   const epicStore = useEpicStore.getState();
@@ -83,14 +60,14 @@ Syntax rules:
 - Subgraph names with spaces: subgraph SG["My Group"]
 - Never use "end" as a node label
 
-Semantic colors via classDef (Paul Tol Light palette):
-classDef service fill:#99DDFF,stroke:#33BBEE,color:#000
-classDef database fill:#77AADD,stroke:#4477AA,color:#000
-classDef external fill:#EE8866,stroke:#CC3311,color:#000
-classDef queue fill:#EEDD88,stroke:#CCBB44,color:#000
-classDef cache fill:#44BB99,stroke:#009988,color:#000
-classDef security fill:#FFAABB,stroke:#EE3377,color:#000
-classDef infra fill:#DDDDDD,stroke:#999999,color:#000
+Semantic colors via classDef (Paul Tol Light — WCAG AA compliant):
+classDef service fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+classDef database fill:#DDCC77,stroke:#AA9944,stroke-width:2px,color:#1A1A2E
+classDef external fill:#B3B3B3,stroke:#888888,stroke-width:1.5px,color:#1A1A2E
+classDef queue fill:#EE8866,stroke:#C56040,stroke-width:1.5px,color:#1A1A2E
+classDef cache fill:#44BB99,stroke:#228877,stroke-width:1.5px,color:#1A1A2E
+classDef security fill:#FFAABB,stroke:#CC7799,stroke-width:1.5px,color:#1A1A2E
+classDef infra fill:#8DA0CB,stroke:#6070A8,stroke-width:1.5px,color:#1A1A2E
 
 Apply classes: API["Gateway"]:::service
 After connections, add linkStyle for 5-10 key arrows with semantic colors.

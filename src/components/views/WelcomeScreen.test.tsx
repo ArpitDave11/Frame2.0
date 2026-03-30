@@ -74,7 +74,7 @@ describe('WelcomeScreen', () => {
       expect(screen.getByTestId(`template-${cat.id}`)).toBeDefined();
     }
     expect(screen.queryByTestId('template-general')).toBeNull();
-    expect(displayed).toHaveLength(7);
+    expect(displayed).toHaveLength(9);
   });
 
   it('lifecycle shows 5 stages', () => {

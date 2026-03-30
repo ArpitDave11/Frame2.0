@@ -14,11 +14,11 @@ import {
   Star,
   GearSix,
   ArrowCounterClockwise,
+  DownloadSimple,
 } from '@phosphor-icons/react';
 import { useUiStore } from '@/stores/uiStore';
 import { useEpicStore } from '@/stores/epicStore';
 import { usePipelineStore } from '@/stores/pipelineStore';
-import { useBlueprintStore } from '@/stores/blueprintStore';
 import { useGitlabStore } from '@/stores/gitlabStore';
 import { EPIC_CATEGORIES } from '@/domain/categoryConstants';
 import { ComplexitySelector } from '@/components/editor/ComplexitySelector';
@@ -30,12 +30,12 @@ export function WorkspaceHeader() {
   // ─── Store reads ────────────────────────────────────────────
   const markdown = useEpicStore((s) => s.markdown);
   const category = useEpicStore((s) => s.document?.category ?? '');
+  const epicTitle = useEpicStore((s) => s.document?.title ?? 'epic');
   const complexity = useEpicStore((s) => s.complexity);
   const qualityScore = useEpicStore((s) => s.document?.metadata?.qualityScore ?? null);
   const sla = useEpicStore((s) => s.sla);
   const canUndo = useEpicStore((s) => s.previousMarkdown !== null);
   const isRunning = usePipelineStore((s) => s.isRunning);
-  const diagramReady = useBlueprintStore((s) => !!s.code);
   const hasGitLabContext = useGitlabStore((s) => s.loadedEpicIid !== null);
 
   // ─── Store writes ───────────────────────────────────────────
@@ -59,6 +59,16 @@ export function WorkspaceHeader() {
   const handlePublish = () => openModal('publish');
   const handleIssues = () => openModal('issueCreation');
   const handleSettings = () => openModal('settings');
+  const handleDownloadMarkdown = () => {
+    const safeName = epicTitle.replace(/[^a-z0-9_-]/gi, '_').substring(0, 50);
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeName}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <header
@@ -222,6 +232,30 @@ export function WorkspaceHeader() {
           }}
         >
           <FloppyDisk size={14} weight="regular" /> Save
+        </button>
+
+        {/* Download .md */}
+        <button
+          onClick={hasContent ? handleDownloadMarkdown : undefined}
+          disabled={!hasContent}
+          data-testid="btn-download-md"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 14px',
+            border: '1px solid var(--col-border-illustrative)',
+            borderRadius: '0.375rem',
+            background: 'var(--col-background-ui-10)',
+            color: hasContent ? 'var(--col-text-primary)' : 'var(--col-text-subtle)',
+            fontSize: 13,
+            fontWeight: 400,
+            cursor: hasContent ? 'pointer' : 'not-allowed',
+            fontFamily: F,
+            opacity: hasContent ? 1 : 0.4,
+          }}
+        >
+          <DownloadSimple size={14} weight="regular" /> Download
         </button>
       </div>
 

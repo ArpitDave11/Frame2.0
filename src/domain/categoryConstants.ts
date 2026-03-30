@@ -133,4 +133,28 @@ export const EPIC_CATEGORIES: EpicCategory[] = [
       'SLA',
     ],
   },
+  {
+    id: 'architecture_decision_record',
+    label: 'Decision Record',
+    icon: '⚖',
+    secs: [
+      'Context',
+      'Decision Drivers',
+      'Goals & Non-Goals',
+      'Considered Options',
+      'Decision Outcome',
+      'Consequences',
+    ],
+  },
+  {
+    id: 'lightweight_rfc',
+    label: 'Lightweight RFC',
+    icon: '📄',
+    secs: [
+      'Problem Statement',
+      'Goals & Non-Goals',
+      'Proposed Solution',
+      'Impact & Scope',
+    ],
+  },
 ];

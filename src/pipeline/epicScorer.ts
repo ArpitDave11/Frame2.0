@@ -9,6 +9,7 @@
  */
 
 import type { ComplexityLevel } from '@/domain/types';
+import { getComplexityConfig } from '@/domain/complexity';
 
 // ─── BM25 Saturation Primitive ──────────────────────────────
 
@@ -561,6 +562,19 @@ export function analyzeMermaidGraph(code: string): MermaidGraphAnalysis {
     duplicateEdges,
     poorLabels,
     score,
+  };
+}
+
+// ─── Diagram Node Count Validation ─────────────────────────
+
+export function validateDiagramNodeCount(
+  nodeCount: number,
+  complexity: ComplexityLevel,
+): { withinLimits: boolean; max: number } {
+  const { diagramNodeRange } = getComplexityConfig(complexity);
+  return {
+    withinLimits: nodeCount <= diagramNodeRange.max,
+    max: diagramNodeRange.max,
   };
 }
 

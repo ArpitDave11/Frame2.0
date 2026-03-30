@@ -235,6 +235,10 @@ describe('detectModelFamily', () => {
     expect(detectModelFamily('gpt-5.4')).toBe('reasoning');
   });
 
+  it('detects gpt-5.4-nano as nano', () => {
+    expect(detectModelFamily('gpt-5.4-nano')).toBe('nano');
+  });
+
   it('detects o1 series as reasoning', () => {
     expect(detectModelFamily('o1-preview')).toBe('reasoning');
   });

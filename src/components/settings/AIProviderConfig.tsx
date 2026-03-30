@@ -11,7 +11,7 @@ import { useUiStore } from '@/stores/uiStore';
 import { testAzure } from '@/services/ai/azureClient';
 import { testOpenAI } from '@/services/ai/openaiClient';
 import type { AIProvider } from '@/domain/configTypes';
-import { OPENAI_MODELS, AZURE_API_VERSIONS } from '@/domain/configTypes';
+import { AZURE_API_VERSIONS } from '@/domain/configTypes';
 import { ConnectionTestButton } from './ConnectionTestButton';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
@@ -64,7 +64,6 @@ export function AIProviderConfig() {
   const addToast = useUiStore((s) => s.addToast);
 
   const [showAzureKey, setShowAzureKey] = useState(false);
-  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
 
   const provider = config.ai.provider;
 

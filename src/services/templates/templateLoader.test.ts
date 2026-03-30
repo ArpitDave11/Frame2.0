@@ -14,6 +14,7 @@ import type { EpicCategory, ComplexityLevel } from '@/domain/types';
 // ─── All 7 categories ──────────────────────────────────────
 
 const ALL_CATEGORIES: EpicCategory[] = [
+  'general',
   'technical_design',
   'business_requirement',
   'feature_specification',
@@ -21,6 +22,8 @@ const ALL_CATEGORIES: EpicCategory[] = [
   'infrastructure_design',
   'migration_plan',
   'integration_spec',
+  'architecture_decision_record',
+  'lightweight_rfc',
 ];
 
 const ALL_COMPLEXITIES: ComplexityLevel[] = ['simple', 'moderate', 'complex'];
@@ -42,7 +45,7 @@ describe('loadCategoryTemplate', () => {
     expect(biz.expertRole).not.toBe(tech.expertRole);
   });
 
-  it('all 7 categories load without error', () => {
+  it('all 10 categories load without error', () => {
     for (const category of ALL_CATEGORIES) {
       const tpl = loadCategoryTemplate(category);
       expect(tpl.requiredSections).toBeDefined();
@@ -226,7 +229,7 @@ describe('getScaledTemplate', () => {
     expect(original.requiredSections['Objective']?.target).toBe(originalTarget);
   });
 
-  it('all 7 categories × 3 complexity levels produce valid templates (21 combinations)', () => {
+  it('all 10 categories × 3 complexity levels produce valid templates (30 combinations)', () => {
     for (const category of ALL_CATEGORIES) {
       for (const complexity of ALL_COMPLEXITIES) {
         const tpl = getScaledTemplate(category, complexity);

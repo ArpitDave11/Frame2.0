@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runPremiumPipeline, buildPipelineConfig } from './pipelineOrchestrator';
+import { runPremiumPipeline, buildPipelineConfig, buildStageAIConfig, DEFAULT_NANO_DEPLOYMENT } from './pipelineOrchestrator';
 import type { PipelineProgress } from '@/pipeline/pipelineTypes';
 import type { AIClientConfig } from '@/services/ai/types';
 
@@ -81,7 +81,7 @@ describe('buildPipelineConfig', () => {
   it('complex complexity returns higher thresholds', () => {
     const config = buildPipelineConfig('complex');
     expect(config.passingScore).toBe(85);
-    expect(config.maxIterations).toBe(5);
+    expect(config.maxIterations).toBe(3);
   });
 
   it('moderate is between simple and complex', () => {
@@ -135,10 +135,9 @@ describe('runPremiumPipeline', () => {
       mockS4.mockResolvedValue({ success: true, data: REFINE_DATA, metadata: META });
       mockS5.mockResolvedValue({ success: true, data: MANDATORY_DATA, metadata: META });
 
-      // Fail twice, pass third time
+      // Fail once, pass second time (moderate maxIterations = 2)
       mockS6
         .mockResolvedValueOnce({ success: true, data: makeValidation(70, false), metadata: META })
-        .mockResolvedValueOnce({ success: true, data: makeValidation(80, false), metadata: META })
         .mockResolvedValueOnce({ success: true, data: makeValidation(90, true), metadata: META });
 
       const result = await runPremiumPipeline({
@@ -146,10 +145,10 @@ describe('runPremiumPipeline', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.iterations).toBe(3);
-      expect(mockS4).toHaveBeenCalledTimes(3);
-      expect(mockS5).toHaveBeenCalledTimes(3);
-      expect(mockS6).toHaveBeenCalledTimes(3);
+      expect(result.iterations).toBe(2);
+      expect(mockS4).toHaveBeenCalledTimes(2);
+      expect(mockS5).toHaveBeenCalledTimes(2);
+      expect(mockS6).toHaveBeenCalledTimes(2);
     });
 
     it('forwards feedback to Stage 4 on retry', async () => {
@@ -196,15 +195,17 @@ describe('runPremiumPipeline', () => {
   });
 
   describe('phase 1 failure', () => {
-    it('aborts immediately when Stage 1 fails', async () => {
+    it('aborts when Stage 1 fails (s1+s2 run in parallel)', async () => {
       mockS1.mockResolvedValue({ success: false, data: COMP_DATA, metadata: META });
+      mockS2.mockResolvedValue({ success: true, data: CLASS_DATA, metadata: META });
 
       const result = await runPremiumPipeline({
         rawContent: 'x', title: 'x', complexity: 'moderate', aiConfig: AI_CONFIG,
       });
 
       expect(result.success).toBe(false);
-      expect(mockS2).not.toHaveBeenCalled();
+      // s2 runs in parallel with s1, so it IS called
+      expect(mockS2).toHaveBeenCalledTimes(1);
       expect(mockS3).not.toHaveBeenCalled();
     });
 
@@ -271,5 +272,45 @@ describe('runPremiumPipeline', () => {
       expect(result.success).toBe(false);
       expect(result.totalDuration).toBeGreaterThanOrEqual(0);
     });
+  });
+});
+
+// ─── buildStageAIConfig ────────────────────────────────────
+
+describe('buildStageAIConfig', () => {
+  const AZURE_CONFIG: AIClientConfig = {
+    provider: 'azure',
+    azure: { endpoint: 'https://test.openai.azure.com', deploymentName: 'gpt-4.1', apiKey: 'key', apiVersion: '2025-04-01-preview', model: 'gpt-4.1' },
+    openai: { apiKey: '', model: '', baseUrl: '' },
+    endpoints: { gitlabBaseUrl: '', azureEndpoint: 'https://test.openai.azure.com', openaiBaseUrl: '' },
+  };
+
+  it('returns base config when no override', () => {
+    const result = buildStageAIConfig(AZURE_CONFIG);
+    expect(result).toBe(AZURE_CONFIG);
+  });
+
+  it('returns base config for non-azure provider', () => {
+    const result = buildStageAIConfig(AI_CONFIG, { deploymentName: 'gpt-5.4-nano' });
+    expect(result).toBe(AI_CONFIG);
+  });
+
+  it('overrides deployment name and model for azure', () => {
+    const result = buildStageAIConfig(AZURE_CONFIG, { deploymentName: 'gpt-5.4-nano' });
+    expect(result.azure.deploymentName).toBe('gpt-5.4-nano');
+    expect(result.azure.model).toBe('gpt-5.4-nano');
+    // Other azure fields preserved
+    expect(result.azure.apiKey).toBe('key');
+    expect(result.azure.endpoint).toBe('https://test.openai.azure.com');
+  });
+});
+
+// ─── buildPipelineConfig stageModelOverrides ───────────────
+
+describe('buildPipelineConfig stageModelOverrides', () => {
+  it('includes nano overrides for classification and validation', () => {
+    const config = buildPipelineConfig('moderate');
+    expect(config.stageModelOverrides?.classification?.deploymentName).toBe(DEFAULT_NANO_DEPLOYMENT);
+    expect(config.stageModelOverrides?.validation?.deploymentName).toBe(DEFAULT_NANO_DEPLOYMENT);
   });
 });

@@ -20,6 +20,7 @@ export interface ComplexityConfig {
   validationThreshold: number;
   maxPipelineIterations: number;
   formatComplexity: 'simplified' | 'standard' | 'full';
+  diagramNodeRange: { min: number; max: number };
 }
 
 // ─── Scaling Configs (BRD FR-5 Table) ───────────────────────
@@ -35,6 +36,7 @@ export const COMPLEXITY_CONFIGS: Readonly<Record<ComplexityLevel, Readonly<Compl
     validationThreshold: 70,
     maxPipelineIterations: 2,
     formatComplexity: 'simplified',
+    diagramNodeRange: { min: 4, max: 6 },
   }),
   moderate: Object.freeze({
     sectionInclusion: 'required-plus-key-optional',
@@ -44,8 +46,9 @@ export const COMPLEXITY_CONFIGS: Readonly<Record<ComplexityLevel, Readonly<Compl
     includeStoryPoints: true,
     diagramComplexity: 'standard',
     validationThreshold: 80,
-    maxPipelineIterations: 3,
+    maxPipelineIterations: 2,
     formatComplexity: 'standard',
+    diagramNodeRange: { min: 6, max: 8 },
   }),
   complex: Object.freeze({
     sectionInclusion: 'all',
@@ -55,8 +58,9 @@ export const COMPLEXITY_CONFIGS: Readonly<Record<ComplexityLevel, Readonly<Compl
     includeStoryPoints: true,
     diagramComplexity: 'multiple',
     validationThreshold: 85,
-    maxPipelineIterations: 5,
+    maxPipelineIterations: 3,
     formatComplexity: 'full',
+    diagramNodeRange: { min: 8, max: 12 },
   }),
 });
 

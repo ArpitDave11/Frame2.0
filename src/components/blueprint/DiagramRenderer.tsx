@@ -12,18 +12,44 @@ import { useBlueprintStore } from '@/stores/blueprintStore';
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
 // Single global mermaid config — V4 parity. No other file should call initialize().
+// Theme: Paul Tol Light palette on #FAFAFA. Per-diagram %%{init} overrides cascade on top.
 mermaid.initialize({
   startOnLoad: false,
   theme: 'base',
   securityLevel: 'loose',
-  fontFamily: 'Frutiger, Helvetica Neue, Arial, sans-serif',
+  fontFamily: 'Frutiger, Helvetica Neue, Helvetica, Arial, sans-serif',
   themeVariables: {
-    edgeLabelBackground: 'transparent',
+    darkMode: false,
+    background: '#FAFAFA',
+    primaryColor: '#E8F0FE',
+    primaryTextColor: '#1A1A2E',
+    primaryBorderColor: '#4A90D9',
+    secondaryColor: '#F5F5F5',
+    tertiaryColor: '#F0F4F8',
+    tertiaryBorderColor: '#B0BEC5',
+    tertiaryTextColor: '#37474F',
+    lineColor: '#546E7A',
+    textColor: '#37474F',
+    mainBkg: '#E8F0FE',
+    nodeBorder: '#4A90D9',
+    nodeTextColor: '#1A1A2E',
+    clusterBkg: '#F5F7FA',
+    clusterBorder: '#B0BEC5',
+    titleColor: '#37474F',
+    edgeLabelBackground: '#FAFAFA',
+    fontSize: '14px',
+    noteBkgColor: '#FFF8E1',
+    noteTextColor: '#333333',
+    noteBorderColor: '#FFD54F',
   },
   flowchart: {
     useMaxWidth: true,
     htmlLabels: true,
     curve: 'basis',
+    nodeSpacing: 40,
+    rankSpacing: 50,
+    diagramPadding: 20,
+    padding: 8,
   },
 });
 

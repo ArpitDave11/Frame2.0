@@ -37,17 +37,17 @@ export interface MandatoryPromptVars {
 
 const COMPLEXITY_INSTRUCTIONS: Record<ComplexityLevel, string> = {
   simple: `Complexity level: SIMPLE.
-- Architecture diagram: a single flowchart or graph showing main components and their connections. Keep it concise (5–10 nodes).
+- Architecture diagram: a single flowchart or graph showing main components and their connections. STRICT LIMIT: 4–6 nodes maximum. Do NOT exceed 6 nodes.
 - User stories: focus on core user-facing functionality. Keep acceptance criteria brief (2–3 per story).
 - Epic assembly: include only required sections. Minimal metadata.`,
 
   moderate: `Complexity level: MODERATE.
-- Architecture diagram: a detailed graph showing components, data stores, external integrations, and primary data flows. Include 10–20 nodes.
+- Architecture diagram: a detailed graph showing components, data stores, external integrations, and primary data flows. STRICT LIMIT: 6–8 nodes maximum. Do NOT exceed 8 nodes.
 - User stories: cover both user-facing and key technical stories. Include 3–4 acceptance criteria per story.
 - Epic assembly: include required and key optional sections. Standard metadata.`,
 
   complex: `Complexity level: COMPLEX.
-- Architecture diagram: a comprehensive multi-layer diagram showing all components, services, data flows, external dependencies, and cross-cutting concerns. Include 15–30+ nodes.
+- Architecture diagram: a comprehensive multi-layer diagram showing all components, services, data flows, external dependencies, and cross-cutting concerns. STRICT LIMIT: 8–12 nodes maximum. Do NOT exceed 12 nodes.
 - User stories: exhaustive coverage including edge cases, error handling stories, and non-functional requirement stories. Include 4–5 acceptance criteria per story.
 - Epic assembly: include all sections. Comprehensive metadata with cross-references.`,
 };
@@ -254,48 +254,39 @@ Use different Mermaid node shapes to convey meaning:
 - Events/Triggers: \`ID(("Label"))\` (circle)
 - Processes: \`ID("Label")\` (rounded rectangle)
 
-#### Semantic Colors via classDef (Paul Tol Light — colorblind-safe)
-Define these classDef classes at the top of the diagram, then apply them:
+#### Semantic Colors via classDef (Paul Tol Light — WCAG AA, colorblind-safe)
+Define these classDef classes at the top of EVERY diagram, then apply them:
 
 \`\`\`
-classDef service fill:#99DDFF,stroke:#33BBEE,color:#000
-classDef database fill:#77AADD,stroke:#4477AA,color:#000
-classDef external fill:#EE8866,stroke:#CC3311,color:#000
-classDef queue fill:#EEDD88,stroke:#CCBB44,color:#000
-classDef cache fill:#44BB99,stroke:#009988,color:#000
-classDef security fill:#FFAABB,stroke:#EE3377,color:#000
-classDef infra fill:#DDDDDD,stroke:#999999,color:#000
+classDef service fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+classDef database fill:#DDCC77,stroke:#AA9944,stroke-width:2px,color:#1A1A2E
+classDef external fill:#B3B3B3,stroke:#888888,stroke-width:1.5px,color:#1A1A2E
+classDef queue fill:#EE8866,stroke:#C56040,stroke-width:1.5px,color:#1A1A2E
+classDef cache fill:#44BB99,stroke:#228877,stroke-width:1.5px,color:#1A1A2E
+classDef security fill:#FFAABB,stroke:#CC7799,stroke-width:1.5px,color:#1A1A2E
+classDef infra fill:#8DA0CB,stroke:#6070A8,stroke-width:1.5px,color:#1A1A2E
 \`\`\`
 
 Apply classes using the \`:::\` shorthand: \`API["API Gateway"]:::service\`
 
+These same classDef definitions also serve as the process flow palette. Map roles consistently:
+- Primary services/components: \`:::service\` (steel blue)
+- Supporting services/APIs: \`:::infra\` (lavender)
+- Databases/caches/storage: \`:::database\` (sand)
+- Decision diamonds: \`:::cache\` (mint green)
+- Error/failure paths: \`:::queue\` (coral)
+
 #### Arrow Styling via linkStyle
 After ALL connections, add linkStyle commands for colored arrows. Index is 0-based, counting arrows in order of appearance:
-- User/client flows: \`linkStyle 0 stroke:#0072B2,stroke-width:2.5px\`
-- Service-to-service: \`linkStyle 1 stroke:#6366F1,stroke-width:2px\`
-- Database calls: \`linkStyle 2 stroke:#E69F00,stroke-width:2px\`
-- Async/events: \`linkStyle 3 stroke:#009E73,stroke-width:2px,stroke-dasharray:5\`
-- External calls: \`linkStyle 4 stroke:#CC79A7,stroke-width:2px\`
+- User/client flows: \`linkStyle 0 stroke:#4477AA,stroke-width:2.5px\`
+- Service-to-service: \`linkStyle 1 stroke:#6070A8,stroke-width:2px\`
+- Database calls: \`linkStyle 2 stroke:#AA9944,stroke-width:2px\`
+- Async/events: \`linkStyle 3 stroke:#228877,stroke-width:2px,stroke-dasharray:5\`
+- External calls: \`linkStyle 4 stroke:#CC7799,stroke-width:2px\`
 
 Apply the appropriate color based on what each arrow represents. You do not need to style every arrow — focus on the most important 5-10 connections.
 
-#### Color Classes for Skeleton Consistency
-For flowchart/graph diagrams, also apply these classDef styles for consistent theming:
-
-\`\`\`
-classDef primary fill:#0072B2,stroke:#005A8C,color:#fff
-classDef secondary fill:#56B4E9,stroke:#0072B2,color:#fff
-classDef storage fill:#E69F00,stroke:#CC8800,color:#000
-classDef decision fill:#009E73,stroke:#007A57,color:#fff
-classDef error fill:#D55E00,stroke:#A34600,color:#fff
-\`\`\`
-
-Apply classes to nodes based on their role:
-- Primary services/components: \`class NodeId primary\`
-- Supporting services: \`class NodeId secondary\`
-- Databases/caches/storage: \`class NodeId storage\`
-- Decision diamonds: \`class NodeId decision\`
-- Error/failure paths: \`class NodeId error\`
+**IMPORTANT:** All text inside nodes MUST be dark (#1A1A2E). Never use \`color:#fff\` or \`color:#ffffff\` — all fills are medium-lightness pastels designed for dark text.
 
 For sequenceDiagram and stateDiagram-v2: classDef is not supported. The %%{init} theme handles colors.
 

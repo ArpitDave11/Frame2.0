@@ -102,7 +102,7 @@ describe('Cross-feature interactions', () => {
 
       const config = getComplexityConfig('complex');
       expect(config.validationThreshold).toBe(85);
-      expect(config.maxPipelineIterations).toBe(5);
+      expect(config.maxPipelineIterations).toBe(3);
       expect(config.sectionInclusion).toBe('all');
       expect(config.storyCountRange.min).toBe(15);
       expect(config.storyCountRange.max).toBe(25);

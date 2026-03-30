@@ -123,10 +123,12 @@ describe('EpicCategory', () => {
     'infrastructure_design',
     'migration_plan',
     'integration_spec',
+    'architecture_decision_record',
+    'lightweight_rfc',
   ];
 
-  it('has exactly 7 valid categories', () => {
-    expect(ALL_CATEGORIES).toHaveLength(7);
+  it('has exactly 9 valid categories', () => {
+    expect(ALL_CATEGORIES).toHaveLength(9);
   });
 
   it('each category is a valid string', () => {

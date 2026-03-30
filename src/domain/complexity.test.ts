@@ -38,12 +38,12 @@ describe('getComplexityConfig', () => {
     expect(getComplexityConfig('simple').maxPipelineIterations).toBe(2);
   });
 
-  it('moderate max iterations is 3', () => {
-    expect(getComplexityConfig('moderate').maxPipelineIterations).toBe(3);
+  it('moderate max iterations is 2', () => {
+    expect(getComplexityConfig('moderate').maxPipelineIterations).toBe(2);
   });
 
-  it('complex max iterations is 5', () => {
-    expect(getComplexityConfig('complex').maxPipelineIterations).toBe(5);
+  it('complex max iterations is 3', () => {
+    expect(getComplexityConfig('complex').maxPipelineIterations).toBe(3);
   });
 
   it('simple section inclusion is required-only', () => {
@@ -107,6 +107,7 @@ describe('COMPLEXITY_CONFIGS completeness', () => {
     'validationThreshold',
     'maxPipelineIterations',
     'formatComplexity',
+    'diagramNodeRange',
   ];
 
   for (const level of levels) {

@@ -52,15 +52,34 @@ export async function runStage4Refinement(
   const template = loadCategoryTemplate(category);
   const discovered = discoverSections(input.rawContent);
   const plan = input.structural.transformationPlan;
-  const totalSections = plan.length;
 
   // Sections that Stage 5 will generate authoritatively — skip AI calls for these
   const STAGES_OWNED = new Set(['user stories', 'architecture diagram', 'architecture overview']);
 
+  // ── Targeted repair: on retry, only re-refine sections with feedback ──
+  // Build set of section IDs that need repair based on validation feedback.
+  // Sections without feedback keep their previous refinement output.
+  const needsRepair = input.previousFeedback
+    ? identifyFailedSections(plan, input.previousFeedback)
+    : null; // null = first pass, refine everything
+
+  const previousSectionMap = new Map<string, PipelineRefinedSection>();
+  if (needsRepair && input.previousRefinement) {
+    for (const s of input.previousRefinement.refinedSections) {
+      previousSectionMap.set(s.sectionId, s);
+    }
+  }
+
+  const sectionsToRefine = needsRepair
+    ? plan.filter((a) => needsRepair.has(a.sectionId))
+    : plan;
+
   onProgress?.({
     stageName: STAGE_NAME,
     status: 'running',
-    message: `Refining ${totalSections} sections in parallel...`,
+    message: needsRepair
+      ? `Targeted repair: re-refining ${sectionsToRefine.length}/${plan.length} sections...`
+      : `Refining ${plan.length} sections in parallel...`,
     timestamp: Date.now(),
   });
 
@@ -77,6 +96,14 @@ export async function runStage4Refinement(
       // Skip sections owned by Stage 5 — no wasted AI call
       if (STAGES_OWNED.has((action.displayName || action.sectionId).toLowerCase().trim())) {
         return { index: globalIdx, sections: [] as PipelineRefinedSection[], tokensUsed: 0 };
+      }
+
+      // Targeted repair: reuse previous output for sections that passed validation
+      if (needsRepair && !needsRepair.has(action.sectionId)) {
+        const prev = previousSectionMap.get(action.sectionId);
+        if (prev) {
+          return { index: globalIdx, sections: [prev], tokensUsed: 0 };
+        }
       }
 
       try {
@@ -103,6 +130,22 @@ export async function runStage4Refinement(
           const maxWords = secCfg?.max ?? 500;
           return { ...s, content: enforceWordLimit(s.content, maxWords) };
         });
+        // Emit per-section progress for streaming UI
+        for (const s of cappedSections) {
+          onProgress?.({
+            stageName: STAGE_NAME,
+            status: 'running',
+            message: `Completed section: ${s.title}`,
+            timestamp: Date.now(),
+            sectionComplete: {
+              sectionId: s.sectionId,
+              title: s.title,
+              index: globalIdx + 1,
+              total: plan.length,
+            },
+          });
+        }
+
         return { index: globalIdx, sections: cappedSections, tokensUsed: result.tokensUsed };
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
@@ -260,6 +303,55 @@ async function refineSingleSection(
     tokensUsed: response.usage?.totalTokens ?? 0,
     model: response.model,
   };
+}
+
+// ─── Targeted Repair ───────────────────────────────────────
+
+/**
+ * Identify sections that need re-refinement based on validation feedback.
+ * A section needs repair if any feedback item mentions its ID/title,
+ * or if it has a detected failure. Returns a Set of sectionIds.
+ */
+export function identifyFailedSections(
+  plan: readonly TransformationAction[],
+  feedback: ValidationOutput,
+): Set<string> {
+  const failed = new Set<string>();
+
+  // Check each section against feedback items and detected failures
+  for (const action of plan) {
+    const id = action.sectionId.toLowerCase();
+    const name = (action.displayName || action.sectionId).toLowerCase();
+
+    // Check feedback strings
+    for (const item of feedback.feedback) {
+      const lower = item.toLowerCase();
+      if (lower.includes(id) || lower.includes(name)) {
+        failed.add(action.sectionId);
+        break;
+      }
+    }
+
+    // Check detected failures
+    for (const f of feedback.detectedFailures) {
+      const pattern = f.pattern.toLowerCase();
+      const rec = f.recommendation.toLowerCase();
+      if (pattern.includes(id) || pattern.includes(name) || rec.includes(id) || rec.includes(name)) {
+        failed.add(action.sectionId);
+        break;
+      }
+    }
+  }
+
+  // If no specific sections identified but feedback exists, repair all
+  // (safety fallback — generic feedback should still trigger improvement)
+  if (failed.size === 0 && feedback.feedback.length > 0) {
+    for (const action of plan) {
+      failed.add(action.sectionId);
+    }
+  }
+
+  return failed;
 }
 
 // ─── Feedback Extraction ────────────────────────────────────

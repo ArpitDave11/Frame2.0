@@ -9,6 +9,7 @@ import {
   scoreSection,
   scoreDocument,
   getDefaultScoringConfig,
+  validateDiagramNodeCount,
   FILLER_PATTERN_COUNTS,
   type ScoringConfig,
 } from './epicScorer';
@@ -357,5 +358,31 @@ describe('getDefaultScoringConfig', () => {
   it('returns perDimensionMinimum', () => {
     const config = getDefaultScoringConfig('moderate');
     expect(config.perDimensionMinimum).toBe(0.2);
+  });
+});
+
+// ─── validateDiagramNodeCount ──────────────────────────────
+
+describe('validateDiagramNodeCount', () => {
+  it('simple with 5 nodes → within limits', () => {
+    const result = validateDiagramNodeCount(5, 'simple');
+    expect(result.withinLimits).toBe(true);
+    expect(result.max).toBe(6);
+  });
+
+  it('simple with 10 nodes → exceeds limits', () => {
+    const result = validateDiagramNodeCount(10, 'simple');
+    expect(result.withinLimits).toBe(false);
+  });
+
+  it('complex with 12 nodes → within limits', () => {
+    const result = validateDiagramNodeCount(12, 'complex');
+    expect(result.withinLimits).toBe(true);
+    expect(result.max).toBe(12);
+  });
+
+  it('complex with 15 nodes → exceeds limits', () => {
+    const result = validateDiagramNodeCount(15, 'complex');
+    expect(result.withinLimits).toBe(false);
   });
 });

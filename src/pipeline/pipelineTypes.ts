@@ -155,6 +155,11 @@ export interface StageMetadata {
   readonly iteration?: number;
 }
 
+/** Per-stage model deployment override (e.g., use nano for classification/validation) */
+export interface StageModelOverride {
+  readonly deploymentName: string;  // Azure deployment name for this stage
+}
+
 export interface PipelineConfig {
   readonly complexity: ComplexityLevel;
   readonly maxIterations: number;
@@ -165,6 +170,8 @@ export interface PipelineConfig {
   readonly classificationTemperature: number;  // Stage 2 — default 0.5
   readonly userApprovedSections: readonly string[];  // section IDs the user has manually edited
   readonly sla?: number;  // optional SLA in business days (= total story point capacity)
+  /** Per-stage model overrides — keys are stage names (e.g., 'classification', 'validation') */
+  readonly stageModelOverrides?: Readonly<Record<string, StageModelOverride>>;
 }
 
 export interface PipelineProgress {
@@ -174,6 +181,13 @@ export interface PipelineProgress {
   readonly score?: number;
   readonly message?: string;
   readonly timestamp: number;
+  /** Section-level streaming: emitted as each section completes in stage 4 */
+  readonly sectionComplete?: {
+    readonly sectionId: string;
+    readonly title: string;
+    readonly index: number;
+    readonly total: number;
+  };
 }
 
 export type PipelineProgressCallback = (progress: PipelineProgress) => void;
@@ -221,6 +235,7 @@ export interface RefinementInput {
   readonly comprehension: ComprehensionOutput;
   readonly rawContent: string;
   readonly previousFeedback?: ValidationOutput;
+  readonly previousRefinement?: RefinementOutput;  // for targeted repair — reuse passing sections
 }
 
 export interface MandatoryInput {

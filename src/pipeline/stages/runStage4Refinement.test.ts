@@ -288,3 +288,71 @@ describe('runStage4Refinement', () => {
     });
   });
 });
+
+// ─── identifyFailedSections ────────────────────────────────
+
+import { identifyFailedSections } from './runStage4Refinement';
+import type { TransformationAction } from '@/pipeline/pipelineTypes';
+
+describe('identifyFailedSections', () => {
+  const plan: TransformationAction[] = [
+    { sectionId: 'overview', displayName: 'Overview', action: 'restructure', details: '' },
+    { sectionId: 'requirements', displayName: 'Requirements', action: 'add', details: '' },
+    { sectionId: 'timeline', displayName: 'Timeline', action: 'keep', details: '' },
+  ];
+
+  const baseFeedback: ValidationOutput = {
+    traceabilityMatrix: [],
+    auditChecks: [],
+    overallScore: 60,
+    passed: false,
+    detectedFailures: [],
+    feedback: [],
+  };
+
+  it('identifies sections mentioned in feedback by sectionId', () => {
+    const feedback: ValidationOutput = { ...baseFeedback, feedback: ['The overview section lacks specificity'] };
+    const result = identifyFailedSections(plan, feedback);
+    expect(result.has('overview')).toBe(true);
+    expect(result.has('requirements')).toBe(false);
+    expect(result.has('timeline')).toBe(false);
+  });
+
+  it('identifies sections mentioned in feedback by displayName', () => {
+    const feedback: ValidationOutput = { ...baseFeedback, feedback: ['Requirements section is missing detail'] };
+    const result = identifyFailedSections(plan, feedback);
+    expect(result.has('requirements')).toBe(true);
+  });
+
+  it('identifies sections mentioned in detectedFailures pattern', () => {
+    const feedback: ValidationOutput = {
+      ...baseFeedback,
+      detectedFailures: [{ pattern: 'timeline incomplete', severity: 'major', recommendation: 'expand' }],
+    };
+    const result = identifyFailedSections(plan, feedback);
+    expect(result.has('timeline')).toBe(true);
+  });
+
+  it('identifies sections mentioned in detectedFailures recommendation', () => {
+    const feedback: ValidationOutput = {
+      ...baseFeedback,
+      detectedFailures: [{ pattern: 'generic issue', severity: 'minor', recommendation: 'improve overview clarity' }],
+    };
+    const result = identifyFailedSections(plan, feedback);
+    expect(result.has('overview')).toBe(true);
+  });
+
+  it('falls back to all sections when feedback exists but no sections identified', () => {
+    const feedback: ValidationOutput = { ...baseFeedback, feedback: ['Generic quality issue with no section reference'] };
+    const result = identifyFailedSections(plan, feedback);
+    expect(result.size).toBe(3);
+    expect(result.has('overview')).toBe(true);
+    expect(result.has('requirements')).toBe(true);
+    expect(result.has('timeline')).toBe(true);
+  });
+
+  it('returns empty set when no feedback at all', () => {
+    const result = identifyFailedSections(plan, baseFeedback);
+    expect(result.size).toBe(0);
+  });
+});

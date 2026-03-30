@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle, Warning, XCircle, Spinner, ArrowRight } from '@phosphor-icons/react';
+import { CheckCircle, Warning, XCircle, Spinner, ArrowRight, Plus } from '@phosphor-icons/react';
 import { useEpicStore } from '@/stores/epicStore';
 import { useGitlabStore } from '@/stores/gitlabStore';
 import { useConfigStore } from '@/stores/configStore';
@@ -19,6 +19,7 @@ import type { ParsedUserStory } from '@/pipeline/utils/parseUserStories';
 import type { DuplicateAnalysis } from '@/services/ai/analyzeStoryDuplicates';
 import type { CreationProgress } from '@/actions/createIssuesAction';
 import type { AIClientConfig } from '@/services/ai/types';
+import { generateCustomStories } from '@/services/ai/generateCustomStories';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
@@ -52,6 +53,11 @@ export function IssueCreationModal() {
   const [labelSuggestions, setLabelSuggestions] = useState<GitLabLabel[]>([]);
   const [loadingLabels, setLoadingLabels] = useState(false);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
+
+  // Custom issue creation state
+  const [customInput, setCustomInput] = useState('');
+  const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
+  const [customError, setCustomError] = useState<string | null>(null);
 
   const loadedGroupId = useGitlabStore((s) => s.loadedGroupId);
   const epicTitle = epicDoc?.title ?? 'Untitled Epic';
@@ -107,14 +113,12 @@ export function IssueCreationModal() {
   // Phase 1: Parse stories from markdown
   useEffect(() => {
     if (!markdown.trim()) {
-      setError('No epic content — run the Refine pipeline first to generate user stories.');
       setPhase('ready');
       return;
     }
 
     const stories = parseUserStories(markdown);
     if (stories.length === 0) {
-      setError('No user stories found in the epic. Make sure the epic has a "User Stories" section with ### US-XXX headers.');
       setPhase('ready');
       return;
     }
@@ -181,6 +185,50 @@ export function IssueCreationModal() {
   const deselectAll = useCallback(() => {
     setStoriesWithAnalysis((prev) => prev.map((item) => ({ ...item, selected: false })));
   }, []);
+
+  const handleGenerateCustomStories = useCallback(async () => {
+    if (!customInput.trim()) return;
+    setIsGeneratingCustom(true);
+    setCustomError(null);
+
+    try {
+      const aiConfig: AIClientConfig = {
+        provider: cfg.ai.provider,
+        azure: cfg.ai.azure,
+        openai: cfg.ai.openai,
+        endpoints: cfg.endpoints,
+      };
+
+      const existingIssues = gitlabIssues.map((i) => ({
+        title: i.title,
+        iid: i.iid,
+      }));
+
+      const newStories = await generateCustomStories(
+        aiConfig,
+        customInput,
+        markdown,
+        storiesWithAnalysis.map((s) => s.story),
+        existingIssues,
+      );
+
+      if (newStories.length === 0) {
+        setCustomError('Could not generate stories. Try being more specific.');
+        return;
+      }
+
+      setStoriesWithAnalysis((prev) => [
+        ...prev,
+        ...newStories.map((story) => ({ story, selected: true })),
+      ]);
+
+      setCustomInput('');
+    } catch (err) {
+      setCustomError((err as Error).message);
+    } finally {
+      setIsGeneratingCustom(false);
+    }
+  }, [customInput, cfg, markdown, storiesWithAnalysis, gitlabIssues]);
 
   const handleCreate = useCallback(async () => {
     if (!projectId.trim()) {
@@ -334,6 +382,75 @@ export function IssueCreationModal() {
         </div>
       )}
 
+      {/* No stories hint — show when no parsed stories and AI is available */}
+      {storiesWithAnalysis.length === 0 && cfg.ai.provider !== 'none' && phase === 'ready' && (
+        <div style={{
+          padding: '16px 16px 0',
+          fontSize: 13, fontWeight: 400, color: 'var(--col-text-subtle)',
+          fontFamily: F, lineHeight: 1.5,
+        }}>
+          No user stories found yet. Use <strong style={{ fontWeight: 600, color: 'var(--col-text-primary)' }}>Custom Issue</strong> below to describe what you need — AI will generate stories from your description.
+        </div>
+      )}
+
+      {/* Custom Issue Input — AI generates stories from description */}
+      {cfg.ai.provider !== 'none' && phase === 'ready' && (
+        <div
+          data-testid="custom-issue-section"
+          style={{
+            padding: storiesWithAnalysis.length === 0 ? '16px 16px' : '12px 16px',
+            backgroundColor: storiesWithAnalysis.length === 0 ? 'var(--col-background-ui-05, #F5F5F0)' : 'var(--col-background-ui-10, #FAFAFA)',
+            borderBottom: '1px solid var(--col-border-illustrative, #e5e5e5)',
+            border: storiesWithAnalysis.length === 0 ? '2px solid var(--col-background-brand)' : undefined,
+            borderRadius: storiesWithAnalysis.length === 0 ? 8 : 0,
+            margin: storiesWithAnalysis.length === 0 ? '8px 16px 12px' : 0,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--col-text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontFamily: F }}>
+            <Plus size={14} weight="bold" color="var(--col-background-brand)" />
+            Custom Issue
+          </div>
+          <textarea
+            data-testid="custom-issue-input"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            placeholder="Describe what you need... e.g., 'Set up CI/CD pipeline with GitHub Actions'"
+            style={{
+              width: '100%', minHeight: 60, padding: 10, borderRadius: 6,
+              border: '1px solid var(--col-border-illustrative)', fontSize: 13,
+              resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
+              background: 'var(--col-bg-surface, #fff)', color: 'var(--col-text, #222)',
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGenerateCustomStories();
+            }}
+          />
+          {customError && (
+            <div style={{ fontSize: 12, color: 'var(--col-background-brand)', marginTop: 6, fontFamily: F }}>
+              {customError}
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--col-text-subtle)', fontFamily: F }}>
+              AI generates user stories from your description + epic context (Cmd+Enter)
+            </span>
+            <button
+              data-testid="generate-stories-btn"
+              onClick={handleGenerateCustomStories}
+              disabled={!customInput.trim() || isGeneratingCustom}
+              style={{
+                padding: '6px 16px', borderRadius: 6, border: 'none',
+                background: customInput.trim() && !isGeneratingCustom ? 'var(--col-background-brand)' : 'var(--col-border-illustrative)',
+                color: '#fff', cursor: customInput.trim() && !isGeneratingCustom ? 'pointer' : 'not-allowed',
+                fontSize: 12, fontWeight: 500, fontFamily: F,
+              }}
+            >
+              {isGeneratingCustom ? 'Generating...' : 'Generate Stories'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* F04: Project picker */}
       {isGitLabConfigured && (
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--col-border-illustrative)' }}>
@@ -390,7 +507,8 @@ export function IssueCreationModal() {
         </div>
       )}
 
-      {/* Select all / deselect all */}
+      {/* Select all / deselect all — hidden when no stories */}
+      {storiesWithAnalysis.length > 0 && (
       <div style={{ padding: '8px 16px', display: 'flex', gap: 8, borderBottom: '1px solid var(--col-border-illustrative)' }}>
         <button onClick={selectAll} style={linkBtnStyle}>Select All</button>
         <button onClick={deselectAll} style={linkBtnStyle}>Deselect All</button>
@@ -399,8 +517,10 @@ export function IssueCreationModal() {
           {selectedCount} of {storiesWithAnalysis.length} selected
         </span>
       </div>
+      )}
 
-      {/* Story list */}
+      {/* Story list — hidden when no stories */}
+      {storiesWithAnalysis.length > 0 && (
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0', minHeight: 200 }}>
         {storiesWithAnalysis.map(({ story, analysis, selected }) => {
           const score = analysis?.similarityScore ?? 0;
@@ -442,6 +562,14 @@ export function IssueCreationModal() {
                 <div style={{ fontSize: 12, fontWeight: 400, color: 'var(--col-text-primary)' }}>
                   <span style={{ fontWeight: 500, color: 'var(--col-text-subtle)', marginRight: 6 }}>{story.id}</span>
                   {story.title}
+                  {story.id.startsWith('custom-') && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 500, padding: '2px 6px', borderRadius: 4,
+                      background: 'var(--col-background-brand)', color: '#fff', marginLeft: 6,
+                    }}>
+                      AI Generated
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 300, color: 'var(--col-text-subtle)', marginTop: 2 }}>
                   As a {story.asA}, I want {story.iWant}
@@ -471,6 +599,7 @@ export function IssueCreationModal() {
           );
         })}
       </div>
+      )}
 
       {/* A1: Labels typeahead */}
       {isGitLabConfigured && (

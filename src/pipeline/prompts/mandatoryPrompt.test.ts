@@ -128,19 +128,19 @@ describe('mandatoryPrompt', () => {
     it('includes complexity-specific instructions for simple', () => {
       const result = buildMandatoryPrompt({ ...FIXTURE_VARS, complexityLevel: 'simple' });
       expect(result).toContain('SIMPLE');
-      expect(result).toContain('5–10 nodes');
+      expect(result).toContain('4–6 nodes');
     });
 
     it('includes complexity-specific instructions for moderate', () => {
       const result = buildMandatoryPrompt(FIXTURE_VARS);
       expect(result).toContain('MODERATE');
-      expect(result).toContain('10–20 nodes');
+      expect(result).toContain('6–8 nodes');
     });
 
     it('includes complexity-specific instructions for complex', () => {
       const result = buildMandatoryPrompt({ ...FIXTURE_VARS, complexityLevel: 'complex' });
       expect(result).toContain('COMPLEX');
-      expect(result).toContain('15–30+');
+      expect(result).toContain('8–12 nodes');
     });
 
     it('does not contain unresolved template variables', () => {

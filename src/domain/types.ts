@@ -14,7 +14,7 @@ export type ComplexityLevel = 'simple' | 'moderate' | 'complex';
 
 // ─── Categories ─────────────────────────────────────────────
 
-/** The 7 epic category templates (BRD FR-4). Underscore convention matches
+/** The 10 epic category templates (BRD FR-4). Underscore convention matches
  *  categoryTemplates.json keys and pipeline Stage 2 classification output. */
 export type EpicCategory =
   | 'general'
@@ -24,7 +24,9 @@ export type EpicCategory =
   | 'api_specification'
   | 'infrastructure_design'
   | 'migration_plan'
-  | 'integration_spec';
+  | 'integration_spec'
+  | 'architecture_decision_record'
+  | 'lightweight_rfc';
 
 // ─── Section Formats ────────────────────────────────────────
 

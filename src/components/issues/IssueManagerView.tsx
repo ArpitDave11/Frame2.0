@@ -125,10 +125,16 @@ export function IssueManagerView() {
     ]).then(([recentResult, currentResult]) => {
       if (recentResult.success && recentResult.data) {
         setIterations(recentResult.data);
+      } else {
+        console.warn('[Iterations] fetchRecentIterations failed:', recentResult);
       }
-      const currentId = currentResult.data?.[0]?.id ?? null;
-      setCurrentIterationId(currentId);
-      setSelectedIterationId(currentId);
+      if (currentResult.success && currentResult.data) {
+        const currentId = currentResult.data[0]?.id ?? null;
+        setCurrentIterationId(currentId);
+        setSelectedIterationId(currentId);
+      } else {
+        console.warn('[Iterations] fetchCurrentIteration failed:', currentResult);
+      }
     }).finally(() => setLoadingIterations(false));
   }, [isConfigured, config.gitlab]);
 

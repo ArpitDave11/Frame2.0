@@ -27,7 +27,11 @@ import type {
   RefinementOutput,
   MandatoryOutput,
   ValidationOutput,
+  StageModelOverride,
 } from '@/pipeline/pipelineTypes';
+
+/** Default deployment name for lightweight stages (classification, validation). */
+export const DEFAULT_NANO_DEPLOYMENT = 'gpt-5.4-nano';
 
 // ─── Options ────────────────────────────────────────────────
 
@@ -65,6 +69,36 @@ export function buildPipelineConfig(
     classificationTemperature: 0.5,
     userApprovedSections,
     sla,
+    // Default nano model for lightweight stages (classification + validation)
+    stageModelOverrides: {
+      classification: { deploymentName: DEFAULT_NANO_DEPLOYMENT },
+      validation:     { deploymentName: DEFAULT_NANO_DEPLOYMENT },
+    },
+  };
+}
+
+// ─── Stage-Specific AI Config ───────────────────────────────
+
+/**
+ * Build a stage-specific AIClientConfig by overriding the deployment name
+ * when a stageModelOverride is configured. This lets lightweight stages
+ * (classification, validation) use a cheaper/faster model like gpt-5.4-nano.
+ */
+export function buildStageAIConfig(
+  baseConfig: AIClientConfig,
+  override?: StageModelOverride,
+): AIClientConfig {
+  if (!override) return baseConfig;
+  // Only Azure supports deployment-level model routing; OpenAI uses a single model.
+  if (baseConfig.provider !== 'azure') return baseConfig;
+
+  return {
+    ...baseConfig,
+    azure: {
+      ...baseConfig.azure,
+      deploymentName: override.deploymentName,
+      model: override.deploymentName,
+    },
   };
 }
 
@@ -88,23 +122,30 @@ export async function runPremiumPipeline(
   try {
     // ─── Phase 1: Linear (stages 1-3) ─────────────────────
 
-    // Stage 1: Comprehension
-    const s1 = await runStage1Comprehension(
-      { rawContent, title }, config, aiConfig, onProgress,
-    );
+    // Stages 1 + 2 run in parallel — classification uses rawContent as its
+    // primary signal and only needs comprehension for a supplementary summary.
+    // We pass an empty comprehension to s2 so it can start immediately.
+    // Stage 2 uses nano model override when configured.
+    const classificationAIConfig = buildStageAIConfig(aiConfig, config.stageModelOverrides?.classification);
+    const validationAIConfig = buildStageAIConfig(aiConfig, config.stageModelOverrides?.validation);
+
+    const [s1, s2] = await Promise.all([
+      runStage1Comprehension(
+        { rawContent, title }, config, aiConfig, onProgress,
+      ),
+      runStage2Classification(
+        { comprehension: emptyComp, rawContent }, config, classificationAIConfig, onProgress,
+      ),
+    ]);
+
     if (!s1.success) {
       return failResult('Stage 1 (Comprehension) failed', startTime, emptyComp, emptyClass, emptyStruct, emptyRefine, emptyMandatory, emptyValidation, 0);
     }
-
-    // Stage 2: Classification
-    const s2 = await runStage2Classification(
-      { comprehension: s1.data, rawContent }, config, aiConfig, onProgress,
-    );
     if (!s2.success) {
       return failResult('Stage 2 (Classification) failed', startTime, s1.data, emptyClass, emptyStruct, emptyRefine, emptyMandatory, emptyValidation, 0);
     }
 
-    // Stage 3: Structural
+    // Stage 3: Structural (depends on both s1 and s2)
     const s3 = await runStage3Structural(
       { comprehension: s1.data, classification: s2.data, rawContent }, config, aiConfig, onProgress,
     );
@@ -124,7 +165,7 @@ export async function runPremiumPipeline(
     for (let i = 0; i < config.maxIterations; i++) {
       iterations = i + 1;
 
-      // Stage 4: Refinement
+      // Stage 4: Refinement (targeted repair on retry — only re-refine failed sections)
       const s4 = await runStage4Refinement(
         {
           structural: s3.data,
@@ -132,6 +173,7 @@ export async function runPremiumPipeline(
           comprehension: s1.data,
           rawContent,
           previousFeedback,
+          previousRefinement: i > 0 ? refinement : undefined,
         },
         config, aiConfig, onProgress,
       );
@@ -163,7 +205,7 @@ export async function runPremiumPipeline(
       );
       mandatory = s5.data;
 
-      // Stage 6: Validation
+      // Stage 6: Validation (uses nano model override when configured)
       const s6 = await runStage6Validation(
         {
           mandatory: s5.data,
@@ -171,7 +213,7 @@ export async function runPremiumPipeline(
           classification: s2.data,
           config,
         },
-        config, aiConfig, onProgress,
+        config, validationAIConfig, onProgress,
       );
       validation = s6.data;
 

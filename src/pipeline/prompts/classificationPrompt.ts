@@ -41,6 +41,10 @@ const CATEGORY_DESCRIPTIONS: Record<EpicCategory, string> = {
     'Migration plan documents — data migration, system migration, cutover planning, and rollback strategies. Tone: methodical and risk-aware.',
   integration_spec:
     'Integration specification documents — system integration points, data flows, protocols, and SLAs. Tone: integration-focused and contract-driven.',
+  architecture_decision_record:
+    'Architecture Decision Records — captures WHY a technical decision was made, not just what was decided. Tone: concise, factual, decision-focused.',
+  lightweight_rfc:
+    'Lightweight RFC / One-Pager — minimal proposal for small-scope changes that would otherwise go undocumented. Tone: direct and minimal.',
 };
 
 // ─── Complexity Scaling ─────────────────────────────────────

@@ -70,10 +70,10 @@ describe('WorkspaceHeader', () => {
     expect(isDisabled(screen.getByTestId('btn-issues'))).toBe(true);
   });
 
-  it('category dropdown shows 8 options + placeholder', () => {
+  it('category dropdown shows 10 options + placeholder', () => {
     render(<WorkspaceHeader />);
     const select = screen.getByTestId('category-select') as HTMLSelectElement;
-    expect(select.options).toHaveLength(9);
+    expect(select.options).toHaveLength(11);
   });
 
   it('complexity selector shows 3 options', () => {
