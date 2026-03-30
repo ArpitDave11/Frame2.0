@@ -2,7 +2,7 @@
  * IssueManagerView — Issue Manager with user-scoped sprint view.
  *
  * Default: shows logged-in user's issues for current iteration.
- * Tabs: "My Sprint" (user-scoped) | "Epic Issues" (epic-scoped, legacy)
+ * Tabs: "My Sprint" (user-scoped) | "Linked Issues" (epic-scoped, legacy)
  * User search: unified bar with current user chip + autocomplete.
  */
 
@@ -11,6 +11,7 @@ import { IssueList } from './IssueList';
 import { IssueDetail } from './IssueDetail';
 import { F } from './types';
 import { useGitlabStore } from '@/stores/gitlabStore';
+import { useUiStore } from '@/stores/uiStore';
 import { useConfigStore } from '@/stores/configStore';
 import { useAuth } from '@/components/auth';
 import { fetchIssuesAction } from '@/actions/fetchIssuesAction';
@@ -60,7 +61,8 @@ export function IssueManagerView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<IssueFilter>('all');
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<ViewTab>('sprint');
+  const activeTab = useUiStore((s) => s.issueSubTab);
+  const setActiveTab = useUiStore((s) => s.setIssueSubTab);
 
   // Sprint issues state
   const [sprintIssues, setSprintIssues] = useState<MockIssue[]>([]);
@@ -272,7 +274,7 @@ export function IssueManagerView() {
               cursor: 'pointer',
             }}
           >
-            {tab === 'sprint' ? 'My Sprint' : 'Epic Issues'}
+            {tab === 'sprint' ? 'My Sprint' : 'Linked Issues'}
           </button>
         ))}
 

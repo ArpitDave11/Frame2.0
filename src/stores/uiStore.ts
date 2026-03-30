@@ -11,6 +11,8 @@ import { create } from 'zustand';
 
 export type TabId = 'planner' | 'issues' | 'blueprint' | 'analytics';
 
+export type IssueSubTab = 'sprint' | 'epic';
+
 export type ModalId = 'publish' | 'loadEpic' | 'issueCreation' | 'critique' | 'pipeline' | 'settings';
 
 export type ActiveView = 'welcome' | 'workspace';
@@ -28,6 +30,7 @@ interface UiState {
   activeView: ActiveView;
   editorWidth: number;
   sidebarCollapsed: boolean;
+  issueSubTab: IssueSubTab;
   activeModal: ModalId | null;
   toasts: Toast[];
 }
@@ -38,6 +41,7 @@ interface UiActions {
   setEditorWidth: (width: number) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  setIssueSubTab: (tab: IssueSubTab) => void;
   openModal: (modal: ModalId) => void;
   closeModal: () => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
@@ -53,6 +57,7 @@ const INITIAL_STATE: UiState = {
   activeView: 'welcome',
   editorWidth: 50,
   sidebarCollapsed: false,
+  issueSubTab: 'sprint',
   activeModal: null,
   toasts: [],
 };
@@ -80,6 +85,10 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 
   setSidebarCollapsed: (collapsed) => {
     set({ sidebarCollapsed: collapsed });
+  },
+
+  setIssueSubTab: (tab) => {
+    set({ issueSubTab: tab });
   },
 
   openModal: (modal) => {

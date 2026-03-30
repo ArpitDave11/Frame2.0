@@ -7,6 +7,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { IssueManagerView } from './IssueManagerView';
 import { AuthContext } from '@/components/auth/AuthContext';
 import { useConfigStore } from '@/stores/configStore';
+import { useUiStore } from '@/stores/uiStore';
 
 // Mock GitLab API calls that the component now makes on mount
 vi.mock('@/services/gitlab/gitlabClient', () => ({
@@ -44,10 +45,11 @@ function renderWithAuth(ui: React.ReactElement) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useUiStore.setState(useUiStore.getInitialState());
 });
 
 describe('IssueManagerView', () => {
-  it('renders the tab bar with My Sprint and Epic Issues', () => {
+  it('renders the tab bar with My Sprint and Linked Issues', () => {
     renderWithAuth(<IssueManagerView />);
     expect(screen.getByTestId('tab-sprint')).toBeTruthy();
     expect(screen.getByTestId('tab-epic')).toBeTruthy();
@@ -74,7 +76,7 @@ describe('IssueManagerView', () => {
     await waitFor(() => expect(screen.getByText('Dev User')).toBeTruthy());
   });
 
-  it('switching to Epic Issues tab hides user search', () => {
+  it('switching to Linked Issues tab hides user search', () => {
     renderWithAuth(<IssueManagerView />);
     fireEvent.click(screen.getByTestId('tab-epic'));
     expect(screen.queryByTestId('user-search-input')).toBeNull();
