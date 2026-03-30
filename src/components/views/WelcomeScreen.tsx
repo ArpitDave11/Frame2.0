@@ -224,21 +224,10 @@ export function WelcomeScreen() {
         }}
       >
         {/* Left: Value Proposition */}
-        <div style={{ position: 'relative' }}>
-          {/* UBS Impulse Line */}
-          <div
-            style={{
-              position: 'absolute',
-              left: -24,
-              top: 15,
-              bottom: 15,
-              width: 4,
-              background: 'var(--col-background-brand)',
-              borderRadius: 2,
-            }}
-          />
+        <div>
           <h1
             style={{
+              position: 'relative',
               fontSize: 48,
               fontWeight: 300,
               lineHeight: '57px',
@@ -247,6 +236,18 @@ export function WelcomeScreen() {
               letterSpacing: '-0.5px',
             }}
           >
+            {/* UBS Impulse Line — scoped to h1 */}
+            <span
+              style={{
+                position: 'absolute',
+                left: -24,
+                top: '0.18em',
+                bottom: '0.12em',
+                width: 4,
+                background: 'var(--col-background-brand)',
+                borderRadius: 2,
+              }}
+            />
             FRAME — Your Vision.<br />AI-Engineered Precision.
           </h1>
           {/* Acronym Decode */}
