@@ -44,6 +44,8 @@ function mapGitLabIssueToMock(issue: GitLabIssue): MockIssue {
     time_spent: issue.time_stats?.total_time_spent ?? 0,
     notes_count: issue.user_notes_count ?? 0,
     weight: issue.weight,
+    epic_iid: issue.epic?.iid ?? null,
+    epic_group_id: issue.epic?.group_id ?? null,
   };
 }
 

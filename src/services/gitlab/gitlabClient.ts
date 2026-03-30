@@ -324,6 +324,23 @@ export async function addIssueNote(
   return { success: true, data: result.data };
 }
 
+// ─── Issue Epic (context-aware updates) ─────────────────────
+
+export async function fetchIssueEpic(
+  config: GitLabConfig,
+  projectId: number,
+  issueIid: number,
+): Promise<GitLabEpicResult> {
+  const result = await gitlabGet<GitLabEpic[]>(
+    config,
+    `/projects/${projectId}/issues/${issueIid}/related_epics`,
+  );
+  if (!result.ok) return { success: false, error: result.error };
+  const epic = result.data?.[0];
+  if (!epic) return { success: true };
+  return { success: true, data: epic };
+}
+
 // ─── Current User ────────────────────────────────────────────
 
 export async function fetchCurrentUser(

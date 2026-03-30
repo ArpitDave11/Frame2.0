@@ -14,6 +14,7 @@ import {
   fetchGitLabFileContent,
   publishWithMergeRequest,
   fetchRecentIterations,
+  fetchIssueEpic,
 } from './gitlabClient';
 import type { GitLabConfig } from '@/domain/configTypes';
 
@@ -390,5 +391,47 @@ describe('fetchRecentIterations', () => {
     const result = await fetchRecentIterations(PAT_CONFIG, '478494');
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
+  });
+});
+
+// ─── fetchIssueEpic ────────────────────────────────────────────
+
+describe('fetchIssueEpic', () => {
+  it('returns epic when issue has a parent epic', async () => {
+    mockJsonResponse([{
+      id: 42, iid: 3, title: 'Auth Service Redesign',
+      description: '## Objective\nRedesign the auth service...',
+      state: 'opened', web_url: 'https://gitlab.example.com/groups/mygroup/-/epics/3',
+      labels: [], created_at: '2026-01-01T00:00:00Z', updated_at: '2026-03-30T00:00:00Z', group_id: 99,
+    }]);
+
+    const result = await fetchIssueEpic(PAT_CONFIG, 10, 5);
+    expect(result.success).toBe(true);
+    expect(result.data?.title).toBe('Auth Service Redesign');
+    expect(result.data?.description).toContain('Redesign the auth service');
+  });
+
+  it('returns success with no data when issue has no epic', async () => {
+    mockJsonResponse([]);
+
+    const result = await fetchIssueEpic(PAT_CONFIG, 10, 5);
+    expect(result.success).toBe(true);
+    expect(result.data).toBeUndefined();
+  });
+
+  it('returns error on API failure', async () => {
+    mockJsonResponse('Forbidden', 403);
+
+    const result = await fetchIssueEpic(PAT_CONFIG, 10, 5);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('403');
+  });
+
+  it('calls correct API endpoint', async () => {
+    mockJsonResponse([]);
+
+    await fetchIssueEpic(PAT_CONFIG, 10, 5);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('/projects/10/issues/5/related_epics');
   });
 });

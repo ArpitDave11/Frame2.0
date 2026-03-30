@@ -27,6 +27,8 @@ export interface MockIssue {
   time_spent?: number;
   notes_count?: number;
   weight?: number | null;
+  epic_iid?: number | null;
+  epic_group_id?: number | null;
 }
 
 export const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";

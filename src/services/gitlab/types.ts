@@ -59,6 +59,13 @@ export interface GitLabIssue {
   time_stats?: { time_estimate: number; total_time_spent: number } | null;
   user_notes_count?: number;
   weight?: number | null;
+  epic?: {
+    id: number;
+    iid: number;
+    title: string;
+    group_id: number;
+    url: string;
+  } | null;
 }
 
 export interface GitLabIteration {

@@ -10,7 +10,7 @@ import { StatusIcon } from './StatusIcon';
 import { F, STATUS_CONFIG, getPriorityColor, getPriorityLabel } from './types';
 import type { MockIssue, TimelineEntry } from './types';
 import { useConfigStore } from '@/stores/configStore';
-import { fetchIssueNotes, addIssueNote, fetchIssueLinks } from '@/services/gitlab/gitlabClient';
+import { fetchIssueNotes, addIssueNote, fetchIssueLinks, fetchIssueEpic } from '@/services/gitlab/gitlabClient';
 import { callAI, isAIEnabled } from '@/services/ai/aiClient';
 import type { GitLabNote, GitLabIssueLink } from '@/services/gitlab/types';
 import type { AIClientConfig } from '@/services/ai/types';
@@ -30,6 +30,8 @@ export function IssueDetail({ issue }: IssueDetailProps) {
   const [realNotes, setRealNotes] = useState<GitLabNote[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
+  const [epicContext, setEpicContext] = useState<{ title: string; description: string } | null>(null);
+  const [loadingEpic, setLoadingEpic] = useState(false);
 
   const cfg = useConfigStore((s) => s.config);
   const gitlabConfig = cfg.gitlab;
@@ -67,6 +69,30 @@ export function IssueDetail({ issue }: IssueDetailProps) {
     });
   }, [isRealIssue, issue?.project_id, issue?.iid, gitlabConfig]);
 
+  // Eager-fetch parent Epic for context-aware updates
+  useEffect(() => {
+    if (!isRealIssue || !issue?.project_id || !issue?.iid) {
+      setEpicContext(null);
+      setLoadingEpic(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingEpic(true);
+
+    fetchIssueEpic(gitlabConfig, issue.project_id, issue.iid).then((result) => {
+      if (cancelled) return;
+      setLoadingEpic(false);
+      if (result.success && result.data) {
+        setEpicContext({ title: result.data.title, description: result.data.description ?? '' });
+      } else {
+        setEpicContext(null);
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [isRealIssue, issue?.project_id, issue?.iid, gitlabConfig]);
+
   const handleAddComment = useCallback(async () => {
     if (!commentInput.trim() || !issue?.project_id || !issue?.iid) return;
 
@@ -100,8 +126,8 @@ export function IssueDetail({ issue }: IssueDetailProps) {
     };
     const guide = activityGuide[activityType] ?? activityGuide.update;
 
-    // C2: Rich context from notes + description
-    const recentNotesContext = realNotes.slice(-5).map((n) => `[${n.author?.name ?? 'Unknown'}]: ${n.body.slice(0, 200)}`).join('\n');
+    // C2: Rich context from notes + description (bumped to 10 notes with dates)
+    const recentNotesContext = realNotes.slice(-10).map((n) => `[${n.author?.name ?? 'Unknown'}] (${new Date(n.created_at).toLocaleDateString()}): ${n.body.slice(0, 300)}`).join('\n');
     const issueContext = issue?.description ? issue.description.slice(0, 500) : '';
 
     // C4: Blocker link context
@@ -113,10 +139,15 @@ export function IssueDetail({ issue }: IssueDetailProps) {
     const quickActionLines = aiInput.split('\n').filter((l) => l.trim().startsWith('/'));
     const textForAI = aiInput.split('\n').filter((l) => !l.trim().startsWith('/')).join('\n');
 
+    // Build Epic context section (omitted when no epic)
+    const epicSection = epicContext
+      ? `EPIC CONTEXT:\nTitle: ${epicContext.title}\n${epicContext.description.slice(0, 2000)}\n\n`
+      : '';
+
     try {
       const response = await callAI(aiConfig, {
-        systemPrompt: `You generate GitLab issue activity updates. ${guide} Keep concise (2-4 sentences). Reference the issue context naturally. If the user includes GitLab quick actions (lines starting with /), preserve them exactly.`,
-        userPrompt: `Issue: "${issue?.title}"\nDescription: ${issueContext}\nRecent activity:\n${recentNotesContext}${blockerCtx}\n${issue?.weight ? `Story points: ${issue.weight}` : ''}\n\nUser's input: "${textForAI}"\n\nGenerate a ${activityType} for this issue.`,
+        systemPrompt: `You generate GitLab issue activity updates. ${guide}\n\nRules:\n- Keep concise (2-4 sentences).\n- Maintain continuity with previous updates in the activity log — do not repeat them.\n- If an Epic is provided, align the update with the Epic's objectives and narrative.\n- If the user includes GitLab quick actions (lines starting with /), preserve them exactly.`,
+        userPrompt: `${epicSection}ISSUE: "${issue?.title}"\nDescription: ${issueContext}\nStory Points: ${issue?.weight ?? 'unset'} | Status: ${issue?.status ?? 'unknown'}\n\nACTIVITY LOG (recent → oldest):\n${recentNotesContext}${blockerCtx}\n\nUSER INPUT: "${textForAI}"\n\nGenerate a ${activityType} for this issue.`,
         temperature: 0.5,
       });
       // C5: Prepend quick actions back
@@ -131,7 +162,7 @@ export function IssueDetail({ issue }: IssueDetailProps) {
     } finally {
       setGeneratingAi(false);
     }
-  }, [aiInput, activityType, cfg, issue?.title, issue?.description, issue?.weight, realNotes, issueLinksData]);
+  }, [aiInput, activityType, cfg, issue?.title, issue?.description, issue?.weight, issue?.status, realNotes, issueLinksData, epicContext]);
 
   const handlePostAI = useCallback(async () => {
     if (!aiPreviewText.trim() || !issue?.project_id || !issue?.iid) return;
@@ -292,6 +323,19 @@ export function IssueDetail({ issue }: IssueDetailProps) {
         <div style={{ marginTop: 6, fontSize: 10, color: 'var(--col-text-subtle)', fontFamily: F, fontWeight: 300, opacity: 0.7 }}>
           Tip: Quick actions like /assign @user, /weight 3, /label ~bug are passed to GitLab as-is.
         </div>
+
+        {/* Epic context indicator */}
+        {isRealIssue && (
+          <div data-testid="epic-context-indicator" style={{ marginTop: 4, fontSize: 10, color: 'var(--col-text-subtle)', fontFamily: F, fontWeight: 300, opacity: 0.7, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {loadingEpic ? (
+              <>Loading epic context...</>
+            ) : epicContext ? (
+              <>Epic: {epicContext.title.slice(0, 60)}{epicContext.title.length > 60 ? '...' : ''}</>
+            ) : (
+              <>No linked epic — updates use issue context only</>
+            )}
+          </div>
+        )}
 
         {/* AI Preview */}
         {showAiPreview && (
