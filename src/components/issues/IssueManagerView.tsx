@@ -391,50 +391,6 @@ export function IssueManagerView() {
       </div>
       )}
 
-      {/* Epic tab loading indicator */}
-      {loadingEpicIssues && activeTab === 'epic' && (
-        <div style={{
-          padding: '8px 24px', fontSize: 12, fontWeight: 300,
-          color: 'var(--col-text-subtle)', fontFamily: F, textAlign: 'center',
-          fontStyle: 'italic', borderBottom: '1px solid var(--col-border-illustrative)',
-        }}>
-          Loading epic issues...
-        </div>
-      )}
-
-      {/* Epic tab: contextual empty states */}
-      {activeTab === 'epic' && !loadingEpicIssues && !loadedEpicIid && (
-        <div style={{
-          padding: '24px', fontSize: 13, fontWeight: 300,
-          color: 'var(--col-text-subtle)', fontFamily: F, textAlign: 'center',
-        }}>
-          Load an epic from GitLab to see its linked issues.
-        </div>
-      )}
-      {activeTab === 'epic' && !loadingEpicIssues && loadedEpicIid && epicIssues.length === 0 && (
-        <div style={{
-          padding: '24px', fontSize: 13, fontWeight: 300,
-          color: 'var(--col-text-subtle)', fontFamily: F, textAlign: 'center',
-        }}>
-          No issues are linked to this epic. Create issues from user stories, or link existing issues in GitLab.
-        </div>
-      )}
-
-      {/* Sprint empty state */}
-      {activeTab === 'sprint' && !loadingSprint && sprintIssues.length === 0 && (
-        <div style={{
-          padding: '24px', fontSize: 13, fontWeight: 300,
-          color: 'var(--col-text-subtle)', fontFamily: F, textAlign: 'center',
-        }}>
-          {!isConfigured
-            ? 'Configure GitLab in Settings to view sprint issues'
-            : viewingUser
-              ? `No issues found for ${viewingUser.name} in ${selectedIterationId ? 'this iteration' : 'any iteration'}`
-              : 'Select a user to view their sprint issues'
-          }
-        </div>
-      )}
-
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <IssueList
           issues={filtered}
@@ -444,6 +400,25 @@ export function IssueManagerView() {
           onSelectIssue={setSelectedId}
           onFilterChange={setFilter}
           onSearchChange={setSearch}
+          emptyState={
+            activeTab === 'epic' ? (
+              loadingEpicIssues
+                ? 'Loading linked issues...'
+                : !loadedEpicIid
+                  ? 'Load an epic from GitLab to see its linked issues.'
+                  : epicIssues.length === 0
+                    ? 'No issues are linked to this epic. Create issues from user stories, or link existing issues in GitLab.'
+                    : undefined
+            ) : (
+              !loadingSprint && sprintIssues.length === 0
+                ? (!isConfigured
+                    ? 'Configure GitLab in Settings to view sprint issues'
+                    : viewingUser
+                      ? `No issues found for ${viewingUser.name} in ${selectedIterationId ? 'this iteration' : 'any iteration'}`
+                      : 'Select a user to view their sprint issues')
+                : undefined
+            )
+          }
         />
         <IssueDetail issue={selectedIssue} />
       </div>

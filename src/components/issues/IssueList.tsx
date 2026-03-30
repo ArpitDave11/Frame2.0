@@ -18,6 +18,7 @@ interface IssueListProps {
   onSelectIssue: (id: string) => void;
   onFilterChange: (filter: IssueFilter) => void;
   onSearchChange: (query: string) => void;
+  emptyState?: string;
 }
 
 const FILTER_TABS: { key: IssueFilter; label: string }[] = [
@@ -34,6 +35,7 @@ export function IssueList({
   onSelectIssue,
   onFilterChange,
   onSearchChange,
+  emptyState,
 }: IssueListProps) {
   return (
     <div
@@ -180,7 +182,7 @@ export function IssueList({
         {issues.length} issues
       </div>
 
-      {/* Issue Rows */}
+      {/* Issue Rows or Empty State */}
       <div
         style={{
           flex: 1,
@@ -188,14 +190,28 @@ export function IssueList({
           padding: '4px 0',
         }}
       >
-        {issues.map((issue) => (
-          <IssueRow
-            key={issue.id}
-            issue={issue}
-            isSelected={selectedId === issue.id}
-            onClick={() => onSelectIssue(issue.id)}
-          />
-        ))}
+        {emptyState ? (
+          <div style={{
+            padding: '32px 24px',
+            fontSize: 13,
+            fontWeight: 300,
+            color: 'var(--col-text-subtle)',
+            fontFamily: F,
+            textAlign: 'center',
+            lineHeight: 1.5,
+          }}>
+            {emptyState}
+          </div>
+        ) : (
+          issues.map((issue) => (
+            <IssueRow
+              key={issue.id}
+              issue={issue}
+              isSelected={selectedId === issue.id}
+              onClick={() => onSelectIssue(issue.id)}
+            />
+          ))
+        )}
       </div>
     </div>
   );
