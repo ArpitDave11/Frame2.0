@@ -215,7 +215,7 @@ export function WelcomeScreen() {
         style={{
           maxWidth: 1280,
           margin: '0 auto',
-          padding: '64px 48px 72px',
+          padding: '64px 48px 32px',
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gap: 48,
