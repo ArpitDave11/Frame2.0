@@ -49,12 +49,12 @@ describe('SettingsPanel', () => {
     expect(aiTab.style.borderBottom).toContain('transparent');
   });
 
-  it('provider dropdown shows Azure and OpenAI options', () => {
+  it('provider dropdown shows Azure only (OpenAI hidden)', () => {
     render(<SettingsPanel />);
     const select = screen.getByTestId('ai-provider-select') as HTMLSelectElement;
     const options = Array.from(select.options).map((o) => o.value);
     expect(options).toContain('azure');
-    expect(options).toContain('openai');
+    expect(options).not.toContain('openai');
   });
 
   it('selecting Azure provider shows Azure-specific fields', () => {
@@ -69,29 +69,11 @@ describe('SettingsPanel', () => {
     expect(screen.queryByTestId('openai-fields')).toBeNull();
   });
 
-  it('selecting OpenAI provider shows OpenAI-specific fields', () => {
+  it('Azure API key field is type="password" by default', () => {
     render(<SettingsPanel />);
     const select = screen.getByTestId('ai-provider-select');
-    fireEvent.change(select, { target: { value: 'openai' } });
-    expect(screen.getByTestId('openai-fields')).toBeDefined();
-    expect(screen.getByTestId('openai-api-key')).toBeDefined();
-    expect(screen.getByTestId('openai-model')).toBeDefined();
-    expect(screen.getByTestId('openai-base-url')).toBeDefined();
-    expect(screen.queryByTestId('azure-fields')).toBeNull();
-  });
-
-  it('API key fields are type="password" by default', () => {
-    render(<SettingsPanel />);
-    const select = screen.getByTestId('ai-provider-select');
-
-    // Azure key
     fireEvent.change(select, { target: { value: 'azure' } });
     const azureKey = screen.getByTestId('azure-api-key') as HTMLInputElement;
     expect(azureKey.type).toBe('password');
-
-    // OpenAI key
-    fireEvent.change(select, { target: { value: 'openai' } });
-    const openaiKey = screen.getByTestId('openai-api-key') as HTMLInputElement;
-    expect(openaiKey.type).toBe('password');
   });
 });

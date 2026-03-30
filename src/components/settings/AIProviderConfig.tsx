@@ -107,7 +107,6 @@ export function AIProviderConfig() {
         >
           <option value="">Select a provider...</option>
           <option value="azure">Azure OpenAI</option>
-          <option value="openai">OpenAI Direct</option>
         </select>
       </div>
 
@@ -224,106 +223,7 @@ export function AIProviderConfig() {
         </div>
       )}
 
-      {/* OpenAI fields */}
-      {provider === 'openai' && (
-        <div style={fieldGroupStyle} data-testid="openai-fields">
-          <div>
-            <label style={labelStyle}>API Key</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showOpenaiKey ? 'text' : 'password'}
-                style={{ ...inputStyle, paddingRight: '60px' }}
-                value={config.ai.openai.apiKey}
-                onChange={(e) => updateConfig({ ai: { openai: { apiKey: e.target.value } } })}
-                placeholder="sk-..."
-                data-testid="openai-api-key"
-                title="platform.openai.com → API keys"
-              />
-              <button
-                type="button"
-                onClick={() => setShowOpenaiKey(!showOpenaiKey)}
-                style={{
-                  position: 'absolute',
-                  right: '8px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  color: 'var(--col-text-subtle, #888)',
-                  fontFamily: F,
-                }}
-                data-testid="openai-key-toggle"
-              >
-                {showOpenaiKey ? 'Hide' : 'Show'}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label style={labelStyle}>Model</label>
-            <select
-              style={{ ...inputStyle, cursor: 'pointer' }}
-              value={config.ai.openai.model}
-              onChange={(e) => updateConfig({ ai: { openai: { model: e.target.value } } })}
-              data-testid="openai-model"
-            >
-              {OPENAI_MODELS.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Base URL</label>
-            <input
-              type="text"
-              style={inputStyle}
-              value={config.endpoints.openaiBaseUrl}
-              onChange={(e) => updateConfig({ endpoints: { openaiBaseUrl: e.target.value } })}
-              placeholder="https://api.openai.com/v1"
-              data-testid="openai-base-url"
-            />
-            <span style={hintStyle}>Default works for most users. Change only for proxies or compatible APIs.</span>
-          </div>
-          {/* Max Tokens + Temperature */}
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Max Tokens</label>
-              <input
-                type="number"
-                style={inputStyle}
-                value={config.ai.openai.maxTokens ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                  updateConfig({ ai: { openai: { maxTokens: val } } });
-                }}
-                placeholder="16384"
-                min={1}
-                max={128000}
-                data-testid="openai-max-tokens"
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={labelStyle}>Temperature</label>
-              <input
-                type="number"
-                style={inputStyle}
-                value={config.ai.openai.temperature ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value ? parseFloat(e.target.value) : undefined;
-                  updateConfig({ ai: { openai: { temperature: val } } });
-                }}
-                placeholder="0.7"
-                min={0}
-                max={2}
-                step={0.1}
-                data-testid="openai-temperature"
-              />
-            </div>
-          </div>
-          <ConnectionTestButton onTest={handleTestConnection} />
-        </div>
-      )}
+      {/* OpenAI Direct fields hidden — Azure-only for now */}
     </div>
   );
 }
