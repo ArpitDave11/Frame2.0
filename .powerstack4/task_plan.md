@@ -1,41 +1,26 @@
-# Context-Aware Update Generation
+# Category Templates v7.0.0
 
 ## Goal
-Enrich AI-generated issue updates with parent Epic context and deeper activity history so updates maintain narrative continuity with the broader project.
+Replace categoryTemplates.json with v7.0.0 spec — compressed hints, Epic Status on all categories, section merges/renames/promotions, new _meta fields.
 
-## Status: IN PROGRESS
+## Architecture
+Pure data file replacement. Template loader reads sections dynamically — no structural code changes. Update JSON, update categoryConstants.ts, fix test assertions.
 
-## Current Phase: Phase 1 — API Layer
-
-## Plan Reference
-`docs/plans/2026-03-30-context-aware-updates-plan.md` (8 tasks)
+## Current Phase: Task 1 — Replace categoryTemplates.json
 
 ## Phases
 
-### Phase 1: API Layer (T1-T2) — in_progress
-- Add `epic` field to GitLabIssue type
-- Add `fetchIssueEpic` API function + tests
+| # | Task | Status |
+|---|------|--------|
+| 1 | Replace categoryTemplates.json with v7.0.0 | in_progress |
+| 2 | Update categoryConstants.ts section lists | pending |
+| 3 | Fix templateLoader.test.ts assertions | pending |
+| 4 | Run full test suite and fix remaining breakage | pending |
+| 5 | Verify build and final sanity check | pending |
 
-### Phase 2: Data Passthrough (T3) — pending
-- Add epic fields to MockIssue type
-- Update mapGitLabIssueToMock mapper
+## Key Decisions
+- Full JSON replacement (Option A) — no incremental merge
+- totalWordTarget.excludes is inert data — no code change needed
 
-### Phase 3: IssueDetail Integration (T4-T6) — pending
-- Eager-fetch parent Epic on issue click
-- Bump notes from 5 to 10
-- Enrich AI prompt with Epic narrative context
-- Add loading indicator
-
-### Phase 4: Testing & Verification (T7-T8) — pending
-- IssueDetail integration tests
-- Full suite verification
-
-## Decisions
-- Eager fetch on issue click (not lazy, not prefetch-all)
-- Epic description only (no sibling issues)
-- Last 10 notes (up from 5)
-- Auto-fetch parent epic from GitLab API per issue
-- Graceful degradation when no epic linked
-
-## Errors
+## Error Log
 (none)
