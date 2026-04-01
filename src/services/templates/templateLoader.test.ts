@@ -113,7 +113,7 @@ describe('getSectionWordLimits', () => {
 describe('getSectionFormat', () => {
   it('returns format for known section', () => {
     const template = loadCategoryTemplate('business_requirement');
-    expect(getSectionFormat('Stakeholder Analysis', template)).toBe('raci-table');
+    expect(getSectionFormat('Stakeholders & RACI', template)).toBe('raci-table');
   });
 
   it('returns undefined for unknown section', () => {
@@ -169,7 +169,10 @@ describe('getGlobalDefaults', () => {
     expect(defaults.statusEmoji).toBeDefined();
     expect(defaults.markdownFeatures).toBeDefined();
     expect(defaults.statusEmoji.draft).toBeDefined();
+    expect(defaults.statusEmoji.archived).toBeDefined();
     expect(defaults.markdownFeatures.mermaidDiagrams).toBe(true);
+    expect(defaults.reviewStates).toBeDefined();
+    expect(defaults.priorityLevels).toBeDefined();
   });
 });
 
