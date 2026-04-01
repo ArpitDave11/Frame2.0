@@ -67,7 +67,7 @@ describe('Welcome -> Template -> Workspace flow', () => {
     // Technical Design has these sections
     expect(markdown).toContain('## Objective');
     expect(markdown).toContain('## Architecture Overview');
-    expect(markdown).toContain('## Testing Strategy');
+    expect(markdown).toContain('## User Stories');
   });
 
   it('after template click, activeView switches to workspace', () => {
@@ -87,8 +87,8 @@ describe('Welcome -> Template -> Workspace flow', () => {
 
     const { markdown } = useEpicStore.getState();
     expect(markdown).toContain('## Executive Summary');
-    expect(markdown).toContain('## Acceptance Criteria');
-    expect(markdown).toContain('## Timeline');
+    expect(markdown).toContain('## Stakeholders & RACI');
+    expect(markdown).toContain('## Success Metrics');
     expect(useUiStore.getState().activeView).toBe('workspace');
   });
 
@@ -98,18 +98,19 @@ describe('Welcome -> Template -> Workspace flow', () => {
     fireEvent.click(screen.getByTestId('template-technical_design'));
 
     const { markdown } = useEpicStore.getState();
-    // All 10 sections from technical_design template
+    // All 11 sections from technical_design template (v7)
     const expectedSections = [
+      'Epic Status',
       'Objective',
       'Context & Motivation',
       'Goals & Non-Goals',
       'Architecture Overview',
-      'Component Design',
-      'Data Model',
-      'API Contracts',
-      'Security',
-      'Testing Strategy',
-      'Rollout Plan',
+      'Technical Requirements',
+      'Proposed Design',
+      'Alternatives Considered',
+      'Cross-Cutting Concerns',
+      'Implementation Plan',
+      'User Stories',
     ];
     for (const section of expectedSections) {
       expect(markdown).toContain(`## ${section}`);
@@ -133,7 +134,7 @@ describe('Welcome -> Template -> Workspace flow', () => {
     fireEvent.click(screen.getByTestId('template-feature_specification'));
 
     const { markdown } = useEpicStore.getState();
-    expect(markdown).toContain('## Objective');
+    expect(markdown).toContain('## Problem Statement');
     expect(markdown).toContain('_Your content here..._');
   });
 });

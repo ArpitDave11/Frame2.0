@@ -36,14 +36,14 @@ describe('EditorPane', () => {
     expect(screen.getByTestId('cat-btn-integration_spec')).toBeDefined();
   });
 
-  it('clicking Technical Design populates editor with 10 section headers', () => {
+  it('clicking Technical Design populates editor with 11 section headers', () => {
     render(<EditorPane />);
     fireEvent.click(screen.getByTestId('cat-btn-technical_design'));
     const md = useEpicStore.getState().markdown;
     expect(md).toContain('## Objective');
     expect(md).toContain('## Architecture Overview');
-    expect(md).toContain('## Rollout Plan');
-    expect(md.match(/^## /gm)?.length).toBe(10);
+    expect(md).toContain('## User Stories');
+    expect(md.match(/^## /gm)?.length).toBe(11);
   });
 
   it('textarea value syncs with store', () => {
