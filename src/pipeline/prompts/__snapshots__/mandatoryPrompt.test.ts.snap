@@ -128,9 +128,11 @@ Purpose: Primary workflow with decision points
 4. Use Mermaid subgraphs to group related components (e.g., "Frontend", "Backend", "External Services").
 5. Ensure the diagram is syntactically valid:
    - Node IDs must not contain spaces (use camelCase or underscores)
-   - Edge labels should be concise (2–4 words)
-   - Use proper Mermaid arrow syntax: \`-->\`, \`-.->>\`, \`==>>\`
+   - Edge labels MUST use pipe syntax: \`A -->|"label text"| B\` — NEVER colon syntax \`A --> B: label\`
+   - Arrow types: \`-->\` (solid), \`-.->>\` (dashed), \`==>>\` (thick)
    - Wrap node labels in square brackets: \`A[Service Name]\`
+   - Subgraph IDs must be safe identifiers (no spaces or special chars): \`subgraph safeId["Display Name With & Symbols"]\`
+   - NEVER use unicode arrows (→, ←, ↔) inside node or edge labels — use plain text "to", "from"
    - CRITICAL: If a node label contains parentheses, slashes, ampersands, colons, or any other special characters, you MUST wrap the label text in double quotes inside the brackets. This prevents Mermaid syntax errors.
 
      CORRECT:
@@ -138,11 +140,15 @@ Purpose: Primary workflow with decision points
        e3["E3 (Epic Management)"]
        api["REST API: v2"]
        ci["CI/CD Pipeline"]
+       api -->|"REST/JSON"| db[("Database")]
+       subgraph authLayer["Auth & Security"]
 
      WRONG (will break rendering):
        soc[SOC 2 / ISO 27001]
        e3[E3 (Epic Management)]
        api[REST API: v2]
+       api --> db: REST/JSON
+       subgraph Auth & Security
 
 ### Diagram Styling (Required)
 

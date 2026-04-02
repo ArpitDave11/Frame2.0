@@ -215,4 +215,40 @@ describe('validateMermaidSyntax', () => {
     const result = validateMermaidSyntax('');
     expect(result).toContain('graph TD');
   });
+
+  it('fixes colon-style edge labels to pipe syntax', () => {
+    const input = 'graph TD\n  api --> db: REST/JSON\n  db --> cache: read';
+    const result = validateMermaidSyntax(input);
+    expect(result).toContain('api -->|REST/JSON| db');
+    expect(result).toContain('db -->|read| cache');
+    expect(result).not.toContain(': REST/JSON');
+  });
+
+  it('fixes unsafe subgraph IDs with special chars', () => {
+    const input = 'graph TD\n  subgraph Auth & Security\n    A-->B\n  end';
+    const result = validateMermaidSyntax(input);
+    expect(result).toContain('subgraph AuthSecurity["Auth & Security"]');
+  });
+
+  it('replaces unicode arrows in labels with plain text', () => {
+    const input = 'graph TD\n  A["Data → Transform"]\n  B["Response ← Server"]';
+    const result = validateMermaidSyntax(input);
+    expect(result).toContain('Data  to  Transform');
+    expect(result).toContain('Response  from  Server');
+    expect(result).not.toContain('→');
+    expect(result).not.toContain('←');
+  });
+
+  it('fixes dashed and thick arrow colon labels', () => {
+    const input = 'graph TD\n  A -.-> B: async call\n  C ==> D: bulk sync';
+    const result = validateMermaidSyntax(input);
+    expect(result).toContain('A -.->|async call| B');
+    expect(result).toContain('C ==>|bulk sync| D');
+  });
+
+  it('leaves valid pipe-syntax labels untouched', () => {
+    const input = 'graph TD\n  A -->|"REST/JSON"| B';
+    const result = validateMermaidSyntax(input);
+    expect(result).toBe(input);
+  });
 });

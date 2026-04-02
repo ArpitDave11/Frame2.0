@@ -296,7 +296,7 @@ export async function runStage5Mandatory(
 // ─── Mermaid Validation ─────────────────────────────────────
 
 export function validateMermaidSyntax(diagram: string, category?: string): string {
-  const trimmed = diagram.trim();
+  let trimmed = diagram.trim();
   if (!trimmed) {
     // LAST RESORT: Use category-specific skeleton if AI returned nothing
     const skeleton = category ? CATEGORY_SKELETONS[category] : undefined;
@@ -306,6 +306,28 @@ export function validateMermaidSyntax(diagram: string, category?: string): strin
     }
     return 'graph TD\n  A["No diagram generated — refine via Blueprint"]';
   }
+
+  // ─── Auto-fix common LLM syntax errors ───
+
+  // Fix 1: Colon-style edge labels → pipe syntax
+  // "A --> B: label text" → "A -->|label text| B"
+  trimmed = trimmed.replace(
+    /(\w+)\s*(-->|-.->|==>)\s*(\w+)\s*:\s*([^\n]+)/g,
+    (_, src, arrow, tgt, label) => `${src} ${arrow}|${label.trim()}| ${tgt}`,
+  );
+
+  // Fix 2: Unsafe subgraph IDs with special chars
+  // "subgraph Auth & Security" → 'subgraph authSecurity["Auth & Security"]'
+  trimmed = trimmed.replace(
+    /^(\s*subgraph\s+)([^\n"[\]]+[&/():][\w &/():]+)$/gm,
+    (_, prefix, name) => {
+      const safeId = name.trim().replace(/[^a-zA-Z0-9]/g, '');
+      return `${prefix}${safeId}["${name.trim()}"]`;
+    },
+  );
+
+  // Fix 3: Unicode arrows in labels → plain text
+  trimmed = trimmed.replace(/→/g, ' to ').replace(/←/g, ' from ').replace(/↔/g, ' between ');
 
   const firstLine = trimmed.split('\n')[0]!.trim();
   const isValid = VALID_MERMAID_DIRECTIVES.some(
@@ -332,8 +354,10 @@ async function fixMermaidWithAI(
   aiConfig: AIClientConfig,
   temperature: number,
 ): Promise<string> {
-  // Quick check: does the diagram have labels with special chars that aren't quoted?
-  const needsFix = /\w+\[[^\]"]*[()\/&:;][^\]"]*\]/.test(diagram);
+  // Quick check: does the diagram have labels with special chars that aren't quoted,
+  // or subgraph IDs with special chars?
+  const needsFix = /\w+\[[^\]"]*[()\/&:;][^\]"]*\]/.test(diagram)
+    || /^\s*subgraph\s+[^\n"[\]]*[&/():][^\n"]*$/m.test(diagram);
   if (!needsFix) return diagram;
 
   try {
