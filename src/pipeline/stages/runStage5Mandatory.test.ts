@@ -251,4 +251,36 @@ describe('validateMermaidSyntax', () => {
     const result = validateMermaidSyntax(input);
     expect(result).toBe(input);
   });
+
+  it('strips %%{init:} blocks from AI output', () => {
+    const input = '%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#BBCCEE"}}}%%\nflowchart LR\n  A-->B';
+    const result = validateMermaidSyntax(input);
+    expect(result).toContain('flowchart LR');
+    expect(result).not.toContain('%%{init:');
+  });
+
+  it('fixes subgraph IDs with spaces but no special chars', () => {
+    const input = 'flowchart TD\n  subgraph approval flow\n    A-->B\n  end';
+    const result = validateMermaidSyntax(input);
+    expect(result).toContain('subgraph approvalflow["approval flow"]');
+  });
+
+  it('fixes subgraph IDs with spaces and special chars', () => {
+    const input = 'graph TD\n  subgraph Auth & Security\n    A-->B\n  end';
+    const result = validateMermaidSyntax(input);
+    expect(result).toContain('subgraph AuthSecurity["Auth & Security"]');
+  });
+
+  it('does not double-fix already-quoted subgraph IDs', () => {
+    const input = 'flowchart LR\n  subgraph eks cluster["EKS Cluster"]\n    A-->B\n  end';
+    const result = validateMermaidSyntax(input);
+    expect(result).toContain('subgraph eks cluster["EKS Cluster"]');
+  });
+
+  it('fixes dash-text-arrow syntax to pipe syntax', () => {
+    const input = 'flowchart TD\n  A --"Yes"--> B\n  C --"No"--> D';
+    const result = validateMermaidSyntax(input);
+    expect(result).toContain('A -->|"Yes"| B');
+    expect(result).toContain('C -->|"No"| D');
+  });
 });

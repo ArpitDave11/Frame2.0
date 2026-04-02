@@ -233,6 +233,8 @@ Purpose: ${diagramSecondaryPurpose ?? 'Primary workflow with decision points'}
    - Wrap node labels in square brackets: \`A[Service Name]\`
    - Subgraph IDs must be safe identifiers (no spaces or special chars): \`subgraph safeId["Display Name With & Symbols"]\`
    - NEVER use unicode arrows (→, ←, ↔) inside node or edge labels — use plain text "to", "from"
+   - Edge labels MUST use ONLY pipe syntax: \`-->|"text"|\`. NEVER use \`--"text"-->\` or \`A --> B: text\`.
+   - Do NOT include \`%%{init:}\` theme blocks — theming is applied automatically by the system.
    - CRITICAL: If a node label contains parentheses, slashes, ampersands, colons, or any other special characters, you MUST wrap the label text in double quotes inside the brackets. This prevents Mermaid syntax errors.
 
      CORRECT:
@@ -248,6 +250,7 @@ Purpose: ${diagramSecondaryPurpose ?? 'Primary workflow with decision points'}
        e3[E3 (Epic Management)]
        api[REST API: v2]
        api --> db: REST/JSON
+       api --"REST/JSON"--> db
        subgraph Auth & Security
 
 ### Diagram Styling (Required)
@@ -294,7 +297,7 @@ Apply the appropriate color based on what each arrow represents. You do not need
 
 **IMPORTANT:** All text inside nodes MUST be dark (#1A1A2E). Never use \`color:#fff\` or \`color:#ffffff\` — all fills are medium-lightness pastels designed for dark text.
 
-For sequenceDiagram and stateDiagram-v2: classDef is not supported. The %%{init} theme handles colors.
+**IMPORTANT:** classDef and linkStyle are ONLY for flowchart/graph diagrams. For sequenceDiagram and stateDiagram-v2, do NOT include any classDef or linkStyle declarations — they will cause syntax errors. Theming is handled automatically.
 
 ### User Story Generation
 1. Derive stories from the extracted requirements in the comprehension analysis.

@@ -309,6 +309,10 @@ export function validateMermaidSyntax(diagram: string, category?: string): strin
 
   // ─── Auto-fix common LLM syntax errors ───
 
+  // Fix 0: Strip AI-generated %%{init:} blocks — theming is handled by applyDiagramTheme
+  trimmed = trimmed.replace(/%%\{init:[\s\S]*?\}%%\s*/g, '');
+  trimmed = trimmed.trim();
+
   // Fix 1: Colon-style edge labels → pipe syntax
   // "A --> B: label text" → "A -->|label text| B"
   trimmed = trimmed.replace(
@@ -316,10 +320,11 @@ export function validateMermaidSyntax(diagram: string, category?: string): strin
     (_, src, arrow, tgt, label) => `${src} ${arrow}|${label.trim()}| ${tgt}`,
   );
 
-  // Fix 2: Unsafe subgraph IDs with special chars
-  // "subgraph Auth & Security" → 'subgraph authSecurity["Auth & Security"]'
+  // Fix 2: Unsafe subgraph IDs — multi-word IDs or IDs with special chars
+  // "subgraph Auth & Security" → 'subgraph AuthSecurity["Auth & Security"]'
+  // "subgraph approval flow" → 'subgraph approvalflow["approval flow"]'
   trimmed = trimmed.replace(
-    /^(\s*subgraph\s+)([^\n"[\]]+[&/():][\w &/():]+)$/gm,
+    /^(\s*subgraph\s+)([^\n"[\]]+[ \t]+[^\n"[\]]+)$/gm,
     (_, prefix, name) => {
       const safeId = name.trim().replace(/[^a-zA-Z0-9]/g, '');
       return `${prefix}${safeId}["${name.trim()}"]`;
@@ -328,6 +333,13 @@ export function validateMermaidSyntax(diagram: string, category?: string): strin
 
   // Fix 3: Unicode arrows in labels → plain text
   trimmed = trimmed.replace(/→/g, ' to ').replace(/←/g, ' from ').replace(/↔/g, ' between ');
+
+  // Fix 4: Dash-text-arrow syntax → pipe syntax
+  // '--"Yes"-->' → '-->|"Yes"|'
+  trimmed = trimmed.replace(
+    /--"([^"]+)"-->/g,
+    (_, label) => `-->|"${label}"|`,
+  );
 
   const firstLine = trimmed.split('\n')[0]!.trim();
   const isValid = VALID_MERMAID_DIRECTIVES.some(

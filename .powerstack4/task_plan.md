@@ -1,26 +1,27 @@
-# Category Templates v7.0.0
+# Mermaid Diagram Root Cause Analysis
 
 ## Goal
-Replace categoryTemplates.json with v7.0.0 spec — compressed hints, Epic Status on all categories, section merges/renames/promotions, new _meta fields.
+Identify why Mermaid diagrams intermittently fail. Generate 10-15 diagrams using current pipeline prompts/design, catalog failures, find root cause. NO code changes.
 
 ## Architecture
-Pure data file replacement. Template loader reads sections dynamically — no structural code changes. Update JSON, update categoryConstants.ts, fix test assertions.
+Research-only: read pipeline code → understand prompt construction → generate diagrams via AI → analyze failures.
 
-## Current Phase: Task 1 — Replace categoryTemplates.json
+## Current Phase: Task 1 — Map Mermaid pipeline
 
 ## Phases
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Replace categoryTemplates.json with v7.0.0 | in_progress |
-| 2 | Update categoryConstants.ts section lists | pending |
-| 3 | Fix templateLoader.test.ts assertions | pending |
-| 4 | Run full test suite and fix remaining breakage | pending |
-| 5 | Verify build and final sanity check | pending |
+| 1 | Map full pipeline | in_progress |
+| 2 | Read prompt code | pending |
+| 3 | Read validation code | pending |
+| 4 | Generate 10-15 diagrams | pending |
+| 5 | Catalog failures | pending |
+| 6 | Root cause analysis | pending |
+| 7 | Report to user | pending |
 
 ## Key Decisions
-- Full JSON replacement (Option A) — no incremental merge
-- totalWordTarget.excludes is inert data — no code change needed
+(none yet)
 
 ## Error Log
 (none)
