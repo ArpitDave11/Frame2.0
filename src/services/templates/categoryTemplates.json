@@ -39,786 +39,1629 @@
       "defaultPerPage": 20
     }
   },
-
   "general": {
     "description": "General-purpose specifications — AI classifies and structures content automatically",
-    "tone": "Adaptive. Match formality and vocabulary to the detected domain.",
-    "expertRole": "senior technical writer who adapts depth to the content domain",
-    "storyStyle": "context-dependent",
+    "tone": "Adaptive by domain — infrastructure/platform: technical precision, protocol references acceptable; product: outcome-focused, minimize jargon; data/ML: statistical precision, define abbreviations on first use; compliance/security: regulatory citation style, define every control reference.",
+    "expertRole": "senior technical writer who adapts depth to content domain — infrastructure: principal engineer voice; product: senior PM voice; data/ML: staff data engineer voice; compliance: solutions architect with regulatory experience",
+    "storyStyle": "default: user-story+AC | BDD-gherkin (Given/When/Then for QA-heavy or regulated contexts) | job-story (When I…/I want to…/So I can… for product discovery)",
     "architectureFocus": "determined by content classification",
-    "totalWordTarget": { "min": 1500, "max": 4000, "excludes": ["tables", "diagrams"] },
+    "totalWordTarget": {
+      "min": 1500,
+      "max": 6000,
+      "excludes": [
+        "tables",
+        "diagrams"
+      ]
+    },
     "diagramConfig": {
-      "primary": { "type": "flowchart LR", "purpose": "System context showing main components and connections" },
-      "secondary": { "type": "flowchart TD", "purpose": "Primary workflow with decision points and outcomes" }
+      "primary": {
+        "type": "flowchart LR",
+        "purpose": "System context showing main components and connections"
+      },
+      "secondary": {
+        "type": "flowchart TD",
+        "purpose": "Primary workflow with decision points and outcomes"
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
-        "hint": "Governance table: Owner, Status (Draft/Review/Approved), Reviewers with approval emoji, Created/Updated dates, Confidence (High/Medium/Low)."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
+        "hint": "Governance table: Owner, Status (Draft/Review/Approved), Reviewers with approval emoji, Created/Updated dates, Confidence (High/Medium/Low + rationale: High = well-understood scope and vetted tech; Medium = some unknowns; Low = significant unknowns or pending design decisions)."
       },
       "Overview": {
-        "target": 200, "max": 400, "format": "prose",
-        "hint": "Summarize the problem, affected users, and proposed approach in 3 paragraphs. Example: '1,200 monthly support tickets stem from manual data entry.' Do not write generic introductions."
+        "target": 200,
+        "max": 400,
+        "format": "prose",
+        "hint": "Paragraph 1: quantified problem (metric + affected users). Paragraph 2: current workaround and its cost. Paragraph 3: proposed approach and expected outcome. Example: \"1,200 monthly support tickets stem from manual data entry.\" Do not write generic introductions."
       },
       "Goals & Non-Goals": {
-        "target": 200, "max": 400, "format": "bullet-list",
-        "hint": "List 3–5 measurable goals with target metrics. Then list 2–3 reasonable goals explicitly excluded. Example goal: 'Reduce manual entry errors from 37% to <5%.' Non-goals prevent scope creep."
+        "target": 200,
+        "max": 400,
+        "format": "bullet-list",
+        "hint": "List 3–5 measurable goals; at least 3 must be quantified (baseline → target). Binary capability goals acceptable: \"X team can do Y without Z — verified by UAT.\" Label compliance objectives [Compliance]. Then list 2–3 non-goals. If a goal reads like a SHALL statement, move it to Requirements."
       },
       "Requirements": {
-        "target": 300, "max": 600, "format": "numbered-list",
+        "target": 300,
+        "max": 600,
+        "format": "numbered-list",
         "hint": "List each requirement as: 'The system SHALL [verb] [object] [constraint].' Each must be independently testable. Example: 'The system SHALL process payments within 200ms at P99.' No vague 'should be fast.'"
       },
       "Scope & Non-Scope": {
-        "target": 150, "max": 300, "format": "bullet-list",
-        "hint": "List 3–5 in-scope items and 3–5 explicitly excluded items with reasoning. Non-scope is equally important as scope."
+        "target": 150,
+        "max": 300,
+        "format": "bullet-list",
+        "hint": "List 4–8 in-scope items and 3–5 explicitly excluded items with reasoning. Format: \"- [description] (→ Req N)\" to trace each scope item to its requirement. Non-scope is equally important as scope."
       },
       "Success Metrics": {
-        "target": 150, "max": 300, "format": "slo-table",
-        "columns": ["Metric", "Baseline", "Target", "Measurement Method", "Owner"],
-        "hint": "Define 3–5 KPIs with current baseline, target value, and measurement method. Every metric must be quantified. 'Improve performance' is not a metric."
+        "target": 150,
+        "max": 300,
+        "format": "slo-table",
+        "columns": [
+          "Metric",
+          "Baseline",
+          "Target",
+          "Measurement Method",
+          "Owner"
+        ],
+        "hint": "Define 3–5 KPIs with current baseline, target value, and measurement method. Baseline must reflect steady-state operations, not incident data. If only incident data exists, note \"(incident-based baseline).\" Every metric must be quantified. \"Improve performance\" is not a metric."
       },
       "Assumptions & Constraints": {
-        "target": 100, "max": 200, "format": "bullet-list",
-        "hint": "List each assumption with its validation status. List each constraint with its source (regulatory, technical, budget). Flag unvalidated assumptions."
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "Each assumption: \"validated: [evidence]\" or \"unvalidated: [validation plan + date].\" Each constraint: source (regulatory, technical, budget). If ≥3 unvalidated assumptions on the same critical path, add callout: \"HIGH RISK PATH — spike sprint required.\""
       },
       "User Stories": {
-        "target": 400, "max": 800, "format": "mixed",
-        "hint": "Write as 'As a [specific role], I want [concrete capability] so that [measurable benefit].' Include 3–5 acceptance criteria per story. Not 'As a user' — name the actual role."
+        "target": 400,
+        "max": 1200,
+        "format": "mixed",
+        "hint": "Write as \"As a [specific role], I want [concrete capability] so that [measurable benefit].\" Include 3–5 acceptance criteria per story. Minimum 3 stories. Machine-actor stories valid for service-to-service epics. Not \"As a user\" — name the actual role. ACs must begin with a verb and be independently testable as pass/fail."
       }
     },
     "optionalSections": {
       "Architecture Overview": {
-        "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart",
-        "hint": "Draw a system context diagram showing primary components and data flows. Label every arrow with protocol/format."
+        "target": 200,
+        "max": 0,
+        "format": "mermaid",
+        "diagram": "flowchart",
+        "hint": "Required when epic has ≥3 external integrations or ≥2 workflow decision points. Draw a system context diagram showing primary components and data flows. Label every arrow with protocol/format."
       },
       "Risks": {
-        "target": 150, "max": 300, "format": "risk-heat-map",
+        "target": 150,
+        "max": 300,
+        "format": "risk-heat-map",
         "hint": "List top 5 risks ranked by probability × impact. Each must name a specific failure scenario AND a mitigation. Example: 'Vendor API deprecation (P:Med, I:High) → adapter pattern with v2 fallback.'"
       },
       "Dependencies": {
-        "target": 100, "max": 200, "format": "bullet-list",
-        "hint": "List each dependency with owning team, expected delivery date, and fallback plan if delayed."
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "Required if epic has ≥2 external team dependencies. Each entry: \"- [team/vendor] — [what needed] (by [date]; fallback: [plan] or \"no fallback — hard blocker\") (→ Req N).\""
       },
       "Timeline": {
-        "target": 100, "max": 200, "format": "phase-table",
-        "columns": ["Phase", "Duration", "Deliverables", "Exit Criteria"],
+        "target": 100,
+        "max": 200,
+        "format": "phase-table",
+        "columns": [
+          "Phase",
+          "Duration",
+          "Deliverables",
+          "Exit Criteria"
+        ],
         "hint": "Define 3–5 phases with concrete dates and exit criteria. No phase without a deliverable."
+      },
+      "Open Questions": {
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "List each unresolved question: \"[Question] — Owner: [name] — Decision by: [date] — Impact if unresolved: [scope change / delay / risk].\""
       }
     }
   },
-
   "technical_design": {
     "description": "Technical design documents — architecture decisions, trade-offs, and implementation plans following Google Design Doc philosophy",
     "tone": "Precise, trade-off-focused, decision-forward. Define acronyms on first use.",
     "expertRole": "senior software architect with distributed systems expertise — write for tech leads and senior engineers",
     "storyStyle": "engineering-focused with clear acceptance criteria",
     "architectureFocus": "system architecture and component design",
-    "totalWordTarget": { "min": 2000, "max": 5000, "excludes": ["tables", "code-blocks", "diagrams"] },
+    "totalWordTarget": {
+      "min": 2000,
+      "max": 5000,
+      "excludes": [
+        "tables",
+        "code-blocks",
+        "diagrams"
+      ]
+    },
     "diagramConfig": {
-      "primary": { "type": "flowchart LR", "purpose": "Component architecture showing services, databases, and data flows" },
-      "secondary": { "type": "sequenceDiagram", "purpose": "Key interaction flow between the most important components" }
+      "primary": {
+        "type": "flowchart LR (default), TD for top-heavy topologies, or a deployment diagram for infrastructure-heavy or sidecar architectures.",
+        "purpose": "Component architecture showing services, databases, and data flows"
+      },
+      "secondary": {
+        "type": "sequenceDiagram",
+        "purpose": "Key interaction flow between the most important components"
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
-        "hint": "Governance table: Owner, Status, Reviewers with approval emoji (✅/⏳/🔄), Created/Updated dates. Use Stripe gavel-block style — each reviewer gets a row."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
+        "hint": "Governance table: One row per reviewer. Required fields: Owner (row), Status (row), each Reviewer on its own row with approval emoji (✅/⏳/🔄), Created, Updated."
       },
       "Objective": {
-        "target": 150, "max": 300, "format": "prose",
-        "hint": "State the technical problem and measurable outcome in 2–3 sentences. Example: 'Reduce API latency from 800ms to <200ms P99 by replacing synchronous DB calls with cached reads.' Not a restatement of the title."
+        "target": 150,
+        "max": 300,
+        "format": "prose",
+        "hint": "2–4 sentences (~80–150 words). State the technical problem and a measurable outcome. Example: \"Reduce API latency from 800ms to <200ms P99 by replacing synchronous DB calls with cached reads.\" Not a restatement of the title."
       },
       "Context & Motivation": {
-        "target": 200, "max": 400, "format": "prose",
-        "hint": "What triggered this design? Quantify the current pain. Example: '4,200 timeout errors/day traced to synchronous inventory checks during peak load.' Include system version, traffic patterns, constraints."
+        "target": 200,
+        "max": 600,
+        "format": "prose",
+        "hint": "What triggered this design? Quantify the current pain. Include at least one named incident with a date and measured impact. Quantify the business impact of the status quo (incidents/quarter, CVEs, cost) in addition to technical metrics. Example: \"4,200 timeout errors/day traced to synchronous inventory checks during peak load.\" Include system version, traffic patterns, constraints."
       },
       "Goals & Non-Goals": {
-        "target": 200, "max": 400, "format": "bullet-list",
-        "hint": "⭐ NON-GOALS are the most important part. List things this design intentionally does NOT solve, even if reasonable. Example non-goal: 'Multi-region failover is out of scope for Phase 1.' Prevents re-litigation."
+        "target": 200,
+        "max": 400,
+        "format": "bullet-list",
+        "hint": "⭐ NON-GOALS are the most important part. Use two clearly labeled sub-sections: **Goals** and **Non-Goals**. List Non-Goals first when reviewing — readers skim them to scope the design before reading Goals. Example non-goal: \"Multi-region failover is out of scope for Phase 1.\" Example: \"This design covers infrastructure-level retries (Envoy). Application-level business retry logic (e.g., payment re-submission) is out of scope.\" Prevents re-litigation."
       },
       "Architecture Overview": {
-        "target": 400, "max": 800, "format": "prose", "diagram": "flowchart",
-        "hint": "Describe the architecture with named components, their responsibilities, and data flow. Include a Mermaid diagram. Label every connection with protocol and data format."
+        "target": 400,
+        "max": 800,
+        "format": "prose",
+        "diagram": "flowchart",
+        "hint": "Describe the architecture with named components, their responsibilities, and data flow. Include a Mermaid diagram. For systems with >8 nodes, group related components into subgraphs. Label only external-boundary connections with protocol and data format. For circular/bidirectional flows, note the cycle explicitly in prose."
       },
       "Technical Requirements": {
-        "target": 300, "max": 600, "format": "numbered-list",
-        "hint": "Each requirement: 'The system SHALL [verb] [object] [measurable constraint].' Example: 'The system SHALL handle 10K concurrent WebSocket connections with <50ms message delivery.' No vague 'scalable.'"
+        "target": 300,
+        "max": 600,
+        "format": "numbered-list",
+        "hint": "Each requirement: \"The system SHALL [verb] [object] [measurable constraint].\" Distinguish behavioral requirements (runtime system behavior) from resource constraints (infrastructure limits). For ML outcomes: \"The system SHALL achieve [metric] ≥ [threshold] on [named benchmark].\" Project-level constraints (migration windows, rollout timelines) belong in Implementation Plan, not here. No vague \"scalable.\""
       },
       "Proposed Design": {
-        "target": 500, "max": 1500, "format": "prose",
-        "hint": "Describe HOW the solution works mechanically. Name technologies, data flows, and state changes. The design must describe a DIFFERENT mechanism than the problem. Do not restate goals as the design."
+        "target": 500,
+        "max": 1500,
+        "format": "prose",
+        "hint": "Describe HOW the solution works mechanically. Name technologies, data flows, and state transitions (what changes on a write, failure, cache miss, or timeout). Include specific configuration parameters (timeouts, TTLs, concurrency limits, model dimensions). The design must describe a DIFFERENT mechanism than the problem. Migration sequencing and traffic shift percentages belong in Implementation Plan — this section describes steady-state mechanism only. Do not restate goals as the design."
       },
       "Alternatives Considered": {
-        "target": 200, "max": 400, "format": "comparison-table-and-prose",
-        "columns": ["Option", "Pros", "Cons", "Effort", "Risk"],
-        "hint": "⭐ MOST IMPORTANT SECTION (per Google). List 2–3 alternatives with specific pros/cons/effort. Example: 'DynamoDB rejected: eventual consistency unacceptable for ACID financial transactions.' Do not dismiss options without technical rationale."
+        "target": 200,
+        "max": 800,
+        "format": "comparison-table-and-prose",
+        "columns": [
+          "Option",
+          "Pros",
+          "Cons",
+          "Effort",
+          "Risk"
+        ],
+        "hint": "⭐ MOST IMPORTANT SECTION (per Google). List 2–3 alternatives with specific pros/cons/effort. Use time-based estimates in the Effort column (e.g., \"2–4 weeks\"). Include $/year cost for commercial alternatives. For options that are technically inapplicable, add a row with \"N/A — inapplicable because [specific reason].\" Example: \"DynamoDB rejected: eventual consistency unacceptable for ACID financial transactions.\" Do not dismiss options without technical rationale."
       },
       "Cross-Cutting Concerns": {
-        "target": 200, "max": 400, "format": "table",
-        "columns": ["Concern", "Approach", "Impact"],
-        "hint": "Address security, observability, performance, accessibility, and backward compatibility. Each must name the specific approach, not just acknowledge the concern."
+        "target": 200,
+        "max": 400,
+        "format": "table",
+        "columns": [
+          "Concern",
+          "Approach",
+          "Owner / Metric"
+        ],
+        "hint": "Address at minimum: security, observability, performance, reliability, and backward compatibility. Add domain-specific rows: compliance, cost (when cost reduction is a stated objective), data integrity, operational complexity. Make the concern list non-exhaustive — these are floors, not ceilings. Each must name the specific approach, not just acknowledge the concern. For migration epics, the Backward Compatibility row MUST name the specific coexistence strategy and its planned duration."
       },
       "Implementation Plan": {
-        "target": 300, "max": 600, "format": "phase-table",
-        "columns": ["Phase", "Duration", "Deliverables", "Dependencies", "Exit Criteria"],
-        "hint": "Break into 3–5 shippable increments. Each phase must have an exit criterion that proves it works. No phase without a deliverable."
+        "target": 300,
+        "max": 600,
+        "format": "phase-table",
+        "columns": [
+          "Phase",
+          "Duration",
+          "Deliverables",
+          "Dependencies",
+          "Exit Criteria"
+        ],
+        "hint": "Break into 3–5 shippable increments. Each phase must have an exit criterion that proves it works. Phase duration can be hours for atomic events (e.g., \"4 hours — scheduled cutover\"). Dependencies should specify: prior phases by number, external team deliverables, and infrastructure prerequisites. No phase without a deliverable."
       },
       "User Stories": {
-        "target": 400, "max": 800, "format": "mixed",
-        "hint": "Write engineering-focused stories with acceptance criteria. Example: 'As a platform engineer, I want circuit breaker on payment service so that cascading failures are contained within 5s.'"
+        "target": 400,
+        "max": 800,
+        "format": "mixed",
+        "hint": "Write 3–5 engineering-focused stories minimum (fewer than 3 suggests the scope belongs in Technical Requirements). Each story must have at least 2 acceptance criteria. Include at least one non-engineer persona (product manager, compliance officer, end user). Avoid restating the Objective in story form — target edge cases, operator workflows, or personas not addressed by the Objective. Example: \"As a platform engineer, I want circuit breaker on payment service so that cascading failures are contained within 5s.\""
       }
     },
     "optionalSections": {
       "Data Model": {
-        "target": 250, "max": 500, "format": "schema-table",
-        "columns": ["Field", "Type", "Required", "Description", "Constraints"],
+        "target": 250,
+        "max": 500,
+        "format": "schema-table",
+        "columns": [
+          "Field",
+          "Type",
+          "Required",
+          "Description",
+          "Constraints"
+        ],
         "hint": "Define every entity with field types, constraints, and relationships. Include indexes and migration strategy."
       },
       "API Design": {
-        "target": 300, "max": 600, "format": "endpoint-blocks",
+        "target": 300,
+        "max": 600,
+        "format": "endpoint-blocks",
         "hint": "Document each endpoint: method, path, auth, request/response body with types, status codes, error cases."
       },
       "Sequence Diagrams": {
-        "target": 150, "max": 0, "format": "mermaid-sequence", "diagram": "sequence",
-        "hint": "Draw sequence diagrams for the 2–3 most complex interactions. Show error paths, not just happy path."
+        "target": 0,
+        "max": 0,
+        "format": "mermaid-sequence",
+        "diagram": "sequence",
+        "hint": "Draw sequence diagrams for the 2–3 most complex interactions. Show error paths, not just happy path. The diagram is the deliverable — no prose wrapper required."
       },
       "Risks & Mitigations": {
-        "target": 200, "max": 400, "format": "risk-heat-map",
+        "target": 200,
+        "max": 400,
+        "format": "risk-heat-map",
         "hint": "Top 5 risks with specific failure scenarios and mitigation strategies. Each risk must name what breaks and how you recover."
       },
       "Open Questions": {
-        "target": 100, "max": 200, "format": "bullet-list",
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
         "hint": "List unresolved decisions with owner, options considered, and decision deadline. Use task list format: - [ ] Question (@owner, due date)."
       },
       "Security & Non-Functional Requirements": {
-        "target": 200, "max": 400, "format": "table",
-        "columns": ["Category", "Requirement", "Target", "Measurement Method"],
+        "target": 200,
+        "max": 400,
+        "format": "table",
+        "columns": [
+          "Category",
+          "Requirement",
+          "Target",
+          "Measurement Method"
+        ],
         "hint": "Define performance, security, scalability targets with measurable thresholds. 'P99 latency <200ms' not 'should be fast.'"
       },
       "Testing Strategy": {
-        "target": 150, "max": 300, "format": "bullet-list",
+        "target": 150,
+        "max": 300,
+        "format": "bullet-list",
         "hint": "Define test types, coverage targets, and specific test scenarios for critical paths."
+      },
+      "Technology Stack": {
+        "target": 0,
+        "max": 300,
+        "format": "table",
+        "columns": [
+          "Component",
+          "Technology",
+          "Version",
+          "Rationale"
+        ],
+        "hint": "Declare the technology choices before Proposed Design. Prevents tech decisions from leaking into Architecture Overview or Proposed Design prose."
+      },
+      "Topic / Event Schema": {
+        "target": 0,
+        "max": 400,
+        "format": "schema-table",
+        "columns": [
+          "Event",
+          "Schema/Format",
+          "Partition Key",
+          "Retention",
+          "Consumers"
+        ],
+        "hint": "Required for event-driven architectures. Define every event type, its schema format, how it is keyed, retention policy, and which consumer groups subscribe."
+      },
+      "Migration Strategy": {
+        "target": 200,
+        "max": 500,
+        "format": "prose",
+        "hint": "Describe the parallel-run period, per-entity downtime window, rollback trigger conditions, and success verification criteria. Required for epics that modify existing data structures, traffic routing, or replace existing production systems. Steady-state mechanism belongs in Proposed Design; migration mechanics belong here."
+      },
+      "Rollback Plan": {
+        "target": 150,
+        "max": 400,
+        "format": "phase-table",
+        "columns": [
+          "Phase",
+          "Trigger Condition",
+          "Rollback Steps",
+          "RTO"
+        ],
+        "hint": "Define rollback for each Implementation Plan phase. Trigger condition should be specific (error rate, row-count mismatch, latency breach), not vague (\"if something goes wrong\"). RTO must be measured, not estimated."
+      },
+      "Runbook / Operational Procedures": {
+        "target": 0,
+        "max": 600,
+        "format": "numbered-list",
+        "hint": "Step-by-step procedure for the cutover moment or complex operational dependency. Include specific commands, timing, and decision points (e.g., \"If lag > 5s at step 3, abort and revert step 2\"). Required for epics with a planned cutover or manual operational sequence."
+      },
+      "Model / Data Specification": {
+        "target": 0,
+        "max": 400,
+        "format": "table",
+        "columns": [
+          "Model Name",
+          "Framework",
+          "Parameter Count",
+          "Input Shape",
+          "Output Shape",
+          "P99 Latency Budget"
+        ],
+        "hint": "Declare model specifications before Proposed Design. Required for ML serving epics to prevent model details from cluttering Technical Requirements."
       }
     }
   },
-
   "business_requirement": {
     "description": "Business requirement documents — objectives, KPIs, RACI, and measurable outcomes for stakeholders",
-    "tone": "Executive-friendly, outcome-focused. Lead with business impact and quantified metrics; minimize jargon.",
+    "tone": "Executive-friendly, outcome-focused. Lead with business impact and quantified metrics; minimize jargon. For compliance/regulatory epics, use precise legal/regulatory terminology — do not simplify. User Stories section may use end-user language for employee-facing initiatives.",
     "expertRole": "senior business analyst with enterprise process optimization expertise — write for executives and product managers",
     "storyStyle": "business-value focused with measurable outcomes",
     "architectureFocus": "business process and organizational impact",
-    "totalWordTarget": { "min": 1500, "max": 3500, "excludes": ["tables", "appendices"] },
+    "totalWordTarget": {
+      "min": 1500,
+      "max": 3500,
+      "excludes": [
+        "tables",
+        "appendices"
+      ],
+      "note": "This target applies to prose narrative sections only. A complete epic typically contains 600–1,200 words of prose plus 500–1,000 words of structured content."
+    },
     "diagramConfig": {
-      "primary": { "type": "flowchart TD", "purpose": "Business process flow with decision points, approval gates, and outcomes" },
-      "secondary": { "type": "flowchart LR", "purpose": "System context showing business systems involved" }
+      "primary": {
+        "type": "flowchart TD (default) or LR for wide multi-stage flows",
+        "purpose": "Business process flow with decision points, approval gates, and outcomes"
+      },
+      "secondary": {
+        "type": "flowchart LR",
+        "purpose": "System or organizational context — use system diagram for technology-heavy epics, org chart structure for people-heavy ones. Render as a second diagram immediately after Process Flow."
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
-        "hint": "Governance table: Owner, Status, Reviewers with approval emoji, Created/Updated dates, Business Sponsor."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
+        "hint": "Governance table: Owner, Business Sponsor (distinct from Owner), Status, Reviewers with approval emoji (✅ Approved, 🔄 In Review, ⏳ Pending, ❌ Rejected), Created/Updated dates. For regulatory/financial-control/privacy epics, Legal must be listed as Reviewer."
       },
       "Executive Summary": {
-        "target": 200, "max": 400, "format": "prose",
-        "hint": "Summarize the business impact, cost/benefit, and recommendation in 3 paragraphs. A VP should be able to approve or reject from this section alone."
+        "target": 200,
+        "max": 400,
+        "format": "prose",
+        "hint": "Write in prose only — no bullet points or tables. Paragraph 1: problem quantified + business impact. Paragraph 2: proposed solution + investment + ROI. Paragraph 3: recommendation + risk summary. A VP should be able to approve or reject from this section alone."
       },
       "Goals & Non-Goals": {
-        "target": 200, "max": 400, "format": "bullet-list",
-        "hint": "SMART goals: Specific, Measurable, Achievable, Relevant, Time-bound. Example: 'Reduce churn by 15% within 6 months.' List 2–3 non-goals to prevent scope expansion."
+        "target": 200,
+        "max": 400,
+        "format": "bullet-list",
+        "hint": "Structure each goal as: \"[metric] from [baseline] to [target] within [timeframe].\" For capability epics: \"Deliver [capability] to [users/stakeholders] by [date].\" List 3–5 non-goals to prevent scope expansion. Do not use generic SMART acronym — be specific with the structural template."
       },
       "Business Context & Problem Statement": {
-        "target": 250, "max": 500, "format": "prose",
+        "target": 250,
+        "max": 500,
+        "format": "prose",
         "hint": "Lead with data. Quantify the pain: affected users, error rates, dollar costs. Example: '37% of support tickets (1,200/month) stem from manual data entry, costing ~$180K/quarter.' No opinions without evidence."
       },
       "Scope & Non-Scope": {
-        "target": 200, "max": 400, "format": "bullet-list",
+        "target": 200,
+        "max": 400,
+        "format": "bullet-list",
         "hint": "List in-scope deliverables and explicitly excluded items with reasoning. Non-scope prevents scope creep."
       },
       "Stakeholders & RACI": {
-        "target": 0, "max": 0, "format": "raci-table",
-        "columns": ["Deliverable", "Responsible", "Accountable", "Consulted", "Informed"],
-        "hint": "Each row must have exactly ONE Accountable person. Name specific roles/people, not teams. Every deliverable from Scope must appear here."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Deliverable",
+          "Responsible",
+          "Accountable",
+          "Consulted",
+          "Informed"
+        ],
+        "hint": "Each row must have exactly ONE Accountable person — if unclear, escalate to next management level. Name specific roles/people, not teams. Group deliverables by domain for program epics; limit to 8–10 rows. Every deliverable from Scope must appear here."
       },
       "Requirements": {
-        "target": 300, "max": 600, "format": "numbered-list",
-        "hint": "Prioritized business requirements with unique IDs (BR-001). Each gets 30–80 words max. Use MoSCoW priority: Must/Should/Could/Won't."
+        "target": 300,
+        "max": 600,
+        "format": "numbered-list",
+        "hint": "Prioritized business requirements with IDs: \"BR-[3-digit sequence] [MoSCoW]:\" — e.g., \"BR-001 [Must]:\". IDs reflect creation order, not priority — use MoSCoW tag for priority. Each gets 30–80 words minimum to ensure completeness."
       },
       "Process Flow": {
-        "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart",
-        "hint": "Draw the proposed business process with decision points, approval gates, and exception paths. Label every arrow with the trigger condition."
+        "target": 200,
+        "max": 0,
+        "format": "mermaid",
+        "diagram": "flowchart",
+        "hint": "Target 8–15 nodes for simple flows; split into sub-flows if complexity exceeds 15 nodes. Label decision branches and key triggers only — omit labels on sequential arrows. For parallel tracks, use Mermaid subgraph constructs."
       },
       "Success Metrics": {
-        "target": 150, "max": 300, "format": "slo-table",
-        "columns": ["Metric", "Baseline", "Target", "Measurement Method", "Review Cadence"],
-        "hint": "Every metric must be quantified. 'Improve performance' is not a metric. 'Reduce ticket volume from 1,200/mo to <300/mo' is."
+        "target": 150,
+        "max": 300,
+        "format": "table",
+        "columns": [
+          "Metric",
+          "Baseline",
+          "Target",
+          "Measurement Method",
+          "Review Cadence"
+        ],
+        "hint": "4–6 metrics. Every metric must be quantified with baseline → target. Include at least 1 leading and 1 lagging indicator. For percentages, define the denominator (of what population?). Measurement method must name who/what tool/what population. Binary compliance metrics acceptable: \"SOX audit pass — verified by annual audit.\" Phase-aligned review cadence (monthly/quarterly). \"Improve performance\" is not a metric."
       },
       "User Stories": {
-        "target": 300, "max": 600, "format": "mixed",
+        "target": 300,
+        "max": 600,
+        "format": "mixed",
         "hint": "Business-value stories with quantified benefits. Example: 'As a finance manager, I want automated reconciliation so that month-end close reduces from 5 days to 1 day.'"
       }
     },
     "optionalSections": {
       "Current State (As-Is)": {
-        "target": 200, "max": 400, "format": "prose",
+        "target": 200,
+        "max": 400,
+        "format": "prose",
         "hint": "Describe the current process with specific pain points, workarounds, and costs. Include a process diagram if complex."
       },
       "Risk Assessment": {
-        "target": 200, "max": 400, "format": "risk-heat-map",
-        "hint": "Top 5 business risks with probability × impact. Each must name the specific failure and mitigation."
+        "target": 200,
+        "max": 400,
+        "format": "table",
+        "hint": "Top 5 business risks. Each must name the specific failure and mitigation. Probability × Impact → Risk Score (Critical/High/Medium/Low).",
+        "columns": [
+          "Risk",
+          "Probability (H/M/L)",
+          "Impact (H/M/L)",
+          "Risk Score",
+          "Owner",
+          "Mitigation"
+        ]
       },
       "Cost-Benefit Analysis": {
-        "target": 200, "max": 400, "format": "table",
-        "columns": ["Item", "One-Time Cost", "Annual Cost", "Annual Benefit", "Payback Period"],
+        "target": 200,
+        "max": 400,
+        "format": "table",
+        "columns": [
+          "Item",
+          "One-Time Cost",
+          "Annual Cost",
+          "Annual Benefit",
+          "Payback Period"
+        ],
         "hint": "Quantify all costs and benefits. Include development, licensing, training, support. Show ROI and payback period."
       },
       "Timeline & Milestones": {
-        "target": 150, "max": 300, "format": "phase-table",
-        "columns": ["Phase", "Duration", "Deliverables", "Business Milestone"],
-        "hint": "Define phases with business milestones, not just technical deliverables."
+        "target": 150,
+        "max": 300,
+        "format": "phase-table",
+        "columns": [
+          "Phase",
+          "Duration",
+          "Deliverables",
+          "Business Gate"
+        ],
+        "hint": "Business Gate = a go/no-go decision or external commitment, not a deliverable. Include 1–2 exit criteria per phase in the Deliverables column. Express duration in calendar weeks by default."
       },
       "Next Steps & Decision Log": {
-        "target": 80, "max": 150, "format": "bullet-list",
+        "target": 80,
+        "max": 150,
+        "format": "bullet-list",
         "hint": "Use task lists (- [ ]) for action items. Decision log: Decision, Date, Rationale, Participants."
+      },
+      "Assumptions & Dependencies": {
+        "target": 100,
+        "max": 200,
+        "format": "prose",
+        "hint": "List system dependencies (existing platforms, APIs, contracts), organizational assumptions (headcount, budget approval), and external dependencies (vendor timelines, regulatory guidance). Flag any assumption whose failure would invalidate the business case."
+      },
+      "Change Management & Adoption": {
+        "target": 150,
+        "max": 300,
+        "format": "mixed",
+        "hint": "Identify named change champion. Describe training plan and communication cadence. List adoption metrics with 30/60/90-day targets. Identify top resistance risks and mitigation. Treat this section as required for any initiative affecting >20 employees."
       }
     }
   },
-
   "feature_specification": {
     "description": "Feature specifications — user-centric design with evidence-based problem statements, edge cases, and launch plans",
     "tone": "Clear, user-centric, evidence-driven. Describe behavior from the user's perspective; name specific screens and actions.",
     "expertRole": "senior product manager with UX and data-driven prioritization — write for designers, developers, and QA",
     "storyStyle": "user-centric with detailed acceptance criteria",
     "architectureFocus": "feature behavior and user experience",
-    "totalWordTarget": { "min": 1500, "max": 3500, "excludes": ["tables", "diagrams"] },
+    "totalWordTarget": {
+      "min": 1500,
+      "max": 3500,
+      "excludes": [
+        "tables",
+        "diagrams"
+      ]
+    },
     "diagramConfig": {
-      "primary": { "type": "flowchart TD", "purpose": "User journey showing screens, actions, decisions, and error states" },
-      "secondary": { "type": "stateDiagram-v2", "purpose": "Feature state transitions (e.g., draft → submitted → approved)" }
+      "primary": {
+        "type": "flowchart TD",
+        "purpose": "User journey showing screens, actions, decisions, and error states. Must include at least 3 decision diamonds, at least 1 error path terminal, and labeled transitions."
+      },
+      "secondary": {
+        "type": "stateDiagram-v2",
+        "purpose": "Feature state transitions — include all meaningful states (typically 4–8; do not collapse to binary on/off). For multi-user features, show per-session user states."
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
         "hint": "Governance table: Owner, Status, Reviewers, Created/Updated dates, Target Release."
       },
       "Problem Statement": {
-        "target": 150, "max": 300, "format": "prose",
-        "hint": "Lead with evidence — user research data, support ticket counts, analytics. Example: '42% of users abandon checkout at the address step (Hotjar session data, n=3,200).' No opinions without data."
+        "target": 150,
+        "max": 300,
+        "format": "prose",
+        "hint": "Lead with evidence — every claim about user behavior MUST cite a data source in parentheses (e.g., \"Hotjar session data, n=3,200\"). If quantitative data is unavailable, cite qualitative sources: user interview themes (n=X), feature request volume, or NPS verbatim count. No opinions without data. Remove any sentence without a citation."
       },
       "Goals & Non-Goals": {
-        "target": 200, "max": 400, "format": "bullet-list",
-        "hint": "Measurable feature goals with target metrics. Non-goals prevent feature creep. Example non-goal: 'Mobile-native experience is Phase 2; responsive web is sufficient for launch.'"
+        "target": 200,
+        "max": 400,
+        "format": "bullet-list",
+        "hint": "Measurable feature goals with target metrics and measurement method (e.g., \"Search p95 latency <300ms via New Relic\"). Non-goals must describe work that could reasonably be assumed in scope but is explicitly deferred — do not list things that were never in scope. Example non-goal: \"Mobile-native experience is Phase 2; responsive web is sufficient for launch.\""
       },
       "User Personas": {
-        "target": 150, "max": 300, "format": "bullet-list",
-        "hint": "Define 2–3 personas with role, technical proficiency, primary goal, and pain point. Not generic 'users' — name the archetype."
+        "target": 150,
+        "max": 300,
+        "format": "bullet-list",
+        "hint": "Define 2–3 personas. Format each as: **[Archetype Name]** | Role | Proficiency: Beginner/Intermediate/Expert | Goal: [one sentence] | Pain Point: [one sentence]. Archetypes must be distinct — avoid generic labels like \"Online Shopper.\" For admin-facing features, include at least one persona who is the subject of administration."
       },
       "Functional Requirements": {
-        "target": 300, "max": 600, "format": "numbered-list",
-        "hint": "Each requirement with unique ID (FR-001), priority (MoSCoW), and testable acceptance criterion. Example: 'FR-003 (Must): Search returns results within 500ms for queries up to 100 characters.'"
+        "target": 300,
+        "max": 600,
+        "format": "numbered-list",
+        "hint": "Each requirement MUST include: unique ID (FR-NNN), MoSCoW priority in parentheses, and a single testable pass/fail acceptance criterion naming an observable system behavior (not a design decision). Avoid universal quantifiers (all, any, every, always) — enumerate specific cases. When total requirements exceed 6, group by feature area with bold sub-header. List all MUST before SHOULD. Example: \"FR-003 (Must): Search returns results within 500ms for queries up to 100 characters.\""
       },
       "Scope & Non-Scope": {
-        "target": 100, "max": 250, "format": "bullet-list",
-        "hint": "List features explicitly excluded from this release with reasoning. 'Not in v1' prevents scope creep."
+        "target": 100,
+        "max": 250,
+        "format": "bullet-list",
+        "hint": "Use two explicit sub-lists: **In Scope:** and **Out of Scope (v1):**. Explicitly address all commonly assumed delivery channels or surfaces even to exclude them (e.g., web, desktop, iOS, Android, email, SMS). \"Not in v1\" prevents scope creep."
       },
       "User Flows": {
-        "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart",
-        "hint": "Include Mermaid flowcharts for happy path AND key error paths. Show every decision point and error state. Label transitions with user actions."
+        "target": 200,
+        "max": 0,
+        "format": "mermaid",
+        "diagram": "flowchart",
+        "hint": "Include Mermaid flowcharts for happy path AND key error paths. MUST include: at least one error path terminal node, at least one boundary/edge decision diamond, and label every transition with user action or system event. For platform-integration features (OS handoffs, webhooks), include system routing steps. Only showing the happy path is not sufficient."
       },
       "Edge Cases & Error Handling": {
-        "target": 200, "max": 400, "format": "table",
-        "columns": ["Scenario", "Trigger", "Expected Behavior", "Priority"],
-        "hint": "List edge cases with specific trigger conditions and expected behavior. Include: empty states, boundary values, concurrent access, network failures."
+        "target": 200,
+        "max": 400,
+        "format": "table",
+        "columns": [
+          "Scenario",
+          "Trigger",
+          "Expected Behavior",
+          "Priority"
+        ],
+        "hint": "Each row must cover a meaningfully distinct trigger condition — do not create multiple rows for the same root cause with minor variations. Expected Behavior must name the specific UI element and state (e.g., \"Inline error banner beneath search bar reads: No results for X. Try broader terms.\"). Examples are illustrative — substitute feature-appropriate scenarios for irrelevant generic ones. Include: empty states, boundary values, concurrent access, network failures where relevant."
       },
       "Non-Functional Requirements": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Category", "Requirement", "Target", "Measurement"],
-        "hint": "Be specific: 'P99 latency <200ms' not 'should be fast.' Include performance, accessibility (WCAG 2.1 AA), and i18n requirements."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Category",
+          "Requirement",
+          "Target",
+          "Measurement"
+        ],
+        "hint": "The Target column MUST contain a numeric threshold or named standard (WCAG 2.1 AA, ISO 8601). Vague terms (fast, good, secure) are not acceptable. Choose the latency metric most relevant to this feature's real-time behavior. For UI features: Accessibility row MUST specify contrast ratio thresholds. For network-dependent features: add Reliability/Degradation row for offline behavior."
       },
       "Analytics & Success Metrics": {
-        "target": 100, "max": 200, "format": "slo-table",
-        "columns": ["Event", "Trigger", "Properties", "Success Target"],
-        "hint": "Define every trackable event with trigger, properties captured, and success threshold. Example: 'checkout_complete: conversion rate >68%.'"
+        "target": 100,
+        "max": 200,
+        "format": "table",
+        "columns": [
+          "Event",
+          "Trigger",
+          "Properties",
+          "Success Target"
+        ],
+        "hint": "Define at minimum 3 trackable events (adoption, change, error/fallback). Each event: trigger, properties captured, and success threshold. Success Target column is REQUIRED — cannot be blank or TBD. Example: \"checkout_complete: conversion rate >68%.\""
       },
       "User Stories": {
-        "target": 400, "max": 800, "format": "mixed",
-        "hint": "User-centric stories with specific screen names, actions, and acceptance criteria. Each story must begin with a bold, scannable title."
+        "target": 400,
+        "max": 800,
+        "format": "mixed",
+        "hint": "Begin EVERY story with a bold H4 title (e.g., **Search: Zero Results State**). Name the specific screen and exact user action. Every story actor must correspond to a persona in User Personas — if a new actor is needed, add them to User Personas first. Include stories for all defined personas, including indirectly affected ones. Stories must be distinct — merge duplicates. Include 3–5 acceptance criteria per story."
       }
     },
     "optionalSections": {
       "Launch Plan": {
-        "target": 100, "max": 200, "format": "prose",
-        "hint": "Feature flag strategy, rollout %, rollback criteria. Example: 'Launch to 5% → monitor error rate 24h → expand to 25% → full rollout.'"
+        "target": 100,
+        "max": 200,
+        "format": "prose",
+        "hint": "Must include at least 3 rollout stages with monitoring gate between each (e.g., 5% → check error rate 24h → 25% → check retention 48h → 100%). If feature flag is not applicable, state why in one sentence and specify rollback mechanism."
       },
       "UX/Design": {
-        "target": 100, "max": 200, "format": "prose",
+        "target": 100,
+        "max": 200,
+        "format": "prose",
         "hint": "Link to Figma/mockups. Describe key interaction patterns and accessibility considerations."
       },
       "Dependencies & Risks": {
-        "target": 0, "max": 0, "format": "risk-heat-map",
-        "hint": "List dependencies with teams/dates. Top 3 risks with failure scenario and mitigation."
+        "target": 0,
+        "max": 0,
+        "format": "risk-heat-map",
+        "hint": "Every risk MUST include a concrete mitigation with detection signal and escalation owner. \"None currently planned\" is not acceptable. List dependencies with teams/dates. Top 3 risks with failure scenario and mitigation."
       },
       "Competitive Analysis": {
-        "target": 100, "max": 200, "format": "comparison-table-and-prose",
-        "columns": ["Competitor", "Approach", "Strength", "Gap"],
-        "hint": "How do competitors solve this? What can we learn? What differentiates our approach?"
+        "target": 100,
+        "max": 200,
+        "format": "comparison-table-and-prose",
+        "columns": [
+          "Competitor",
+          "Approach",
+          "Strength",
+          "Gap"
+        ],
+        "hint": "Only include for user-facing, market-differentiating features. Skip for internal tooling or table-stakes features. \"Competitors\" means other market products — not OS platforms or internal alternatives. How do they solve this? What differentiates our approach?"
       }
     }
   },
-
   "api_specification": {
     "description": "API specifications — endpoints, schemas, auth, rate limits, and versioning modeled after Stripe's gold standard",
     "tone": "Developer-friendly, example-driven, precise. Every endpoint must be copy-paste implementable from the doc alone.",
     "expertRole": "senior API architect with RESTful and event-driven design — write for API consumers and integration engineers",
     "storyStyle": "API-consumer focused with contract clarity",
     "architectureFocus": "API contract and integration patterns",
-    "totalWordTarget": { "min": 2000, "max": 5000, "excludes": ["code-blocks", "tables", "schemas"] },
+    "totalWordTarget": {
+      "min": 2000,
+      "max": 5000,
+      "excludes": [
+        "code-blocks",
+        "tables"
+      ]
+    },
     "diagramConfig": {
-      "primary": { "type": "sequenceDiagram", "purpose": "Primary API request/response flow including auth, validation, and error paths" },
-      "secondary": { "type": "flowchart LR", "purpose": "API topology showing gateway, services, and data stores" }
+      "primary": {
+        "type": "sequenceDiagram",
+        "purpose": "Primary API flow: for REST APIs show request lifecycle (auth → validation → processing → response + error paths); for event APIs show subscription + event delivery + retry + dead-letter flow."
+      },
+      "secondary": {
+        "type": "flowchart LR",
+        "purpose": "API topology showing gateway, microservices, data stores, cache layers, message queues, and external provider dependencies. Label every edge with protocol and direction."
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
         "hint": "Governance table: Owner, Status, Reviewers, API Version, Base URL, Created/Updated dates."
       },
       "Objective": {
-        "target": 100, "max": 200, "format": "prose",
+        "target": 100,
+        "max": 200,
+        "format": "prose",
         "hint": "What does this API do, who consumes it, and what's the key design constraint? One paragraph."
       },
       "Overview & Authentication": {
-        "target": 200, "max": 400, "format": "prose",
-        "hint": "Base URLs per environment, auth mechanism (OAuth2/API Key/JWT), token lifecycle, scopes. Include a curl example for the auth flow."
+        "target": 200,
+        "max": 400,
+        "format": "prose",
+        "hint": "Base URLs per environment, auth mechanism (OAuth2/API Key/JWT), token lifecycle, scopes. Include a curl example for the auth flow. If this API IS an identity/auth service, document both the bootstrap admin auth and the supported OAuth2 grant types. If the API calls external providers, note that outbound credentials are server-side configuration only."
       },
       "Goals & Non-Goals": {
-        "target": 150, "max": 300, "format": "bullet-list",
-        "hint": "API design goals (backward compatibility, idempotency, etc.) and explicit exclusions. Example non-goal: 'GraphQL interface is out of scope for v1.'"
+        "target": 150,
+        "max": 300,
+        "format": "bullet-list",
+        "hint": "API design goals as contract commitments: backward compatibility guarantee (semver policy), idempotency support, consistency model (strong/eventual), SLO targets. Non-goals must be explicit API contract exclusions: \"GraphQL is out of scope for v1,\" \"Resumable uploads not supported — max single request 100MB.\""
       },
       "Endpoints": {
-        "target": 500, "max": 1500, "format": "endpoint-blocks",
-        "hint": "⭐ Working examples are MANDATORY. Each endpoint: method, path, description, auth, request body, response body, status codes, error cases. Use code blocks for request/response."
+        "target": 500,
+        "max": 1500,
+        "format": "endpoint-blocks",
+        "hint": "⭐ Working examples are MANDATORY. Each endpoint: method, path, description, auth, request body (or query parameter table for GET endpoints), response body, status codes, and error cases. Use code blocks for request/response. For endpoints that support idempotency, show the Idempotency-Key header in the example. Target: cover the complete surface area of the API — do not stop at word count."
       },
       "Data Models": {
-        "target": 0, "max": 0, "format": "schema-table",
-        "columns": ["Field", "Type", "Required", "Description", "Constraints"],
-        "hint": "One table per resource. Include validation rules and examples for each field. Flag breaking changes with inline diff."
+        "target": 0,
+        "max": 0,
+        "format": "schema-table",
+        "columns": [
+          "Field",
+          "Type",
+          "Required",
+          "Description",
+          "Constraints"
+        ],
+        "hint": "One table per resource. Include validation rules, examples, and nullable/optional status for each field. For nested objects, model sub-schemas as separate tables with a relationship note. Flag breaking changes with inline diff (breaking = removing a field, changing type, or adding a required field without a default). For event/streaming APIs, always model the event envelope schema."
       },
       "Error Handling": {
-        "target": 0, "max": 0, "format": "error-table",
-        "columns": ["HTTP Status", "Error Code", "Description", "Recovery Action", "Retry Strategy"],
-        "hint": "Standardized error envelope with request_id for traceability. Every error must tell the consumer how to fix it."
+        "target": 0,
+        "max": 0,
+        "format": "error-table",
+        "columns": [
+          "HTTP Status",
+          "Error Code",
+          "Description",
+          "Recovery Action",
+          "Retry Strategy"
+        ],
+        "hint": "Standardized error envelope with request_id for traceability. Document the error envelope schema once at the top (example: {\"error\": {\"code\": \"string\", \"message\": \"string\", \"param\": \"string|null\", \"request_id\": \"string\"}}). Every error must tell the consumer how to fix it. For async/delivery APIs, include delivery state errors (queued/delivered/failed/bounced) in addition to HTTP status codes."
       },
       "Pagination & Rate Limiting": {
-        "target": 100, "max": 200, "format": "table",
-        "columns": ["Limit Type", "Value", "Scope", "Header"],
-        "hint": "Exact numbers: requests/minute, burst limit, pagination strategy (cursor vs offset), page size defaults and max."
+        "target": 150,
+        "max": 350,
+        "format": "table",
+        "columns": [
+          "Limit Type",
+          "Value",
+          "Scope",
+          "Header"
+        ],
+        "hint": "Exact numbers: requests/minute, burst limit, pagination strategy (cursor vs offset — prefer cursor for >10K result sets), page size defaults and max. For file/storage APIs, include file size limits and bandwidth quotas. For notification APIs, include per-recipient rate limits. Cursor pagination: document the cursor field name, sort key, direction parameters, and token TTL."
       },
       "User Stories": {
-        "target": 300, "max": 600, "format": "mixed",
-        "hint": "API consumer stories specifying integration patterns. Example: 'As a billing service, I want idempotent charge creation so that network retries don't duplicate payments.'"
+        "target": 300,
+        "max": 600,
+        "format": "mixed",
+        "hint": "API consumer stories specifying integration patterns with measurable SLOs. Example: \"As a billing service, I want idempotent charge creation so that network retries don't duplicate payments.\" Include at least one story covering: error/retry handling, rate limit handling, and webhook/event consumption if the API emits events."
+      },
+      "Webhooks & Events": {
+        "target": 200,
+        "max": 500,
+        "format": "endpoint-blocks",
+        "hint": "Document event types, payload schema per event type, delivery guarantee (at-least-once/exactly-once), retry policy with backoff schedule, signature verification method (HMAC-SHA256 header), and endpoint registration flow. Show a curl example of signature verification. If not applicable (pure synchronous API), state \"N/A — synchronous API only.\""
+      },
+      "Idempotency": {
+        "target": 100,
+        "max": 200,
+        "format": "prose",
+        "hint": "Which endpoints support idempotent requests, key format, TTL, and conflict resolution strategy."
+      },
+      "Versioning & Deprecation": {
+        "target": 100,
+        "max": 200,
+        "format": "prose",
+        "hint": "URL vs header versioning, backward compatibility guarantees, deprecation timeline, sunset policy."
       }
     },
     "optionalSections": {
-      "Webhooks & Events": {
-        "target": 150, "max": 300, "format": "endpoint-blocks",
-        "hint": "Include payload examples. Specify delivery guarantee (at-least-once), retry policy, and signature verification."
-      },
-      "Versioning & Deprecation": {
-        "target": 100, "max": 200, "format": "prose",
-        "hint": "URL vs header versioning, backward compatibility guarantees, deprecation timeline, sunset policy."
-      },
       "SDK Examples": {
-        "target": 200, "max": 400, "format": "code-block",
+        "target": 200,
+        "max": 400,
+        "format": "code-block",
         "hint": "Working code in 2–3 languages (Python, Node.js, cURL). Each example must be copy-paste runnable."
       },
       "Testing & Sandbox": {
-        "target": 80, "max": 150, "format": "prose",
+        "target": 80,
+        "max": 150,
+        "format": "prose",
         "hint": "Sandbox URLs, test credentials, mock data, Postman collection link."
       },
-      "Idempotency": {
-        "target": 100, "max": 200, "format": "prose",
-        "hint": "Which endpoints support idempotent requests, key format, TTL, and conflict resolution strategy."
-      },
       "Migration Guide": {
-        "target": 150, "max": 300, "format": "numbered-procedure",
+        "target": 150,
+        "max": 300,
+        "format": "numbered-procedure",
         "hint": "Step-by-step guide for migrating from previous API version with code diff examples."
+      },
+      "Security Considerations": {
+        "target": 100,
+        "max": 250,
+        "format": "bullet-list",
+        "hint": "Required for identity, payment, and data APIs. Document: auth enforcement, authorization model (RBAC/ABAC/scope-based), PII masking in logs, encryption at rest, and compliance requirements (PCI DSS, GDPR). Skip with \"N/A\" if not relevant."
+      },
+      "Async Job Patterns": {
+        "target": 100,
+        "max": 200,
+        "format": "endpoint-blocks",
+        "hint": "For APIs returning async results (long-running queries, bulk exports, large file processing): document submit-poll-download pattern with job submission, status polling, result download endpoints, job TTL, and max poll interval."
       }
     }
   },
-
   "infrastructure_design": {
     "description": "Infrastructure design — cloud architecture, SLOs, DR, cost analysis. Every component must answer: how does it fail, how do we know, how do we recover?",
     "tone": "Ops-focused, SLO-driven, cost-aware. Specify exact resource sizes, regions, and configurations.",
     "expertRole": "senior infrastructure architect with cloud-native and SRE expertise — write for platform engineers and DevOps",
     "storyStyle": "operations-focused with SLO targets",
     "architectureFocus": "infrastructure topology and operations",
-    "totalWordTarget": { "min": 2000, "max": 5000, "excludes": ["tables", "diagrams", "runbooks"] },
+    "totalWordTarget": {
+      "min": 2000,
+      "max": 5000,
+      "excludes": [
+        "tables",
+        "diagrams",
+        "runbooks"
+      ]
+    },
     "diagramConfig": {
-      "primary": { "type": "flowchart LR", "purpose": "Infrastructure layout showing compute, storage, networking, and external services" },
-      "secondary": { "type": "flowchart TD", "purpose": "CI/CD pipeline stages from commit to production" }
+      "primary": {
+        "type": "flowchart LR",
+        "purpose": "Infrastructure layout showing compute, storage, networking, and external services"
+      },
+      "secondary": {
+        "type": "flowchart TD",
+        "purpose": "CI/CD pipeline stages from commit to production"
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
-        "hint": "Governance table: Owner, Status, Reviewers, Cloud Provider, Region, Created/Updated dates."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
+        "hint": "Governance table: Owner, Status, Reviewers, Cloud Provider, Region, Compliance Standards (PCI-DSS / GDPR / HIPAA / SOC2 / N/A), Created/Updated dates."
       },
       "Objective": {
-        "target": 100, "max": 200, "format": "prose",
+        "target": 100,
+        "max": 200,
+        "format": "prose",
         "hint": "What infrastructure, why, and the key SLO target. Example: 'Provision multi-AZ payment processing cluster targeting 99.99% availability.'"
       },
       "Goals & Non-Goals": {
-        "target": 200, "max": 400, "format": "bullet-list",
+        "target": 200,
+        "max": 400,
+        "format": "bullet-list",
         "hint": "Infrastructure goals with SLO targets. Non-goals: what this infra intentionally does NOT provide. Example non-goal: 'Multi-region DR is Phase 2.'"
       },
       "SLA/SLO Requirements": {
-        "target": 0, "max": 0, "format": "slo-table",
-        "columns": ["Service", "SLI", "SLO Target", "Window", "Error Budget", "Alert Threshold"],
-        "hint": "Define availability, latency percentiles, throughput, and error rate targets per service. Include error budget calculation."
+        "target": 0,
+        "max": 0,
+        "format": "slo-table",
+        "columns": [
+          "Service",
+          "SLI",
+          "SLO Target",
+          "Owner (Provider/Team)",
+          "Window",
+          "Error Budget",
+          "Alert Threshold"
+        ],
+        "hint": "Define availability, latency percentiles, throughput, and error rate targets per service. Mark Owner as \"Provider\" for cloud-contractual SLAs and \"Team\" for application-level SLOs. For streaming workloads, add consumer-lag and throughput SLIs. Include error budget calculation."
       },
       "Architecture Diagram": {
-        "target": 300, "max": 0, "format": "mermaid", "diagram": "flowchart",
-        "hint": "⭐ MANDATORY. Complete infrastructure topology: compute, storage, networking, external services. Show AZs, VPCs, load balancers. Label every connection with protocol."
+        "target": 0,
+        "max": 0,
+        "format": "mermaid",
+        "diagram": "flowchart",
+        "hint": "⭐ MANDATORY. Complete infrastructure topology: compute, storage, networking, external services. Show AZs, VPCs, load balancers. Label every connection with protocol. No word limit — completeness of nodes and labeled connections is the quality measure."
       },
       "Compute & Storage": {
-        "target": 250, "max": 500, "format": "table",
-        "columns": ["Component", "Service", "Size/Type", "Count", "Monthly Cost", "Scaling Policy"],
-        "hint": "Specify every resource with exact types, sizes, and counts. Include scaling policy and cost. No hand-waving about 'appropriate sizing.'"
+        "target": 250,
+        "max": 500,
+        "format": "table",
+        "columns": [
+          "Component",
+          "Cloud Service",
+          "Size/Type",
+          "Capacity / Concurrency",
+          "Monthly Cost",
+          "Scaling Policy"
+        ],
+        "hint": "Specify every resource with exact types, sizes, and counts. For managed/serverless (Lambda, Fargate, GKE Autopilot, S3), use Capacity/Concurrency to express limits (e.g., Lambda: 500 reserved concurrency; S3: 100TB projected). CapEx resources (on-premises): show amortized monthly cost. Include scaling policy and cost."
       },
       "Networking & Security": {
-        "target": 200, "max": 400, "format": "prose",
-        "hint": "VPC design, subnets, security groups, NACLs, TLS config, certificate management, WAF rules. Name specific CIDR ranges."
+        "target": 200,
+        "max": 400,
+        "format": "prose",
+        "hint": "VPC design, subnets, security groups, NACLs, TLS config, certificate management, WAF rules. Name specific CIDR ranges. If compliance standards apply (PCI-DSS, GDPR, HIPAA): specify CDE boundary segmentation (PCI Req 1), TLS version floor (PCI Req 4: TLS 1.2+), audit log retention policy (PCI Req 10: 1yr), and data residency enforcement (GDPR)."
       },
       "CI/CD Pipeline": {
-        "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart",
-        "hint": "Draw the full pipeline: commit → build → test → stage → canary → production. Include rollback triggers at each stage."
+        "target": 0,
+        "max": 0,
+        "format": "mermaid",
+        "diagram": "flowchart",
+        "hint": "Draw the full pipeline. For push-based: commit → build → test → stage → canary → production. For GitOps (ArgoCD/Flux): commit → image build/push → manifest PR → sync gate → progressive delivery → health check → rollback on SLO breach. Label each node with the tool responsible. Include rollback triggers at each stage. No word limit — every stage node and rollback trigger must appear."
       },
       "Monitoring & Alerting": {
-        "target": 200, "max": 400, "format": "slo-table",
-        "columns": ["Service", "SLI", "SLO Target", "Window", "Error Budget", "Alert Threshold"],
-        "hint": "Define SLOs for every service with alert thresholds and escalation paths. Include dashboard links."
+        "target": 200,
+        "max": 400,
+        "format": "slo-table",
+        "columns": [
+          "Service",
+          "SLI",
+          "Alert Threshold",
+          "Severity",
+          "Escalation Path",
+          "Dashboard Link"
+        ],
+        "hint": "For each SLI defined in SLA/SLO Requirements, specify the alert threshold, PagerDuty/Opsgenie severity (P1-P4), escalation path (on-call → lead → director), and dashboard URL. Do NOT redefine SLO targets — reference the SLO Requirements section. Include runbook link per alert."
       },
       "Disaster Recovery": {
-        "target": 200, "max": 400, "format": "numbered-procedure",
-        "hint": "⭐ CRITICAL. Define RTO and RPO per service tier. Step-by-step recovery procedure with time estimates per step. Include: when was this last tested?"
+        "target": 200,
+        "max": 400,
+        "format": "numbered-procedure",
+        "hint": "⭐ CRITICAL. Define tiered RPO/RTO targets (Tier 1: <1h RPO/<15min RTO, Tier 2: <4h/<1h, Tier 3: <24h/<4h). Model-specific recovery: Kubernetes → etcd backup restore; serverless → DLQ replay + Lambda alias rollback; streaming → consumer group reset + offset replay; active-active → traffic weight shift + split-brain resolution. State when procedure was last tested (or \"Not yet tested — schedule within 30 days\")."
       },
       "Cost Analysis": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Component", "Monthly Cost", "Annual Cost", "Optimization Opportunity"],
-        "hint": "Current vs projected spend. Flag top-3 cost drivers. Include reserved instance vs on-demand comparison."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Component",
+          "Monthly Cost",
+          "Annual Cost",
+          "Optimization Opportunity"
+        ],
+        "hint": "Current vs projected spend. Flag top-3 cost drivers. Committed-use discount analysis vs on-demand: AWS (Reserved Instances / Savings Plans), GCP (Committed Use Discounts), Azure (Reservations / Savings Plans), on-premises (CapEx amortized monthly + OpEx). Separate compliance/security tooling costs as a distinct category if applicable."
       },
       "User Stories": {
-        "target": 300, "max": 600, "format": "mixed",
+        "target": 300,
+        "max": 600,
+        "format": "mixed",
         "hint": "Operations-focused stories with SLO targets. Example: 'As an SRE, I want automated failover so that RTO <5min when a primary AZ fails.'"
       }
     },
     "optionalSections": {
       "Capacity Planning": {
-        "target": 150, "max": 300, "format": "table",
-        "columns": ["Resource", "Current Usage", "6-Month Projection", "12-Month Projection", "Action Required"],
+        "target": 150,
+        "max": 300,
+        "format": "table",
+        "columns": [
+          "Resource",
+          "Current Usage",
+          "6-Month Projection",
+          "12-Month Projection",
+          "Action Required"
+        ],
         "hint": "Project growth for compute, storage, and network over 6 and 12 months with trigger points for scaling."
       },
       "Scaling Strategy": {
-        "target": 150, "max": 300, "format": "prose",
+        "target": 150,
+        "max": 300,
+        "format": "prose",
         "hint": "Horizontal vs vertical. Auto-scaling policies with triggers, cooldowns, min/max. Include cost implications."
       },
       "Operational Runbooks": {
-        "target": 0, "max": 0, "format": "bullet-list",
+        "target": 0,
+        "max": 0,
+        "format": "bullet-list",
         "hint": "Index of runbooks with links. Common incident procedures, escalation paths, and known-issue workarounds."
       }
     }
   },
-
   "migration_plan": {
     "description": "Migration plans as operational playbooks — current/target architectures, RACI, risk heat maps, cutover procedures, rollback plans",
     "tone": "Procedural, risk-aware, operationally precise. Every step must have a validation checkpoint and rollback trigger.",
     "expertRole": "senior migration architect with enterprise data migration expertise — write for DBAs, ops, and project managers",
     "storyStyle": "migration-step focused with rollback criteria",
     "architectureFocus": "migration process and data integrity",
-    "totalWordTarget": { "min": 2000, "max": 4000, "excludes": ["tables", "diagrams", "checklists"] },
+    "totalWordTarget": {
+      "min": 2000,
+      "max": 4000,
+      "excludes": [
+        "tables",
+        "diagrams",
+        "checklists"
+      ]
+    },
     "diagramConfig": {
-      "primary": { "type": "flowchart TD", "purpose": "Migration process with validation gates, rollback points, and go/no-go decisions" },
-      "secondary": { "type": "flowchart LR", "purpose": "Current state (left) to target state (right) architecture transition" }
+      "primary": {
+        "type": "flowchart TD",
+        "purpose": "Migration process with validation gates, rollback points, and go/no-go decisions"
+      },
+      "secondary": {
+        "type": "flowchart LR",
+        "purpose": "Current state (left) to target state (right) architecture transition. For DB migrations: show source DB → migration tooling → target DB with data volumes. For infrastructure: show full stack layers with color-coded change indicators. For service decomposition: show domain boundaries before and after."
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
-        "hint": "Governance table: Owner, Status, Reviewers, Migration Window, Rollback Deadline, Created/Updated."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
+        "hint": "Governance table: Owner, Status, Reviewers, Migration Type (Big-Bang/Phased/Trickle), Migration Pattern (Lift-and-Shift/Re-platform/Re-architect/Brownfield-Upgrade), Migration Window, Rollback Deadline, Created/Updated."
       },
       "Objective": {
-        "target": 100, "max": 200, "format": "prose",
+        "target": 150,
+        "max": 300,
+        "format": "prose",
         "hint": "What's migrating, from where to where, when, and the zero-data-loss commitment. One paragraph."
       },
       "Goals & Non-Goals": {
-        "target": 200, "max": 400, "format": "bullet-list",
+        "target": 200,
+        "max": 400,
+        "format": "bullet-list",
         "hint": "Measurable migration goals. Non-goals: what this migration intentionally skips. Example non-goal: 'Schema refactoring is out of scope — lift-and-shift only.'"
       },
       "Current State": {
-        "target": 200, "max": 400, "format": "prose", "diagram": "flowchart",
+        "target": 200,
+        "max": 400,
+        "format": "prose",
+        "diagram": "flowchart",
         "hint": "Architecture diagram of current system. Include: version, data volume, known tech debt, dependencies. Mermaid diagram mandatory."
       },
       "Target State": {
-        "target": 200, "max": 400, "format": "prose", "diagram": "flowchart",
+        "target": 200,
+        "max": 400,
+        "format": "prose",
+        "diagram": "flowchart",
         "hint": "Architecture diagram of target system. Highlight what changes vs what stays. Mermaid diagram mandatory."
       },
       "Migration Strategy": {
-        "target": 100, "max": 300, "format": "prose",
+        "target": 100,
+        "max": 300,
+        "format": "prose",
         "hint": "Big-bang vs phased vs trickle. Lift-and-shift vs re-platform vs re-architect. Justify the choice with risk/effort trade-off."
       },
       "Scope & Non-Scope": {
-        "target": 100, "max": 200, "format": "bullet-list",
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
         "hint": "What's included in THIS migration phase? What's explicitly excluded? What's deferred to Phase 2?"
       },
       "Data Mapping": {
-        "target": 300, "max": 0, "format": "mapping-table",
-        "columns": ["Source Field", "Source Type", "Target Field", "Target Type", "Transformation", "Validation"],
-        "hint": "Map every source field to target. Include transformation rules and validation criteria. No field left unmapped."
+        "target": 300,
+        "max": 0,
+        "format": "mapping-table",
+        "columns": [
+          "Source Field",
+          "Source Type",
+          "Target Field",
+          "Target Type",
+          "Transformation",
+          "Validation"
+        ],
+        "hint": "Map every source field to target with transformation rules and validation criteria. For large schemas (>50 tables), provide module-level summaries with full field maps for the top 3 highest-risk tables, then enumerate exceptions only. For platform upgrades (SAP, Salesforce) or infrastructure migrations (k8s, AD), replace this table with a Configuration & Object Impact table mapping source objects/configs to target equivalents. For monolith decomposition, use a Domain Boundary table mapping source modules to target services. No migration-critical element left unmapped."
       },
       "RACI Matrix": {
-        "target": 0, "max": 0, "format": "raci-table",
-        "columns": ["Task", "Responsible", "Accountable", "Consulted", "Informed"],
-        "hint": "Migrations cross multiple teams. RACI eliminates ambiguity. One Accountable per task. Name people, not teams."
+        "target": 0,
+        "max": 0,
+        "format": "raci-table",
+        "columns": [
+          "Task",
+          "Responsible",
+          "Accountable",
+          "Consulted",
+          "Informed"
+        ],
+        "hint": "Migrations cross multiple teams. RACI eliminates ambiguity. One Accountable per task. Name individuals where fewer than 10 stakeholders. For migrations spanning many teams (10+), name team leads as Responsible and escalation owners as Accountable. Never use generic role labels without an individual name as Accountable."
       },
       "Risk Assessment": {
-        "target": 0, "max": 0, "format": "risk-heat-map",
+        "target": 0,
+        "max": 0,
+        "format": "risk-heat-map",
         "hint": "⭐ HIGHEST-STAKES DOCUMENT TYPE. Risk assessment must be exhaustive. Include: data loss, downtime, rollback failure, performance degradation, compliance violation scenarios."
       },
       "Cutover Plan": {
-        "target": 200, "max": 600, "format": "numbered-procedure",
-        "hint": "Step-by-step numbered procedure. Include time estimates per step, validation checkpoints, go/no-go criteria at each gate. Example: 'Step 4 (15min): Verify record count matches ±0.01%.'"
+        "target": 200,
+        "max": 600,
+        "format": "numbered-procedure",
+        "hint": "Step-by-step numbered procedure with time estimates per step, validation checkpoints, go/no-go criteria at each gate. Example: \"Step 4 (15min): Verify record count matches ±0.01%.\" For phased or strangler migrations, replace single procedure with a traffic-shift schedule: route percentages, feature flag states, and fallback triggers at each increment. For long-running migrations (>1 week), define per-phase cutover milestones with independent rollback windows."
       },
       "Rollback Plan": {
-        "target": 150, "max": 400, "format": "numbered-procedure",
-        "hint": "⭐ CRITICAL. Explicit triggers: what conditions activate rollback? Steps with time estimates. Data recovery procedure. Example trigger: 'If error rate >1% within 30min of cutover.'"
+        "target": 150,
+        "max": 400,
+        "format": "numbered-procedure",
+        "hint": "⭐ CRITICAL. Explicit triggers: what conditions activate rollback? Steps with time estimates. Data recovery procedure (for DB migrations), traffic re-routing procedure (for service/infra migrations), or identity policy revert (for IAM migrations). Tailor steps to migration type. Example trigger: \"If error rate >1% within 30min of cutover.\""
       },
       "Validation Criteria": {
-        "target": 150, "max": 300, "format": "numbered-list",
-        "hint": "Go/no-go criteria with specific thresholds. Example: 'Record count match ±0.01%, checksum match 100%, P99 latency <500ms for 15min.'"
+        "target": 150,
+        "max": 300,
+        "format": "numbered-list",
+        "hint": "Go/no-go criteria with specific thresholds. Example: \"Record count match ±0.01%, checksum match 100%, P99 latency <500ms for 15min.\" For non-database migrations: pod readiness %, authentication success rate, health check pass rate, smoke test results, or business KPI thresholds. Each criterion must be observable and binary (pass/fail)."
       },
       "User Stories": {
-        "target": 300, "max": 600, "format": "mixed",
+        "target": 300,
+        "max": 600,
+        "format": "mixed",
         "hint": "Migration-focused stories with rollback awareness. Example: 'As a DBA, I want point-in-time recovery so that if migration corrupts data, I can restore to pre-cutover state within RTO.'"
       }
     },
     "optionalSections": {
       "Timeline & Milestones": {
-        "target": 0, "max": 0, "format": "phase-table",
-        "columns": ["Milestone", "Date", "Owner", "Go/No-Go Criteria"],
+        "target": 0,
+        "max": 0,
+        "format": "phase-table",
+        "columns": [
+          "Milestone",
+          "Date",
+          "Owner",
+          "Go/No-Go Criteria"
+        ],
         "hint": "Each milestone needs a go/no-go gate. Include dry run dates."
       },
       "Dry Run Plan": {
-        "target": 100, "max": 200, "format": "numbered-procedure",
+        "target": 100,
+        "max": 200,
+        "format": "numbered-procedure",
         "hint": "Pre-cutover rehearsal with success criteria, data subset, and timing comparison to production estimates."
       },
       "Testing Strategy": {
-        "target": 150, "max": 300, "format": "bullet-list",
+        "target": 150,
+        "max": 300,
+        "format": "bullet-list",
         "hint": "Define test types (unit, integration, smoke, perf), data subsets, and pass criteria per test."
       },
       "Communication Plan": {
-        "target": 0, "max": 0, "format": "raci-table",
-        "columns": ["Stakeholder", "When", "Channel", "Message", "Owner"],
+        "target": 0,
+        "max": 0,
+        "format": "raci-table",
+        "columns": [
+          "Stakeholder",
+          "When",
+          "Channel",
+          "Message",
+          "Owner"
+        ],
         "hint": "Who needs to know what, when? Include customer-facing comms if applicable."
       },
       "Hypercare Plan": {
-        "target": 100, "max": 200, "format": "prose",
+        "target": 100,
+        "max": 200,
+        "format": "prose",
         "hint": "Post-migration monitoring period with staffing, escalation paths, and known-issue workarounds."
       },
       "Data Security & Compliance": {
-        "target": 80, "max": 200, "format": "bullet-list",
+        "target": 80,
+        "max": 200,
+        "format": "bullet-list",
         "hint": "Data classification, encryption in transit/at rest, audit logging, regulatory requirements."
+      },
+      "Business Logic Migration": {
+        "target": 150,
+        "max": 300,
+        "format": "bullet-list",
+        "hint": "For migrations involving procedural code translation (PL/SQL→PL/pgSQL, COBOL→Java, ABAP→Java, Informatica→dbt): enumerate code assets being migrated, translation approach (automated tool vs manual rewrite), equivalence testing strategy, and rollback plan if translated logic produces incorrect results. Include count of units and estimated effort per unit type."
+      },
+      "Environment & Connectivity": {
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "For infrastructure and cloud migrations: document network topology changes (VPN/Direct Connect, security group mapping, DNS cutover), environment promotion path (dev→staging→prod), connection string update strategy across all consumers, and any dual-write or hybrid-operation window."
       }
     }
   },
-
   "integration_spec": {
     "description": "Integration specifications as enforceable contracts — data mappings, sequence diagrams, retry policies, SLAs, and monitoring",
     "tone": "Contract-precise, failure-aware. Define happy path and every failure mode at each integration boundary.",
     "expertRole": "senior integration architect with enterprise middleware and event-driven expertise — write for integration developers and ops",
     "storyStyle": "integration-point focused with contract clarity",
     "architectureFocus": "system integration and data exchange",
-    "totalWordTarget": { "min": 1800, "max": 4000, "excludes": ["tables", "diagrams", "schemas"] },
+    "totalWordTarget": {
+      "min": 1800,
+      "max": 4000,
+      "excludes": [
+        "tables",
+        "diagrams",
+        "schemas"
+      ]
+    },
     "diagramConfig": {
-      "primary": { "type": "flowchart LR", "purpose": "System landscape showing all integration points and data flows between systems" },
-      "secondary": { "type": "sequenceDiagram", "purpose": "Primary data exchange flow between source and target systems" }
+      "primary": {
+        "type": "flowchart LR",
+        "purpose": "System landscape showing all integration points and data flows. For protocol-heavy integrations (SSO/SAML, OAuth flows), consider sequenceDiagram as primary. For event-driven, show topic topology with producer/consumer relationships on edges."
+      },
+      "secondary": {
+        "type": "sequenceDiagram",
+        "purpose": "Primary data exchange flow between source and target systems"
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
         "hint": "Governance table: Owner, Status, Reviewers, Systems Involved, Created/Updated dates."
       },
       "Objective": {
-        "target": 100, "max": 200, "format": "prose",
+        "target": 100,
+        "max": 200,
+        "format": "prose",
         "hint": "What systems are integrated, what data flows, and the key reliability requirement. One paragraph."
       },
       "Goals & Non-Goals": {
-        "target": 150, "max": 300, "format": "bullet-list",
+        "target": 150,
+        "max": 300,
+        "format": "bullet-list",
         "hint": "Integration goals with reliability targets. Non-goals: excluded capabilities. Example non-goal: 'Bi-directional sync is Phase 2 — this phase is source→target only.'"
       },
       "Integration Overview": {
-        "target": 200, "max": 0, "format": "mermaid", "diagram": "flowchart",
+        "target": 200,
+        "max": 0,
+        "format": "mermaid",
+        "diagram": "flowchart",
         "hint": "System context diagram showing all participating systems, middleware, and data flows. Label every connection with protocol and direction."
       },
       "Systems & Endpoints": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["System", "Role", "Protocol", "Base URL", "Auth Method", "Owner"],
-        "hint": "One row per system. Include environment-specific URLs (dev/staging/prod)."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "System",
+          "Role",
+          "Protocol",
+          "Endpoint / Base URL",
+          "Auth Method",
+          "Owner",
+          "Env Scope"
+        ],
+        "hint": "One row per system. Include environment-specific URLs (dev/staging/prod). Env Scope: \"all envs\" or \"per-env\". Endpoint / Base URL accommodates non-HTTP protocols (MQTT, SFTP, AS2, Kafka)."
       },
       "Data Contract & Mappings": {
-        "target": 0, "max": 0, "format": "mapping-table",
-        "columns": ["Source Field", "Source Type", "Target Field", "Target Type", "Transformation", "Validation"],
-        "hint": "Include schema validation rules. Use inline diff for version changes. Every field mapped — no field left undefined."
+        "target": 0,
+        "max": 0,
+        "format": "mapping-table",
+        "columns": [
+          "Source Field",
+          "Source Type",
+          "Target Field",
+          "Target Type",
+          "Transformation",
+          "Validation"
+        ],
+        "hint": "Include schema validation rules. Use inline diff for version changes. Every field mapped — no field left undefined. For event-driven: reference schema registry subject/version and compatibility mode. For SAML/OIDC: document claim names, value format, and SP-specific overrides. For EDI: capture ISA/GS envelope settings and segment qualifier codes. For FHIR: note resource profiles, cardinality overrides, and extension URLs."
       },
       "Integration Flows": {
-        "target": 200, "max": 0, "format": "mermaid-sequence", "diagram": "sequence",
-        "hint": "⭐ MUST include both happy path AND error paths. Draw sequence diagrams showing request/response, timeouts, retries, and circuit breaker activation."
+        "target": 200,
+        "max": 0,
+        "format": "mermaid-sequence",
+        "diagram": "sequence",
+        "hint": "⭐ MUST include both happy path AND error paths. For synchronous integrations: show request/response, timeouts, retries, and circuit breaker activation. For async/event-driven integrations: show produce→topic→consumer, offset commit, DLQ routing, and consumer group rebalancing. For batch: show trigger, chunk processing, partial failure handling, and reconciliation. Choose the flow type that matches the integration pattern."
       },
       "Error Handling & Recovery": {
-        "target": 200, "max": 400, "format": "error-table",
-        "columns": ["Error Scenario", "Source System", "Detection", "Recovery Action", "Escalation"],
-        "hint": "Retry policies: max attempts, backoff strategy (exponential with jitter), circuit breaker thresholds. Dead-letter queue handling."
+        "target": 200,
+        "max": 400,
+        "format": "error-table",
+        "columns": [
+          "Error Scenario",
+          "Source System",
+          "Detection",
+          "Recovery Action",
+          "Idempotency Strategy",
+          "Escalation"
+        ],
+        "hint": "Retry policies: max attempts, backoff strategy (exponential with jitter), circuit breaker thresholds. Dead-letter queue handling. Idempotency Strategy: how re-delivery of the same event or message is handled without duplicate side effects (dedup key, upsert logic, at-least-once vs exactly-once semantics). Use N/A for pure-read scenarios."
       },
       "Monitoring & Alerting": {
-        "target": 0, "max": 0, "format": "slo-table",
-        "columns": ["Metric", "SLO Target", "Alert Threshold", "Dashboard", "Escalation"],
-        "hint": "Monitor integration health, not just system health. Track: message lag, error rate per integration point, schema validation failures."
+        "target": 0,
+        "max": 0,
+        "format": "slo-table",
+        "columns": [
+          "Metric",
+          "SLO Target",
+          "Alert Threshold",
+          "Dashboard",
+          "Escalation"
+        ],
+        "hint": "Monitor integration health, not just system health. Track: message lag, error rate per integration point, schema validation failures. For B2B/EDI: monitor expected-response-within-window alerts. For batch ETL: monitor data freshness, row count deltas (>10% variance triggers alert), and pipeline completion duration. For streaming: monitor consumer lag per partition/consumer-group and DLQ depth."
       },
       "Performance & SLAs": {
-        "target": 0, "max": 0, "format": "slo-table",
-        "columns": ["Integration Point", "SLA", "Latency Target", "Throughput", "Breach Escalation"],
+        "target": 0,
+        "max": 0,
+        "format": "slo-table",
+        "columns": [
+          "Integration Point",
+          "SLA",
+          "Freshness / Latency Target",
+          "Throughput",
+          "Breach Escalation"
+        ],
         "hint": "SLA per integration point with breach escalation paths. Include: max message size, throughput limits, batch size constraints."
       },
       "User Stories": {
-        "target": 300, "max": 600, "format": "mixed",
-        "hint": "Integration-focused stories specifying systems and data flows. Example: 'As the billing system, I want order events within 5s of creation so that invoices generate in real-time.'"
+        "target": 300,
+        "max": 600,
+        "format": "mixed",
+        "hint": "Integration-focused stories specifying systems and data flows. System personas are valid and encouraged — \"As the billing service\", \"As the ETL pipeline\", \"As the API gateway\". Both human roles (operators, developers, end users) and system roles (upstream service, downstream consumer) are acceptable. Example: \"As the billing system, I want order events within 5s of creation so that invoices generate in real-time.\""
+      },
+      "Security & Data Privacy": {
+        "target": 150,
+        "max": 300,
+        "format": "bullet-list",
+        "hint": "Auth mechanism per integration point, encryption (TLS version), PII handling, data retention, audit logging."
       }
     },
     "optionalSections": {
-      "Security & Data Privacy": {
-        "target": 150, "max": 300, "format": "bullet-list",
-        "hint": "Auth mechanism per integration point, encryption (TLS version), PII handling, data retention, audit logging."
-      },
       "Versioning & Compatibility": {
-        "target": 80, "max": 150, "format": "prose",
+        "target": 80,
+        "max": 150,
+        "format": "prose",
         "hint": "How are breaking changes handled across system boundaries? Contract versioning strategy."
       },
       "Fallback & Degradation": {
-        "target": 80, "max": 150, "format": "prose",
+        "target": 80,
+        "max": 150,
+        "format": "prose",
         "hint": "What happens when the integration is down? Graceful degradation strategy with cached/stale data handling."
       },
       "Testing Strategy": {
-        "target": 100, "max": 200, "format": "bullet-list",
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
         "hint": "Contract tests, integration tests, chaos testing for failure scenarios. Include test data strategy."
       },
       "Comparison of Approaches": {
-        "target": 200, "max": 400, "format": "comparison-table-and-prose",
-        "columns": ["Pattern", "Pros", "Cons", "Effort", "Risk"],
+        "target": 200,
+        "max": 400,
+        "format": "comparison-table-and-prose",
+        "columns": [
+          "Pattern",
+          "Pros",
+          "Cons",
+          "Effort",
+          "Risk"
+        ],
         "hint": "Compare 2–3 integration patterns (REST vs events vs batch) and explain the choice."
+      },
+      "Scheduling & Orchestration": {
+        "target": 0,
+        "max": 300,
+        "format": "table",
+        "columns": [
+          "Job / Trigger",
+          "Schedule",
+          "Dependency",
+          "Catch-up Strategy",
+          "Max Runtime",
+          "Owner"
+        ],
+        "hint": "Batch: cron schedules, upstream dependencies, catch-up behavior, max runtime. Streaming: consumer group start offsets, lag thresholds, rebalance handling."
+      },
+      "Event Catalog": {
+        "target": 0,
+        "max": 400,
+        "format": "table",
+        "columns": [
+          "Event Name",
+          "Topic / Channel",
+          "Producer",
+          "Consumers",
+          "Schema Format",
+          "Schema Version",
+          "Retention",
+          "QoS / Delivery Guarantee"
+        ],
+        "hint": "One row per event type. Schema registry subject. QoS (at-most-once / at-least-once / exactly-once). Retention period. Link to schema registry."
+      },
+      "Data Quality & Validation": {
+        "target": 100,
+        "max": 200,
+        "format": "table",
+        "columns": [
+          "Check",
+          "Type",
+          "Rule",
+          "Failure Action",
+          "Owner"
+        ],
+        "hint": "Check types: completeness, uniqueness, consistency, timeliness, validity. Failure actions: warn/reject/quarantine/halt. Source-side and target-side validation."
+      },
+      "Webhook Contract": {
+        "target": 0,
+        "max": 300,
+        "format": "table",
+        "columns": [
+          "Event Type",
+          "Payload Schema",
+          "Delivery Guarantee",
+          "Signature Header",
+          "Verification Method",
+          "Retry Policy",
+          "Test Endpoint"
+        ],
+        "hint": "One row per webhook event type. Signature verification algorithm + secret rotation procedure. Idempotency key field. Test endpoint URL."
+      },
+      "Audit & Compliance Logging": {
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "Which events must be logged per regulation (PHI/HIPAA, auth/SOC2, payment/PCI-DSS). Log fields: timestamp, actor, action, resource, outcome, correlation ID. Immutable append-only store. Retention period. Access controls on audit logs separate from operational logs."
+      },
+      "Schema Evolution & Compatibility": {
+        "target": 80,
+        "max": 150,
+        "format": "prose",
+        "hint": "Breaking vs non-breaking change classification. Consumer notification process. Deprecation timeline. Schema registry compatibility mode. Rollback procedure. Distinct from Versioning & Compatibility (API versioning) — this covers data contract evolution."
       }
     }
   },
-
   "architecture_decision_record": {
     "description": "ADR — captures WHY a decision was made, not just what. Immutable once accepted. Sequentially numbered.",
     "tone": "Concise, factual, decision-focused. Present tense for active decisions, past tense for superseded.",
     "expertRole": "senior architect documenting a decision for future engineers who will ask 'why was this done this way?'",
     "storyStyle": "decision-outcome focused with explicit trade-off acknowledgment",
     "architectureFocus": "single architectural decision and its ripple effects",
-    "totalWordTarget": { "min": 500, "max": 1500, "excludes": ["tables"] },
+    "totalWordTarget": {
+      "min": 500,
+      "max": 1500,
+      "excludes": [
+        "tables"
+      ]
+    },
     "diagramConfig": {
-      "primary": { "type": "flowchart TD", "purpose": "Decision tree or component affected by this decision" },
-      "secondary": { "type": "flowchart LR", "purpose": "System context showing components affected" }
+      "primary": {
+        "type": "flowchart TD",
+        "purpose": "Decision tree or component affected by this decision"
+      },
+      "secondary": {
+        "type": "flowchart LR",
+        "purpose": "System context showing components affected"
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
         "hint": "ADR header: ADR Number, Status (Proposed/Accepted/Deprecated/Superseded), Date, Deciders."
       },
       "Context": {
-        "target": 150, "max": 300, "format": "prose",
+        "target": 150,
+        "max": 300,
+        "format": "prose",
         "hint": "Describe the technical and business forces at play. What makes this decision necessary NOW? Be factual, not persuasive."
       },
       "Decision Drivers": {
-        "target": 100, "max": 200, "format": "bullet-list",
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
         "hint": "List the specific constraints forcing this decision: performance limits, compliance requirements, team capacity, timeline."
       },
       "Goals & Non-Goals": {
-        "target": 100, "max": 200, "format": "bullet-list",
-        "hint": "2–3 goals this decision achieves. 1–2 things explicitly NOT addressed. Keeps the decision focused."
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "Goals (2–3 bullets): what this decision achieves. Non-Goals (1–2 bullets starting with \"This ADR does NOT address...\"): explicitly deferred concerns. Required even when scope seems obvious — a Non-Goal with a forward ADR reference is ideal (e.g., \"Not addressing cache invalidation strategy — deferred to ADR-009\"). Keeps the decision focused."
       },
       "Considered Options": {
-        "target": 200, "max": 400, "format": "comparison-table-and-prose",
-        "columns": ["Option", "Pros", "Cons", "Effort", "Risk"],
-        "hint": "⭐ CORE OF AN ADR. List 2–4 options with honest pros/cons. A rubber-stamp ADR with one 'obvious' option is useless."
+        "target": 200,
+        "max": 400,
+        "format": "comparison-table-and-prose",
+        "columns": [
+          "Option",
+          "Pros",
+          "Cons",
+          "Effort (eng-weeks)",
+          "Risk (L/M/H)"
+        ],
+        "hint": "⭐ CORE OF AN ADR. Two-part structure REQUIRED: PART 1 — Comparison table with columns. PART 2 — 2–3 sentence prose narrative naming the leading option and the single most important trade-off. Omitting either part is a structural defect. List 2–4 options with honest pros/cons. Every Pro and Con must reference a specific capability, metric, or constraint — banned filler: \"simple\", \"flexible\", \"powerful\", \"easy to use.\" Cons must include measurable/bounded claims where possible (e.g., \"migration cost ~2–3 eng-months\" not \"vendor lock-in\"). Risk column must state what could go WRONG, not what the option does. Format: \"[What breaks] → [Impact]\". A rubber-stamp ADR with one \"obvious\" option is useless."
       },
       "Decision Outcome": {
-        "target": 100, "max": 200, "format": "prose",
+        "target": 100,
+        "max": 200,
+        "format": "prose",
         "hint": "State the chosen option and WHY — referencing specific decision drivers. Example: 'Chose PostgreSQL over DynamoDB because ACID transactions are non-negotiable for payment processing.'"
       },
       "Consequences": {
-        "target": 100, "max": 200, "format": "bullet-list",
-        "hint": "List positive AND negative consequences. Include: new constraints introduced, teams affected, tech debt accepted, future doors opened/closed."
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "Required structure — two labeled groups: Positive consequences (2–3 bullets): capabilities gained, tech debt resolved. Negative consequences (2–3 bullets, REQUIRED): new constraints introduced, operational burden added, future options closed, tech debt accepted. If you cannot identify any negative consequences, you have not looked hard enough."
+      },
+      "Related Decisions": {
+        "target": 0,
+        "max": 100,
+        "format": "bullet-list",
+        "hint": "Link to ADRs this decision depends on or supersedes. If none exist, write \"None — standalone decision.\" If this decision closes options for a future decision, note it here."
       }
     },
     "optionalSections": {
-      "Related Decisions": {
-        "target": 50, "max": 100, "format": "bullet-list",
-        "hint": "Link to ADRs this decision depends on or supersedes."
-      },
       "Notes": {
-        "target": 50, "max": 100, "format": "prose",
+        "target": 50,
+        "max": 100,
+        "format": "prose",
         "hint": "Additional context that doesn't fit elsewhere. Meeting notes, external references."
+      },
+      "Architecture Diagram": {
+        "target": 0,
+        "max": 0,
+        "format": "mermaid",
+        "hint": "Decision tree (flowchart TD) showing options evaluated and chosen path, OR component diagram showing systems affected by this decision. Only include if the decision has non-obvious structural impact on 2+ components."
       }
     }
   },
-
   "lightweight_rfc": {
     "description": "Lightweight RFC / One-Pager — minimal proposal for small-scope changes that would otherwise go undocumented",
     "tone": "Direct and minimal. Every sentence must justify its existence. No preamble, no filler.",
     "expertRole": "pragmatic engineer proposing a focused change — write only what a reviewer needs to approve or reject",
     "storyStyle": "change-proposal focused with clear accept/reject criteria",
     "architectureFocus": "single component or process change",
-    "totalWordTarget": { "min": 500, "max": 1500, "excludes": ["tables"] },
+    "totalWordTarget": {
+      "min": 500,
+      "max": 1500,
+      "excludes": [
+        "tables"
+      ],
+      "toneEnforcement": "Prefer the lower end of every section's word target. Padding to reach the minimum is worse than a short, complete section. Every word must justify its presence."
+    },
     "diagramConfig": {
-      "primary": { "type": "flowchart LR", "purpose": "Before/after showing the component or process being changed" },
-      "secondary": { "type": "flowchart TD", "purpose": "Impact scope showing affected components" }
+      "primary": {
+        "type": "flowchart LR",
+        "purpose": "Before/after showing the component or process being changed"
+      },
+      "secondary": {
+        "type": "flowchart TD",
+        "purpose": "Impact scope showing affected components"
+      }
     },
     "requiredSections": {
       "Epic Status": {
-        "target": 0, "max": 0, "format": "table",
-        "columns": ["Field", "Value"],
-        "hint": "RFC header: Author, Status (Proposed/Accepted/Rejected), Decision Deadline, Approvers."
+        "target": 0,
+        "max": 0,
+        "format": "table",
+        "columns": [
+          "Field",
+          "Value"
+        ],
+        "hint": "RFC header table: Author, Status (Proposed/Accepted/Rejected), Decision Deadline (required — use \"TBD — set before distributing\" if unknown; for CVE/security RFCs set within 7 days), Approvers (minimum 1). Do not leave Decision Deadline blank."
       },
       "Problem Statement": {
-        "target": 100, "max": 200, "format": "prose",
+        "target": 100,
+        "max": 200,
+        "format": "prose",
         "hint": "State the specific problem in 2–3 sentences with quantified evidence. Example: 'Deploy failures increased 3× since adding the canary step (from 2% to 6% of deploys).'"
       },
       "Goals & Non-Goals": {
-        "target": 100, "max": 200, "format": "bullet-list",
-        "hint": "2–3 goals this RFC achieves. 1–2 things explicitly excluded. Keep scope ruthlessly small."
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "2–3 goals this RFC achieves (state outcomes, not mechanisms — WRONG: \"Add exponential backoff\", RIGHT: \"Eliminate thundering-herd amplification\"). 1–2 explicit non-goals to prevent scope creep. No acceptance criteria here — those belong in Impact & Scope."
       },
       "Proposed Solution": {
-        "target": 200, "max": 400, "format": "prose",
-        "hint": "Describe HOW the solution works. Name the specific technology, config change, or code change. The solution must be a DIFFERENT mechanism than the problem."
+        "target": 200,
+        "max": 400,
+        "format": "prose",
+        "hint": "Describe HOW the solution works. Name the exact file, config key, or function being changed (e.g., \"Update DEFAULT_POOL_SIZE in src/config/database.config.ts line 14\"). Include a before/after code or config snippet when the change is ≤10 lines. The mechanism must differ from the problem description. If the solution touches more than one service or repository, split into a separate RFC per component or explicitly note the multi-component scope exception."
       },
       "Impact & Scope": {
-        "target": 100, "max": 200, "format": "bullet-list",
-        "hint": "List affected systems, teams, and rollback strategy. Example: 'Affects: deploy pipeline. Rollback: revert config, re-run pipeline. Teams: platform.'"
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "(1) Affects: list each system/service/file changed; note if changes span multiple repos. (2) Rollback: specific steps to undo — name the file/command. (3) Teams: list every team that owns an affected system. Omitting Teams is a common reviewer blocker."
       }
     },
     "optionalSections": {
       "Alternatives": {
-        "target": 100, "max": 200, "format": "bullet-list",
-        "hint": "1–2 alternatives considered and why rejected. Even for small changes, showing you considered options builds trust."
+        "target": 100,
+        "max": 200,
+        "format": "bullet-list",
+        "hint": "1–2 alternatives considered and why rejected. Strongly recommended even for small changes — a single sentence per alternative (\"Considered X — rejected because Y\") prevents reviewers from asking why you didn't use X. Skip only if the proposed solution is the only viable approach."
       },
       "Open Questions": {
-        "target": 50, "max": 100, "format": "bullet-list",
+        "target": 50,
+        "max": 100,
+        "format": "bullet-list",
         "hint": "Unresolved questions with owners and decision deadlines."
       }
+    },
+    "storyGeneration": {
+      "mode": "accept-reject-criteria",
+      "hint": "Instead of Agile user stories, generate 2–3 accept/reject criteria statements: \"Accept if: [condition]. Reject if: [condition].\" These replace user stories for change-proposal documents."
     }
   }
 }

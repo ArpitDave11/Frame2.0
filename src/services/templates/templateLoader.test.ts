@@ -113,7 +113,7 @@ describe('getSectionWordLimits', () => {
 describe('getSectionFormat', () => {
   it('returns format for known section', () => {
     const template = loadCategoryTemplate('business_requirement');
-    expect(getSectionFormat('Stakeholders & RACI', template)).toBe('raci-table');
+    expect(getSectionFormat('Stakeholders & RACI', template)).toBe('table');
   });
 
   it('returns undefined for unknown section', () => {
