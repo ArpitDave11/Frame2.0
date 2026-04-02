@@ -1,0 +1,40 @@
+# PRD: Resilient User Story Parser
+
+## Problem
+`parseUserStories.ts` only handles `### US-\d{3}:` heading format and `[-*] **US-\d{3}**` bullet format. It fails when:
+- Stories use bold-only format at line start: `**US-001:** Title`
+- Story IDs have variable digits: `US-1`, `US-01`, `US-0001`
+- Content is imported from GitLab or hand-edited by users
+
+The pipeline's own Stage 5 output uses `### US-001:` and works fine, but externally sourced or user-edited epics break the Issue Creation Modal (no stories parsed → error message).
+
+## Requirements
+
+### R1: Multi-format primary regex
+Update the primary story-splitting regex to match all three formats:
+- `### US-XXX: Title` (heading format — current pipeline output)
+- `**US-XXX:** Title` or `**US-XXX: Title**` (bold at line start, no bullet)
+- `- **US-XXX:** Title` or `* **US-XXX:** Title` (bold with bullet prefix)
+
+### R2: Flexible story ID digits
+Relax `\d{3}` to `\d+` so IDs like US-1, US-01, US-001, US-0001 all work.
+
+### R3: Normalize story IDs
+After parsing, normalize all story IDs to 3-digit padded format (US-001) for consistency downstream.
+
+### R4: Unified parsing pipeline
+All matched formats should flow through the same extraction logic (As a/I want/So that, acceptance criteria, priority, story points, test cases). No separate fallback path with reduced extraction.
+
+### R5: Preserve existing behavior
+The current `### US-001:` format must continue working identically. No regressions on pipeline-generated content.
+
+### R6: Tests
+Add test cases covering all three formats and edge cases (variable digits, mixed formats in one epic).
+
+## Files to Change
+- `src/pipeline/utils/parseUserStories.ts` — main parser changes
+- Add/update tests for the parser
+
+## Out of Scope
+- Changes to `runStage5Mandatory.ts` — Stage 5 output format is fine as-is
+- Changes to the pipeline prompt or AI output format
