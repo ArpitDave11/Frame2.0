@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FRAME3 — Modernized Architecture Blueprint</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ─── RESET & BASE ─── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bp-bg: #0a1628;
+  --bp-bg-deep: #060e1a;
+  --bp-grid: rgba(56, 139, 220, 0.06);
+  --bp-grid-major: rgba(56, 139, 220, 0.12);
+  --bp-line: #1e6cb8;
+  --bp-line-bright: #3da5f5;
+  --bp-line-dim: rgba(30, 108, 184, 0.4);
+  --bp-text: #c8ddf0;
+  --bp-text-bright: #e8f4ff;
+  --bp-text-dim: rgba(200, 221, 240, 0.5);
+  --bp-accent: #f59e0b;
+  --bp-accent-dim: rgba(245, 158, 11, 0.3);
+  --bp-danger: #ef4444;
+  --bp-success: #10b981;
+  --bp-purple: #a78bfa;
+  --bp-cyan: #22d3ee;
+  --bp-orange: #fb923c;
+  --bp-pink: #f472b6;
+  --node-radius: 12px;
+  --transition-speed: 0.4s;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bp-bg);
+  color: var(--bp-text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ─── BLUEPRINT GRID BACKGROUND ─── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(var(--bp-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bp-grid) 1px, transparent 1px),
+    linear-gradient(var(--bp-grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bp-grid-major) 1px, transparent 1px);
+  background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── GRAIN OVERLAY ─── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+}
+
+/* ─── TOP BAR ─── */
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 56px;
+  background: rgba(6, 14, 26, 0.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--bp-line-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  z-index: 100;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-logo {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--bp-line-bright);
+}
+
+.topbar-logo span {
+  color: var(--bp-accent);
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--bp-line-dim);
+}
+
+.topbar-subtitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--bp-text-dim);
+  letter-spacing: 1px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.legend-dot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--bp-text-dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.legend-dot::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot-color);
+  box-shadow: 0 0 6px var(--dot-color);
+}
+
+/* ─── BREADCRUMB ─── */
+.breadcrumb {
+  position: fixed;
+  top: 56px;
+  left: 0; right: 0;
+  height: 44px;
+  background: rgba(10, 22, 40, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(30, 108, 184, 0.15);
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  gap: 8px;
+  z-index: 99;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+}
+
+.breadcrumb-item {
+  color: var(--bp-text-dim);
+  cursor: pointer;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.breadcrumb-item:hover { color: var(--bp-line-bright); }
+.breadcrumb-item.active { color: var(--bp-text-bright); cursor: default; }
+
+.breadcrumb-sep {
+  color: var(--bp-line-dim);
+  font-size: 0.6rem;
+}
+
+/* ─── CANVAS AREA ─── */
+.canvas {
+  position: relative;
+  z-index: 1;
+  padding: 120px 40px 60px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.view-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--bp-text-dim);
+  margin-bottom: 8px;
+  opacity: 0;
+  animation: fadeSlideIn 0.5s ease forwards;
+}
+
+.view-heading {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--bp-text-bright);
+  margin-bottom: 6px;
+  opacity: 0;
+  animation: fadeSlideIn 0.5s ease 0.1s forwards;
+}
+
+.view-desc {
+  font-size: 0.85rem;
+  color: var(--bp-text-dim);
+  margin-bottom: 48px;
+  max-width: 600px;
+  text-align: center;
+  line-height: 1.6;
+  opacity: 0;
+  animation: fadeSlideIn 0.5s ease 0.2s forwards;
+}
+
+/* ─── SVG CONTAINER ─── */
+.diagram-container {
+  position: relative;
+  width: 100%;
+  max-width: 1200px;
+  opacity: 0;
+  animation: fadeSlideIn 0.6s ease 0.3s forwards;
+}
+
+.diagram-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* ─── NODE STYLES ─── */
+.node-group { cursor: pointer; }
+.node-group.no-drill { cursor: default; }
+
+.node-box {
+  fill: rgba(10, 22, 40, 0.85);
+  stroke: var(--bp-line);
+  stroke-width: 1.5;
+  rx: 10;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+}
+
+.node-group:not(.no-drill):hover .node-box {
+  stroke: var(--bp-line-bright);
+  stroke-width: 2;
+  fill: rgba(20, 40, 65, 0.9);
+  filter: drop-shadow(0 4px 20px rgba(61, 165, 245, 0.2));
+}
+
+.node-box.external {
+  stroke: var(--bp-accent);
+  stroke-dasharray: 6 3;
+}
+
+.node-group:not(.no-drill):hover .node-box.external {
+  stroke: var(--bp-accent);
+  filter: drop-shadow(0 4px 20px rgba(245, 158, 11, 0.2));
+}
+
+.node-box.database {
+  stroke: var(--bp-success);
+  rx: 16;
+}
+
+.node-group:not(.no-drill):hover .node-box.database {
+  stroke: var(--bp-success);
+  filter: drop-shadow(0 4px 20px rgba(16, 185, 129, 0.2));
+}
+
+.node-box.ai {
+  stroke: var(--bp-purple);
+}
+
+.node-group:not(.no-drill):hover .node-box.ai {
+  stroke: var(--bp-purple);
+  filter: drop-shadow(0 4px 20px rgba(167, 139, 250, 0.2));
+}
+
+.node-box.user-actor {
+  stroke: var(--bp-cyan);
+}
+
+.node-icon {
+  font-size: 1.6rem;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.node-label {
+  fill: var(--bp-text-bright);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.node-sublabel {
+  fill: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  text-anchor: middle;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
+
+.node-tech {
+  fill: var(--bp-line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.node-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.drill-hint {
+  fill: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  text-anchor: middle;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.node-group:not(.no-drill):hover .drill-hint { opacity: 1; }
+
+/* ─── CONNECTION LINES ─── */
+.conn-line {
+  stroke: var(--bp-line-dim);
+  stroke-width: 1.2;
+  fill: none;
+  marker-end: url(#arrowhead);
+}
+
+.conn-line.bidirectional {
+  marker-start: url(#arrowhead-start);
+}
+
+.conn-line.data-flow {
+  stroke: var(--bp-success);
+  stroke-opacity: 0.4;
+  stroke-dasharray: 4 4;
+}
+
+.conn-line.auth-flow {
+  stroke: var(--bp-accent);
+  stroke-opacity: 0.4;
+  stroke-dasharray: 6 3;
+}
+
+.conn-line.ai-flow {
+  stroke: var(--bp-purple);
+  stroke-opacity: 0.4;
+}
+
+.conn-label {
+  fill: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  text-anchor: middle;
+  letter-spacing: 0.3px;
+}
+
+/* ─── SECTION LABELS ─── */
+.section-border {
+  fill: none;
+  stroke: var(--bp-line-dim);
+  stroke-width: 1;
+  stroke-dasharray: 8 4;
+  rx: 12;
+  opacity: 0.4;
+}
+
+.section-label {
+  fill: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+/* ─── BACK BUTTON ─── */
+.back-btn {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: rgba(6, 14, 26, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bp-line-dim);
+  color: var(--bp-text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  padding: 10px 28px;
+  border-radius: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.back-btn:hover {
+  border-color: var(--bp-line-bright);
+  color: var(--bp-text-bright);
+  box-shadow: 0 0 20px rgba(61, 165, 245, 0.15);
+}
+
+.back-btn.visible { display: flex; }
+
+.back-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+/* ─── TOOLTIP ─── */
+.tooltip {
+  position: fixed;
+  z-index: 200;
+  background: rgba(6, 14, 26, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bp-line);
+  border-radius: 10px;
+  padding: 14px 18px;
+  max-width: 320px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tooltip-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--bp-text-bright);
+  margin-bottom: 4px;
+}
+
+.tooltip-desc {
+  font-size: 0.75rem;
+  color: var(--bp-text-dim);
+  line-height: 1.5;
+}
+
+.tooltip-tech {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--bp-line-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--bp-line);
+  letter-spacing: 0.5px;
+}
+
+.tooltip-port {
+  display: inline-block;
+  background: rgba(30, 108, 184, 0.15);
+  border: 1px solid var(--bp-line-dim);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  font-size: 0.6rem;
+  color: var(--bp-line-bright);
+}
+
+/* ─── ANIMATIONS ─── */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.conn-line { animation: fadeSlideIn 0.8s ease forwards; opacity: 0; }
+
+/* stagger node entrance */
+.node-group { opacity: 0; animation: fadeSlideIn 0.5s ease forwards; }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 768px) {
+  .topbar { padding: 0 16px; }
+  .topbar-right { display: none; }
+  .canvas { padding: 110px 16px 80px; }
+  .view-heading { font-size: 1.4rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── TOP BAR ─── -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">FRAME<span>3</span></div>
+    <div class="topbar-divider"></div>
+    <div class="topbar-subtitle">Modernized Architecture · Graphiti · LightRAG · FastMCP v3</div>
+  </div>
+  <div class="topbar-right">
+    <div class="legend-dot" style="--dot-color: var(--bp-line-bright)">Service</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-accent)">External</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-success)">Database</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-purple)">AI / LLM</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-cyan)">Actor</div>
+  </div>
+</header>
+
+<!-- ─── BREADCRUMB ─── -->
+<nav class="breadcrumb" id="breadcrumb">
+  <span class="breadcrumb-item active" data-level="system">System Context</span>
+</nav>
+
+<!-- ─── TOOLTIP ─── -->
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tooltip-title"></div>
+  <div class="tooltip-desc" id="tooltip-desc"></div>
+  <div class="tooltip-tech" id="tooltip-tech"></div>
+</div>
+
+<!-- ─── BACK BUTTON ─── -->
+<button class="back-btn" id="back-btn" onclick="goBack()">
+  <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+  Back
+</button>
+
+<!-- ─── CANVAS ─── -->
+<main class="canvas" id="canvas"></main>
+
+<script>
+// ════════════════════════════════════════════
+// DATA MODEL — All levels & nodes
+// ════════════════════════════════════════════
+
+const DATA = {
+  system: {
+    title: 'C4 — LEVEL 1',
+    heading: 'System Context',
+    desc: 'High-level view of FRAME3, its users, and external dependencies. Click any component to drill down.',
+    nodes: [
+      { id: 'user-browser', x: 200, y: 60, w: 180, h: 80, icon: '🌐', label: 'Web Browser', sub: 'End User', type: 'user-actor', tooltip: { title: 'Web Browser', desc: 'Engineers & PMs accessing FRAME3 UI for requirements generation, backlog synthesis, and project management.', tech: 'HTML / JS / CSS' } },
+      { id: 'user-vscode', x: 820, y: 60, w: 180, h: 80, icon: '💻', label: 'VS Code', sub: 'Copilot + MCP', type: 'user-actor', tooltip: { title: 'VS Code Copilot', desc: 'Developers querying the knowledge graph directly from their IDE via the MCP protocol server.', tech: 'MCP Protocol' } },
+
+      { id: 'frame3', x: 340, y: 240, w: 520, h: 120, icon: '⚙️', label: 'FRAME3 Platform', sub: 'Agentic AI for Requirements & Backlog', tech: '15 Services · Graphiti · LightRAG · FastMCP v3 · LangGraph', type: 'default', drillTo: 'containers', tooltip: { title: 'FRAME3 Platform — Modernized', desc: 'AI-powered orchestration platform. Now with Graphiti temporal memory (agent learns from corrections), LightRAG fast retrieval (complements DRIFT), SemHash semantic dedup, and FastMCP v3 multi-tool gateway. Generates requirements from prompts, synthesizes backlogs, manages knowledge graphs.', tech: 'AKS · FastAPI · LangGraph · Neo4j · Graphiti · LightRAG · FastMCP v3' } },
+
+      { id: 'azure-ad', x: 60, y: 440, w: 180, h: 80, icon: '🔐', label: 'Azure AD', sub: 'Identity Provider', type: 'external', tooltip: { title: 'Azure Active Directory', desc: 'OAuth 2.0 / OIDC identity provider handling MFA, RBAC groups, and token issuance for all FRAME3 users.', tech: 'MSAL · OIDC · JWKS' } },
+      { id: 'azure-openai', x: 340, y: 440, w: 180, h: 80, icon: '🧠', label: 'Azure OpenAI', sub: 'GPT-4 · Embeddings', type: 'external', tooltip: { title: 'Azure OpenAI Service', desc: 'Provides GPT-4.1 for agentic workflows and text-embedding-3-large for vector indexing and semantic search.', tech: 'GPT-4.1 · text-embedding-3-large' } },
+      { id: 'gitlab', x: 620, y: 440, w: 180, h: 80, icon: '🦊', label: 'GitLab', sub: 'Epics · Issues · Repos', type: 'external', tooltip: { title: 'GitLab Instance', desc: 'Source of truth for project backlogs. FRAME3 reads existing epics/issues for duplicate detection and writes generated backlogs back.', tech: 'python-gitlab · REST API' } },
+      { id: 'azure-infra', x: 900, y: 440, w: 180, h: 80, icon: '☁️', label: 'Azure Infra', sub: 'Redis · Blob · KeyVault', type: 'external', tooltip: { title: 'Azure Infrastructure', desc: 'Redis for caching & pub/sub, Blob Storage for documents, Key Vault for secrets, App Insights for telemetry.', tech: 'Bicep · AKS · CSI Driver' } },
+    ],
+    connections: [
+      { from: 'user-browser', to: 'frame3', label: 'HTTPS / SSE', type: '' },
+      { from: 'user-vscode', to: 'frame3', label: 'MCP Protocol', type: '' },
+      { from: 'frame3', to: 'azure-ad', label: 'OAuth + JWKS', type: 'auth-flow' },
+      { from: 'frame3', to: 'azure-openai', label: 'LLM Calls', type: 'ai-flow' },
+      { from: 'frame3', to: 'gitlab', label: 'REST API', type: 'data-flow' },
+      { from: 'frame3', to: 'azure-infra', label: 'Managed Services', type: 'data-flow' },
+    ]
+  },
+
+  containers: {
+    title: 'C4 — LEVEL 2',
+    heading: 'Container Diagram',
+    desc: 'Inside FRAME3 — services, databases, and message flows. ★ NEW: Graphiti memory, SemHash dedup, LightRAG retrieval, FastMCP hub. Click any service to drill down.',
+    nodes: [
+      // ── INGRESS ──
+      { id: 'nginx', x: 440, y: 30, w: 200, h: 70, icon: '🔀', label: 'NGINX Ingress', sub: 'Internal Load Balancer', type: 'default', tooltip: { title: 'NGINX Ingress Controller', desc: 'Routes all external traffic to the UI service. Internal load balancer on AKS with TLS termination.', tech: 'NGINX · Kustomize overlays' } },
+
+      // ── API GATEWAY ──
+      { id: 'ui-service', x: 400, y: 150, w: 280, h: 80, icon: '🖥️', label: 'UI Service', sub: 'API Gateway + Web Frontend', tech: 'FastAPI · MSAL · Redis Sessions', type: 'default', drillTo: 'ui-service', tooltip: { title: 'UI Service (API Gateway)', desc: 'Single entry point. Serves the web UI, manages sessions via Redis, proxies all API calls to backend services with S2S JWT tokens. Handles SSE streaming.', tech: 'FastAPI · MSAL · Redis · SSE', port: '8000' } },
+
+      // ── AUTH ──
+      { id: 'auth-service', x: 60, y: 160, w: 200, h: 70, icon: '🔑', label: 'Auth Service', sub: 'Token Exchange', tech: 'Azure AD → LOCAL JWT', type: 'default', drillTo: 'auth-service', tooltip: { title: 'Authentication Service', desc: 'Exchanges Azure AD tokens for LOCAL JWTs (1-hour TTL). Validates via JWKS endpoint. All inter-service auth uses LOCAL JWT.', tech: 'FastAPI · PyJWT · JWKS', port: '8020' } },
+
+      // ── AI ORCHESTRATION ──
+      { id: 'ai-req', x: 60, y: 340, w: 220, h: 80, icon: '📋', label: 'AI Requirements', sub: 'Agentic Workflow', tech: 'LangGraph · DeepEval · Experts', type: 'ai', drillTo: 'ai-requirements', tooltip: { title: 'AI Requirements Service', desc: 'Multi-agent LangGraph workflow: PromptAnalyst → ContextRetriever → RequirementsEngineer → ConsistencyAuditor → Evaluator. Now reads/writes Graphiti episodes for temporal context.', tech: 'LangGraph · Azure OpenAI · DeepEval · Graphiti', port: '8000' } },
+      { id: 'ai-tasks', x: 340, y: 340, w: 220, h: 80, icon: '📦', label: 'AI Tasks', sub: 'Backlog Synthesis', tech: 'LangGraph · SemHash · Dedup', type: 'ai', drillTo: 'ai-tasks', tooltip: { title: 'AI Tasks Service', desc: 'Generates epics, stories, and tasks. Uses GraphRAG + LightRAG for context, SemHash + DuplicateMapper for two-pass dedup, and Graphiti for temporal memory.', tech: 'LangGraph · SemHash · Graphiti · DeepEval', port: '8000' } },
+
+      // ★ NEW: GRAPHITI MEMORY ──
+      { id: 'graphiti', x: 610, y: 330, w: 200, h: 90, icon: '🧬', label: 'Graphiti Memory', sub: 'Temporal Knowledge Graph', tech: 'Zep · Episodes · Entities', type: 'ai', drillTo: 'graphiti-detail', tooltip: { title: '★ NEW — Graphiti Episodic Memory', desc: 'Temporal knowledge graph by Zep. Stores episodes (pipeline events), entities (concepts, people, systems), and relationships with timestamps. Enables agent learning: corrections, contradictions, and pattern recognition across runs.', tech: 'graphiti-core · Neo4j · Azure OpenAI', port: '8000' } },
+
+      // ── KNOWLEDGE GRAPH ──
+      { id: 'neo4j-retrieval', x: 860, y: 310, w: 210, h: 65, icon: '🔍', label: 'Neo4j Retrieval', sub: 'DRIFT Search · GraphRAG', type: 'default', drillTo: 'neo4j-retrieval', tooltip: { title: 'Neo4j Retrieval Service', desc: 'Implements Microsoft DRIFT search algorithm over the knowledge graph. Provides contextual retrieval via community summaries and entity relationships. Expensive but high quality for corpus-wide queries.', tech: 'FastAPI · py2neo · GraphRAG', port: '8000' } },
+
+      // ★ NEW: LIGHTRAG ──
+      { id: 'lightrag', x: 860, y: 400, w: 210, h: 65, icon: '⚡', label: 'LightRAG', sub: 'Fast Graph RAG · Hybrid', type: 'ai', drillTo: 'lightrag-detail', tooltip: { title: '★ NEW — LightRAG Retrieval', desc: 'Lightweight Graph RAG from HKUDS. Faster and cheaper than MS GraphRAG for entity-level and local queries. Uses Neo4j backend. Complements DRIFT for different query patterns: DRIFT for global summaries, LightRAG for fast entity/local retrieval.', tech: 'lightrag-hku · Neo4j · HNSW', port: '8000' } },
+
+      { id: 'neo4j-ingestion', x: 860, y: 490, w: 210, h: 65, icon: '📥', label: 'Neo4j Ingestion', sub: 'Document → Graph Pipeline', type: 'default', drillTo: 'neo4j-ingestion', tooltip: { title: 'Neo4j Ingestion Service', desc: 'Processes documents into the knowledge graph. Feeds both GraphRAG (DRIFT) and LightRAG indexes. Extracts entities, relationships, and community structures.', tech: 'FastAPI · GraphRAG · LightRAG · Azure OpenAI', port: '8000' } },
+      { id: 'neo4j-maint', x: 1100, y: 400, w: 160, h: 55, icon: '🔧', label: 'Neo4j Maint', sub: 'Schema & Admin', type: 'default', tooltip: { title: 'Neo4j Maintenance Service', desc: 'Administrative operations: schema management, index creation, constraint setup, and database health monitoring. Now manages both GraphRAG and Graphiti schemas.', tech: 'FastAPI · py2neo', port: '8000' } },
+
+      // ── DATA & PROJECTS ──
+      { id: 'project-mgmt', x: 60, y: 540, w: 200, h: 65, icon: '📁', label: 'Project Management', sub: 'CRUD · Members · Status', type: 'default', drillTo: 'project-mgmt', tooltip: { title: 'Project Management Service', desc: 'Manages projects, team members, and project metadata. Source of truth for project configuration. Publishes status updates via Redis.', tech: 'FastAPI · SQLAlchemy · PostgreSQL', port: '8000' } },
+
+      // ★ NEW: SEMHASH ──
+      { id: 'semhash', x: 310, y: 540, w: 200, h: 65, icon: '🔗', label: 'SemHash Dedup', sub: 'Semantic Hashing · LSH', tech: 'MinHash · Near-linear O(n)', type: 'ai', tooltip: { title: '★ NEW — SemHash Deduplication', desc: 'Semantic deduplication via locality-sensitive hashing. Operates on full text (title + description + AC), not just titles. Near-linear time O(n) vs DuplicateMapper O(n×m). Pre-filters documents before ingestion and provides second-pass dedup after DuplicateMapper in AI Tasks.', tech: 'semhash · MinHash · Python library' } },
+
+      { id: 'doc-proc', x: 310, y: 630, w: 200, h: 65, icon: '📄', label: 'Document Processing', sub: 'Parsing · Chunking · Dedup', type: 'default', tooltip: { title: 'Document Processing Service', desc: 'Parses uploaded documents (PDF, DOCX, etc.) using IBM Docling. Now runs SemHash pre-filter before ingestion to prevent duplicate entities in the knowledge graph.', tech: 'FastAPI · Docling · SemHash · Azure Blob', port: '8000' } },
+      { id: 'gitlab-client', x: 560, y: 540, w: 220, h: 65, icon: '🦊', label: 'GitLab Client', sub: 'API + Webhook Listener', type: 'default', drillTo: 'gitlab-client', tooltip: { title: 'GitLab Client Service — ★ Enhanced', desc: 'Facade for GitLab REST API. Now includes webhook listener: when humans edit generated epics/stories in GitLab, captures the diff and writes a correction episode to Graphiti. Enables agent learning from human feedback.', tech: 'FastAPI · python-gitlab · Webhooks · Graphiti', port: '8000' } },
+
+      // ★ NEW: FASTMCP HUB ──
+      { id: 'fastmcp-hub', x: 560, y: 630, w: 220, h: 65, icon: '🤖', label: 'FastMCP v3 Hub', sub: 'Multi-Server Tool Gateway', type: 'default', drillTo: 'fastmcp-detail', tooltip: { title: '★ NEW — FastMCP v3 Hub', desc: 'Generalized MCP gateway replacing single-purpose MCP server. Mounts multiple MCP servers: Neo4j retrieval, GitLab operations, Graphiti memory, Denodo queries, Databricks notebooks. VS Code Copilot + LangGraph agents both consume via standard MCP protocol.', tech: 'FastMCP v3 · Composable · OpenAPI auto-gen', port: '8082' } },
+
+      // ── DATABASES ──
+      { id: 'postgresql', x: 100, y: 740, w: 180, h: 70, icon: '🐘', label: 'PostgreSQL', sub: 'Projects · Members', type: 'database', tooltip: { title: 'PostgreSQL 16', desc: 'Relational database for project metadata, team members, and application state. Runs as StatefulSet with 10Gi PVC.', tech: 'postgres:16-alpine · 10Gi PVC' } },
+      { id: 'neo4j-db', x: 360, y: 740, w: 220, h: 70, icon: '🕸️', label: 'Neo4j', sub: 'GraphRAG + Graphiti + LightRAG', type: 'database', tooltip: { title: 'Neo4j Graph Database — ★ Expanded', desc: 'Now hosts THREE graph schemas: (1) GraphRAG/DRIFT knowledge graph with communities, (2) Graphiti temporal memory with episodes and entity timelines, (3) LightRAG entity-relationship index. Separate label prefixes prevent cross-contamination. Native vector index (5.11+) serves all three.', tech: 'neo4j-baked · GDS · APOC · Vector Index · 50Gi' } },
+      { id: 'redis', x: 660, y: 740, w: 180, h: 70, icon: '⚡', label: 'Redis', sub: 'Cache · Pub/Sub · Sessions', type: 'database', tooltip: { title: 'Azure Cache for Redis', desc: 'Multi-purpose: session storage, embeddings cache (DuplicateMapper), Pub/Sub for real-time progress streaming (SSE), and Celery task broker.', tech: 'Azure Managed Redis' } },
+    ],
+    connections: [
+      { from: 'nginx', to: 'ui-service', label: '/* → UI', type: '' },
+      { from: 'ui-service', to: 'auth-service', label: 'Token Exchange', type: 'auth-flow' },
+      { from: 'ui-service', to: 'ai-req', label: 'POST /workflow', type: '' },
+      { from: 'ui-service', to: 'ai-tasks', label: 'POST /tasks', type: '' },
+      { from: 'ui-service', to: 'project-mgmt', label: 'CRUD', type: '' },
+      { from: 'ui-service', to: 'doc-proc', label: 'Upload', type: '' },
+      // AI → Retrieval (dual path: DRIFT for global, LightRAG for local)
+      { from: 'ai-req', to: 'neo4j-retrieval', label: 'DRIFT global', type: 'ai-flow' },
+      { from: 'ai-req', to: 'lightrag', label: 'LightRAG local', type: 'ai-flow' },
+      { from: 'ai-tasks', to: 'lightrag', label: 'Entity context', type: 'ai-flow' },
+      // AI → Graphiti (episodic memory read/write)
+      { from: 'ai-req', to: 'graphiti', label: 'Read/write episodes', type: 'ai-flow' },
+      { from: 'ai-tasks', to: 'graphiti', label: 'Read/write episodes', type: 'ai-flow' },
+      // AI Tasks → GitLab + SemHash
+      { from: 'ai-tasks', to: 'gitlab-client', label: 'Backlog', type: 'data-flow' },
+      { from: 'ai-tasks', to: 'semhash', label: '2nd-pass dedup', type: 'data-flow' },
+      // GitLab → Graphiti feedback loop
+      { from: 'gitlab-client', to: 'graphiti', label: '★ Webhook → episodes', type: 'ai-flow' },
+      // Knowledge services → Neo4j
+      { from: 'neo4j-retrieval', to: 'neo4j-db', label: 'Bolt (DRIFT)', type: 'data-flow' },
+      { from: 'lightrag', to: 'neo4j-db', label: 'Bolt (LightRAG)', type: 'data-flow' },
+      { from: 'graphiti', to: 'neo4j-db', label: 'Bolt (Episodes)', type: 'data-flow' },
+      { from: 'neo4j-ingestion', to: 'neo4j-db', label: 'Write all indexes', type: 'data-flow' },
+      { from: 'neo4j-maint', to: 'neo4j-db', label: 'Admin', type: 'data-flow' },
+      // Doc processing pipeline
+      { from: 'doc-proc', to: 'semhash', label: 'Pre-dedup', type: 'data-flow' },
+      { from: 'doc-proc', to: 'neo4j-ingestion', label: 'Parsed docs', type: 'data-flow' },
+      // FastMCP Hub
+      { from: 'fastmcp-hub', to: 'neo4j-retrieval', label: 'Retrieve tool', type: '' },
+      { from: 'fastmcp-hub', to: 'graphiti', label: 'Memory tool', type: '' },
+      { from: 'fastmcp-hub', to: 'gitlab-client', label: 'GitLab tool', type: '' },
+      { from: 'fastmcp-hub', to: 'auth-service', label: 'Validate', type: 'auth-flow' },
+      // Data stores
+      { from: 'project-mgmt', to: 'postgresql', label: 'SQLAlchemy', type: 'data-flow' },
+      { from: 'ai-req', to: 'redis', label: 'Pub/Sub', type: 'data-flow' },
+      { from: 'ai-tasks', to: 'redis', label: 'Pub/Sub', type: 'data-flow' },
+      { from: 'ui-service', to: 'redis', label: 'Sessions + SSE', type: 'data-flow' },
+      { from: 'gitlab-client', to: 'redis', label: 'Embeddings Cache', type: 'data-flow' },
+    ]
+  },
+
+  // ─── DRILL-DOWN: UI SERVICE ───
+  'ui-service': {
+    title: 'C4 — LEVEL 3',
+    heading: 'UI Service — Internals',
+    desc: 'API Gateway and web frontend. All external traffic enters here.',
+    nodes: [
+      { id: 'auth-router', x: 80, y: 40, w: 220, h: 65, icon: '🔐', label: 'Auth Router', sub: '/auth/* endpoints', tech: 'Azure AD login, session mgmt', type: 'default', tooltip: { title: 'Auth Router', desc: 'Handles Azure AD OAuth flow: login redirect, callback, token exchange, session creation, and logout. Manages MSAL confidential client.', tech: 'auth_router.py · MSAL' } },
+      { id: 'proxy-router', x: 400, y: 40, w: 220, h: 65, icon: '🔀', label: 'Proxy Router', sub: '/api/* proxy to backends', tech: 'S2S JWT injection', type: 'default', tooltip: { title: 'Proxy Router', desc: 'Intercepts all /api/* requests, generates S2S JWT tokens, and forwards to appropriate backend service. Handles streaming responses for SSE.', tech: 'proxy_router.py · httpx' } },
+      { id: 'sse-router', x: 700, y: 40, w: 220, h: 65, icon: '📡', label: 'SSE Router', sub: 'Server-Sent Events', tech: 'Real-time progress streaming', type: 'default', tooltip: { title: 'SSE Router', desc: 'Subscribes to Redis Pub/Sub channels and streams real-time progress updates to the browser. Channels: ai_requirements_progress, ai_tasks_progress, project_progress.', tech: 'sse_router.py · Redis Pub/Sub' } },
+      { id: 'session-svc', x: 80, y: 170, w: 220, h: 65, icon: '💾', label: 'Session Service', sub: 'Redis-backed sessions', tech: 'Token storage & refresh', type: 'default', tooltip: { title: 'Session Service', desc: 'Manages user sessions in Redis. Stores Azure AD tokens (access + refresh), handles automatic token refresh via MSAL, and provides session-based auth to the frontend.', tech: 'Redis · MSAL token cache' } },
+      { id: 's2s-jwt', x: 400, y: 170, w: 220, h: 65, icon: '🎫', label: 'S2S JWT Generator', sub: 'Service-to-service tokens', tech: 'LOCAL_JWT_SECRET signing', type: 'default', tooltip: { title: 'S2S JWT Token Generator', desc: 'Creates short-lived LOCAL JWT tokens for backend service calls. Embeds user identity (oid, email, roles) from the session. All backend services validate these tokens.', tech: 'PyJWT · LOCAL_JWT_SECRET' } },
+      { id: 'static-files', x: 700, y: 170, w: 220, h: 65, icon: '🎨', label: 'Static Frontend', sub: 'HTML / JS / CSS', tech: 'Pages, components, controllers', type: 'default', tooltip: { title: 'Web Frontend', desc: 'Server-rendered HTML pages with vanilla JS controllers. Pages: dashboard, project detail, requirements editor, backlog viewer. Uses SSE for real-time updates.', tech: 'Jinja2 templates · Vanilla JS' } },
+      { id: 'middleware', x: 240, y: 310, w: 240, h: 55, icon: '🛡️', label: 'Middleware Stack', sub: 'Logging · CORS · Error Handling', type: 'default', tooltip: { title: 'Middleware', desc: 'Request logging, CORS configuration, global error handling, and request ID propagation. All requests are logged with timing and user context.', tech: 'FastAPI middleware' } },
+      { id: 'health', x: 560, y: 310, w: 180, h: 55, icon: '💚', label: 'Health Check', sub: 'GET /health', type: 'default', tooltip: { title: 'Health Endpoint', desc: 'Kubernetes liveness and readiness probe endpoint. Checks Redis connectivity and returns service status.', tech: '/health · K8s probes' } },
+    ],
+    connections: [
+      { from: 'auth-router', to: 'session-svc', label: 'Store tokens', type: '' },
+      { from: 'proxy-router', to: 's2s-jwt', label: 'Generate JWT', type: 'auth-flow' },
+      { from: 'proxy-router', to: 'session-svc', label: 'Read session', type: '' },
+      { from: 'sse-router', to: 'session-svc', label: 'Verify user', type: '' },
+      { from: 'static-files', to: 'sse-router', label: 'EventSource', type: 'data-flow' },
+    ]
+  },
+
+  // ─── DRILL-DOWN: AUTH SERVICE ───
+  'auth-service': {
+    title: 'C4 — LEVEL 3',
+    heading: 'Auth Service — Internals',
+    desc: 'Exchanges Azure AD tokens for LOCAL JWTs used across all services.',
+    nodes: [
+      { id: 'exchange-ep', x: 200, y: 40, w: 280, h: 70, icon: '🔄', label: 'POST /auth/exchange', sub: 'Azure AD → LOCAL JWT', tech: 'JWKS validation + signing', type: 'default', tooltip: { title: 'Token Exchange Endpoint', desc: 'Validates incoming Azure AD token against JWKS endpoint. Extracts claims (oid, email, roles). Signs a new LOCAL JWT with LOCAL_JWT_SECRET (1-hour TTL).', tech: 'PyJWT · JWKS · RS256 → HS256' } },
+      { id: 'validate-ep', x: 600, y: 40, w: 240, h: 70, icon: '✅', label: 'POST /auth/validate', sub: 'Verify LOCAL JWT', type: 'default', tooltip: { title: 'Token Validation Endpoint', desc: 'Validates LOCAL JWT tokens. Used by MCP server and other services that need to verify tokens independently.', tech: 'PyJWT · HS256' } },
+      { id: 'userinfo-ep', x: 200, y: 170, w: 240, h: 70, icon: '👤', label: 'GET /auth/userinfo', sub: 'Decode JWT → User info', type: 'default', tooltip: { title: 'User Info Endpoint', desc: 'Decodes LOCAL JWT and returns user profile: oid, email, display name, roles. No database call needed — all info is in the token.', tech: 'Stateless · JWT claims' } },
+      { id: 'jwks-client', x: 600, y: 170, w: 240, h: 70, icon: '🔑', label: 'JWKS Client', sub: 'Azure AD key fetching', tech: 'Cached public keys', type: 'default', tooltip: { title: 'JWKS Key Client', desc: 'Fetches and caches Azure AD public signing keys from the JWKS endpoint. Keys are refreshed periodically. Used to validate incoming Azure AD tokens.', tech: 'httpx · JWKS endpoint · Key cache' } },
+    ],
+    connections: [
+      { from: 'exchange-ep', to: 'jwks-client', label: 'Fetch signing keys', type: 'auth-flow' },
+      { from: 'validate-ep', to: 'jwks-client', label: 'Verify signature', type: 'auth-flow' },
+    ]
+  },
+
+  // ─── DRILL-DOWN: AI REQUIREMENTS ───
+  'ai-requirements': {
+    title: 'C4 — LEVEL 3',
+    heading: 'AI Requirements — Internals',
+    desc: 'LangGraph multi-agent workflow for generating structured requirements from natural language.',
+    nodes: [
+      { id: 'req-router', x: 350, y: 20, w: 260, h: 60, icon: '🚪', label: 'Requirements Router', sub: 'POST /workflow/requirements', type: 'default', tooltip: { title: 'Requirements Router', desc: 'Entry point for requirement generation. Accepts user prompt, project context, and optional clarification answers. Triggers the LangGraph state machine.', tech: 'FastAPI · Pydantic models' } },
+      { id: 'langgraph-req', x: 300, y: 120, w: 360, h: 60, icon: '🔄', label: 'LangGraph Orchestrator', sub: 'State Machine · Max 3 iterations', tech: 'Conditional routing between experts', type: 'ai', tooltip: { title: 'LangGraph Workflow Engine', desc: 'Orchestrates the multi-expert pipeline as a state machine. Routes between experts based on quality scores. Max 3 iterations with a 150-second timeout.', tech: 'LangGraph · StateGraph · WORKFLOW_TIMEOUT_SEC=150' } },
+      { id: 'prompt-analyst', x: 60, y: 240, w: 190, h: 65, icon: '🔬', label: 'Prompt Analyst', sub: 'Intent & Scope Analysis', type: 'ai', tooltip: { title: 'PromptAnalyst Expert', desc: 'First expert in the pipeline. Analyzes user input to extract intent, scope, domain, and key concepts. Produces a structured analysis that guides subsequent experts.', tech: 'Azure OpenAI · GPT-4.1' } },
+      { id: 'ctx-retriever', x: 300, y: 240, w: 190, h: 65, icon: '🔍', label: 'Context Retriever', sub: 'GraphRAG DRIFT Search', type: 'ai', tooltip: { title: 'ContextRetriever Expert', desc: 'Queries the Neo4j knowledge graph using DRIFT search to find relevant domain context, existing patterns, and related requirements from past projects.', tech: 'Neo4j Retrieval Service · DRIFT' } },
+      { id: 'req-engineer', x: 540, y: 240, w: 190, h: 65, icon: '📝', label: 'Requirements Engineer', sub: 'Generate Structured Reqs', type: 'ai', tooltip: { title: 'RequirementsEngineer Expert', desc: 'Core generation expert. Takes analyzed prompt + retrieved context and generates structured requirements with acceptance criteria, priorities, and dependencies.', tech: 'Azure OpenAI · Prompt Templates' } },
+      { id: 'consistency-aud', x: 140, y: 360, w: 200, h: 65, icon: '🔎', label: 'Consistency Auditor', sub: 'Cross-check & Validate', type: 'ai', tooltip: { title: 'ConsistencyAuditor Expert', desc: 'Validates generated requirements for internal consistency, completeness, and conflicts. Flags issues and suggests corrections.', tech: 'DeepEval · Consistency metrics' } },
+      { id: 'evaluator', x: 440, y: 360, w: 200, h: 65, icon: '📊', label: 'Evaluator', sub: 'Quality Score ≥ 0.75', type: 'ai', tooltip: { title: 'Evaluator Expert', desc: 'Scores requirement quality using DeepEval metrics. If score < CLARIFICATION_SCORE_TARGET (0.75), routes back for clarification questions. Otherwise, accepts output.', tech: 'DeepEval · Score threshold: 0.75' } },
+      { id: 'redis-pub-req', x: 300, y: 480, w: 260, h: 55, icon: '📡', label: 'Redis Pub/Sub', sub: 'ui:ai_requirements_progress', type: 'database', tooltip: { title: 'Progress Publishing', desc: 'Each expert publishes progress updates to the Redis channel. The UI Service picks these up via SSE and streams them to the browser in real-time.', tech: 'Redis · Channel: ui:ai_requirements_progress' } },
+    ],
+    connections: [
+      { from: 'req-router', to: 'langgraph-req', label: 'Trigger workflow', type: '' },
+      { from: 'langgraph-req', to: 'prompt-analyst', label: '① Analyze', type: 'ai-flow' },
+      { from: 'langgraph-req', to: 'ctx-retriever', label: '② Retrieve', type: 'ai-flow' },
+      { from: 'langgraph-req', to: 'req-engineer', label: '③ Generate', type: 'ai-flow' },
+      { from: 'langgraph-req', to: 'consistency-aud', label: '④ Audit', type: 'ai-flow' },
+      { from: 'langgraph-req', to: 'evaluator', label: '⑤ Score', type: 'ai-flow' },
+      { from: 'evaluator', to: 'langgraph-req', label: 'Iterate if < 0.75', type: 'auth-flow' },
+      { from: 'prompt-analyst', to: 'redis-pub-req', label: 'Progress', type: 'data-flow' },
+      { from: 'req-engineer', to: 'redis-pub-req', label: 'Progress', type: 'data-flow' },
+    ]
+  },
+
+  // ─── DRILL-DOWN: AI TASKS ───
+  'ai-tasks': {
+    title: 'C4 — LEVEL 3',
+    heading: 'AI Tasks — Internals',
+    desc: 'LangGraph workflow for synthesizing epics, stories, and tasks from requirements.',
+    nodes: [
+      { id: 'tasks-router', x: 350, y: 20, w: 240, h: 60, icon: '🚪', label: 'Tasks Router', sub: 'POST /tasks/generate', type: 'default', tooltip: { title: 'Tasks Router', desc: 'Entry point for backlog generation. Accepts requirements + project context. Triggers the LangGraph state machine for backlog synthesis.', tech: 'FastAPI · Pydantic' } },
+      { id: 'langgraph-tasks', x: 300, y: 120, w: 340, h: 60, icon: '🔄', label: 'LangGraph Orchestrator', sub: 'Backlog State Machine', type: 'ai', tooltip: { title: 'LangGraph Backlog Engine', desc: 'Orchestrates the multi-expert backlog generation pipeline. Manages state transitions between analysis, generation, dedup, and evaluation stages.', tech: 'LangGraph · StateGraph' } },
+      { id: 'req-analyst', x: 60, y: 240, w: 200, h: 65, icon: '📋', label: 'Requirements Analyst', sub: 'Decompose Requirements', type: 'ai', tooltip: { title: 'RequirementsAnalyst Expert', desc: 'Breaks down high-level requirements into actionable work items. Identifies epics, stories, and task boundaries.', tech: 'Azure OpenAI · GPT-4.1' } },
+      { id: 'backlog-eng', x: 320, y: 240, w: 200, h: 65, icon: '📦', label: 'Backlog Engineer', sub: 'Generate Epics & Tasks', type: 'ai', tooltip: { title: 'BacklogEngineer Expert', desc: 'Generates structured backlog items: epics with stories, stories with tasks, acceptance criteria, story points, and priority assignments.', tech: 'Azure OpenAI · Prompt Templates' } },
+      { id: 'dup-mapper', x: 580, y: 240, w: 200, h: 65, icon: '🔗', label: 'Duplicate Mapper', sub: 'Semantic Similarity Check', type: 'ai', tooltip: { title: 'DuplicateMapper Expert', desc: 'Fetches existing GitLab backlog via GitLab Client Service. Computes cosine similarity between generated and existing items using cached embeddings. Threshold: 0.7.', tech: 'Embeddings · Cosine sim ≥ 0.7' } },
+      { id: 'tasks-auditor', x: 180, y: 370, w: 200, h: 65, icon: '🔎', label: 'Consistency Auditor', sub: 'Validate Backlog', type: 'ai', tooltip: { title: 'ConsistencyAuditor', desc: 'Validates the generated backlog for completeness, consistency, and coverage against the original requirements.', tech: 'DeepEval' } },
+      { id: 'tasks-eval', x: 460, y: 370, w: 200, h: 65, icon: '📊', label: 'Evaluator', sub: 'Quality Scoring', type: 'ai', tooltip: { title: 'Evaluator', desc: 'Scores the backlog quality. Routes back for iteration if below threshold.', tech: 'DeepEval · Quality metrics' } },
+      { id: 'redis-pub-tasks', x: 300, y: 490, w: 260, h: 55, icon: '📡', label: 'Redis Pub/Sub', sub: 'ui:ai_tasks_progress', type: 'database', tooltip: { title: 'Progress Publishing', desc: 'Publishes progress updates for real-time streaming to the UI.', tech: 'Redis · Channel: ui:ai_tasks_progress' } },
+    ],
+    connections: [
+      { from: 'tasks-router', to: 'langgraph-tasks', label: 'Trigger', type: '' },
+      { from: 'langgraph-tasks', to: 'req-analyst', label: '① Analyze', type: 'ai-flow' },
+      { from: 'langgraph-tasks', to: 'backlog-eng', label: '② Generate', type: 'ai-flow' },
+      { from: 'langgraph-tasks', to: 'dup-mapper', label: '③ Dedup', type: 'ai-flow' },
+      { from: 'langgraph-tasks', to: 'tasks-auditor', label: '④ Audit', type: 'ai-flow' },
+      { from: 'langgraph-tasks', to: 'tasks-eval', label: '⑤ Score', type: 'ai-flow' },
+      { from: 'tasks-eval', to: 'langgraph-tasks', label: 'Iterate', type: 'auth-flow' },
+      { from: 'backlog-eng', to: 'redis-pub-tasks', label: 'Progress', type: 'data-flow' },
+    ]
+  },
+
+  // ─── DRILL-DOWN: NEO4J RETRIEVAL ───
+  'neo4j-retrieval': {
+    title: 'C4 — LEVEL 3',
+    heading: 'Neo4j Retrieval — Internals',
+    desc: 'Microsoft DRIFT search over the knowledge graph for contextual retrieval.',
+    nodes: [
+      { id: 'retrieve-ep', x: 300, y: 30, w: 280, h: 65, icon: '🔍', label: 'POST /retrieve', sub: 'DRIFT Search Endpoint', type: 'default', tooltip: { title: 'Retrieve Endpoint', desc: 'Accepts a natural language query and project ID. Executes DRIFT search algorithm across community summaries, entities, and relationships.', tech: 'FastAPI · GraphRAG' } },
+      { id: 'drift-engine', x: 200, y: 150, w: 240, h: 65, icon: '🌊', label: 'DRIFT Engine', sub: 'Dynamic Retrieval', tech: 'Community → Entity → Relationship', type: 'ai', tooltip: { title: 'DRIFT Search Engine', desc: 'Microsoft\'s Dynamic Retrieval Inferencing with Flexible Traversal. Starts from community summaries, drills into entities, traverses relationships for comprehensive context.', tech: 'GraphRAG DRIFT · Multi-hop traversal' } },
+      { id: 'vector-search', x: 500, y: 150, w: 200, h: 65, icon: '📐', label: 'Vector Index', sub: 'Cosine Similarity', tech: 'Dimension: 3072', type: 'default', tooltip: { title: 'Vector Search', desc: 'Neo4j vector index for semantic similarity search. Uses text-embedding-3-large (3072 dimensions) with cosine similarity metric.', tech: 'Neo4j Vector Index · dim=3072 · cosine' } },
+      { id: 'community-store', x: 100, y: 290, w: 200, h: 60, icon: '🏘️', label: 'Communities', sub: 'Graph Partitions', type: 'database', tooltip: { title: 'Community Summaries', desc: 'Pre-computed community summaries from the GraphRAG indexing pipeline. Each community represents a cluster of related entities.', tech: 'Neo4j · Leiden clustering' } },
+      { id: 'entity-store', x: 350, y: 290, w: 200, h: 60, icon: '🔵', label: 'Entities', sub: 'Nodes & Properties', type: 'database', tooltip: { title: 'Entity Store', desc: 'Named entities extracted from documents: concepts, technologies, business terms, people. Each has embeddings and descriptions.', tech: 'Neo4j nodes · Embeddings' } },
+      { id: 'rel-store', x: 600, y: 290, w: 200, h: 60, icon: '🔗', label: 'Relationships', sub: 'Edges & Weights', type: 'database', tooltip: { title: 'Relationship Store', desc: 'Directed edges between entities with descriptions and weights. Captures semantic relationships extracted by the LLM during indexing.', tech: 'Neo4j relationships · Weighted' } },
+    ],
+    connections: [
+      { from: 'retrieve-ep', to: 'drift-engine', label: 'Query', type: 'ai-flow' },
+      { from: 'retrieve-ep', to: 'vector-search', label: 'Embed query', type: '' },
+      { from: 'drift-engine', to: 'community-store', label: '① Communities', type: 'data-flow' },
+      { from: 'drift-engine', to: 'entity-store', label: '② Entities', type: 'data-flow' },
+      { from: 'drift-engine', to: 'rel-store', label: '③ Traverse', type: 'data-flow' },
+      { from: 'vector-search', to: 'entity-store', label: 'Nearest neighbors', type: 'data-flow' },
+    ]
+  },
+
+  // ─── DRILL-DOWN: NEO4J INGESTION ───
+  'neo4j-ingestion': {
+    title: 'C4 — LEVEL 3',
+    heading: 'Neo4j Ingestion — Internals',
+    desc: 'Document-to-graph pipeline using Microsoft GraphRAG indexing.',
+    nodes: [
+      { id: 'ingest-ep', x: 320, y: 30, w: 260, h: 60, icon: '📥', label: 'Ingestion Endpoint', sub: 'POST /ingest', type: 'default', tooltip: { title: 'Ingestion Endpoint', desc: 'Accepts parsed document chunks and triggers the GraphRAG indexing pipeline.', tech: 'FastAPI' } },
+      { id: 'entity-extract', x: 100, y: 150, w: 220, h: 65, icon: '🏷️', label: 'Entity Extraction', sub: 'NER via LLM', type: 'ai', tooltip: { title: 'Entity Extraction', desc: 'Uses Azure OpenAI to extract named entities from document chunks. Identifies concepts, technologies, business terms, and relationships.', tech: 'Azure OpenAI · Prompt-based NER' } },
+      { id: 'rel-extract', x: 370, y: 150, w: 220, h: 65, icon: '🔗', label: 'Relationship Extraction', sub: 'Semantic Edges', type: 'ai', tooltip: { title: 'Relationship Extraction', desc: 'Identifies directed relationships between extracted entities. Each relationship has a description and weight.', tech: 'Azure OpenAI · GPT-4.1' } },
+      { id: 'embed-gen', x: 640, y: 150, w: 220, h: 65, icon: '📐', label: 'Embedding Generation', sub: 'text-embedding-3-large', type: 'ai', tooltip: { title: 'Embedding Generator', desc: 'Generates vector embeddings for entities and document chunks. Used for vector similarity search in the retrieval service.', tech: 'text-embedding-3-large · dim=3072' } },
+      { id: 'community-detect', x: 200, y: 290, w: 240, h: 65, icon: '🏘️', label: 'Community Detection', sub: 'Leiden Algorithm', type: 'ai', tooltip: { title: 'Community Detection', desc: 'Runs Leiden community detection algorithm on the entity-relationship graph. Creates hierarchical community partitions for DRIFT search.', tech: 'Neo4j GDS · Leiden · Hierarchical' } },
+      { id: 'summary-gen', x: 500, y: 290, w: 240, h: 65, icon: '📝', label: 'Summary Generation', sub: 'Community Summaries', type: 'ai', tooltip: { title: 'Community Summary Generation', desc: 'Generates natural language summaries for each detected community. These summaries are the entry point for DRIFT search.', tech: 'Azure OpenAI · Map-Reduce' } },
+      { id: 'neo4j-write', x: 320, y: 420, w: 260, h: 60, icon: '🕸️', label: 'Neo4j Writer', sub: 'Persist Graph', type: 'database', tooltip: { title: 'Graph Writer', desc: 'Writes extracted entities, relationships, embeddings, communities, and summaries to Neo4j. Creates indexes and constraints.', tech: 'py2neo · Batch writes' } },
+    ],
+    connections: [
+      { from: 'ingest-ep', to: 'entity-extract', label: 'Chunks', type: '' },
+      { from: 'entity-extract', to: 'rel-extract', label: 'Entities', type: 'ai-flow' },
+      { from: 'entity-extract', to: 'embed-gen', label: 'Texts', type: 'ai-flow' },
+      { from: 'rel-extract', to: 'community-detect', label: 'Graph', type: 'data-flow' },
+      { from: 'community-detect', to: 'summary-gen', label: 'Communities', type: 'ai-flow' },
+      { from: 'embed-gen', to: 'neo4j-write', label: 'Vectors', type: 'data-flow' },
+      { from: 'summary-gen', to: 'neo4j-write', label: 'Summaries', type: 'data-flow' },
+      { from: 'rel-extract', to: 'neo4j-write', label: 'Edges', type: 'data-flow' },
+    ]
+  },
+
+  // ─── DRILL-DOWN: PROJECT MGMT ───
+  'project-mgmt': {
+    title: 'C4 — LEVEL 3',
+    heading: 'Project Management — Internals',
+    desc: 'CRUD operations for projects and team members.',
+    nodes: [
+      { id: 'proj-router', x: 300, y: 30, w: 260, h: 60, icon: '🚪', label: 'Project Router', sub: 'REST API Endpoints', type: 'default', tooltip: { title: 'Project Router', desc: 'Full CRUD for projects: list, create, get, update, delete. Also manages project members and search.', tech: 'FastAPI · JWT auth required' } },
+      { id: 'proj-service', x: 300, y: 140, w: 260, h: 60, icon: '⚙️', label: 'Project Service', sub: 'Business Logic Layer', type: 'default', tooltip: { title: 'Project Service', desc: 'Business logic for project operations. Handles validation, member management, search queries, and status transitions.', tech: 'Python · Service pattern' } },
+      { id: 'proj-models', x: 100, y: 260, w: 200, h: 60, icon: '📊', label: 'SQLAlchemy Models', sub: 'Project · Member · Status', type: 'default', tooltip: { title: 'Database Models', desc: 'ORM models: Project (name, description, gitlab_url, status), ProjectMember (user_id, role, joined_at), and related enums.', tech: 'SQLAlchemy · PostgreSQL' } },
+      { id: 'redis-pub-proj', x: 420, y: 260, w: 220, h: 60, icon: '📡', label: 'Redis Publisher', sub: 'project_progress channel', type: 'database', tooltip: { title: 'Redis Status Publisher', desc: 'Publishes project status updates to Redis for real-time streaming to connected clients via SSE.', tech: 'Redis Pub/Sub' } },
+      { id: 'pg-conn', x: 250, y: 380, w: 240, h: 55, icon: '🐘', label: 'PostgreSQL', sub: 'projects · members tables', type: 'database', tooltip: { title: 'PostgreSQL Connection', desc: 'SQLAlchemy async session connected to PostgreSQL 16. Connection pool with health checks.', tech: 'asyncpg · SQLAlchemy async' } },
+    ],
+    connections: [
+      { from: 'proj-router', to: 'proj-service', label: 'Delegate', type: '' },
+      { from: 'proj-service', to: 'proj-models', label: 'ORM queries', type: 'data-flow' },
+      { from: 'proj-service', to: 'redis-pub-proj', label: 'Publish status', type: 'data-flow' },
+      { from: 'proj-models', to: 'pg-conn', label: 'SQL', type: 'data-flow' },
+    ]
+  },
+
+  // ─── DRILL-DOWN: GITLAB CLIENT ───
+  'gitlab-client': {
+    title: 'C4 — LEVEL 3',
+    heading: 'GitLab Client — Internals',
+    desc: 'Facade for GitLab API with embeddings caching for duplicate detection.',
+    nodes: [
+      { id: 'gl-router', x: 280, y: 30, w: 280, h: 60, icon: '🚪', label: 'GitLab Router', sub: '/gitlab/* endpoints', type: 'default', tooltip: { title: 'GitLab Router', desc: 'REST API facade: fetch backlog, cache embeddings, apply generated backlog. Handles GitLab API pagination and error mapping.', tech: 'FastAPI' } },
+      { id: 'gl-backlog', x: 80, y: 150, w: 220, h: 65, icon: '📋', label: 'Backlog Fetcher', sub: 'GET /gitlab/backlog', tech: 'Epics, issues, labels', type: 'default', tooltip: { title: 'Backlog Fetcher', desc: 'Fetches existing epics and issues from GitLab. Normalizes data into a standard format for comparison with generated backlog.', tech: 'python-gitlab · Pagination' } },
+      { id: 'gl-embeddings', x: 360, y: 150, w: 220, h: 65, icon: '📐', label: 'Embeddings Cache', sub: 'Title → Vector → Redis', tech: 'Semantic similarity prep', type: 'default', tooltip: { title: 'Embeddings Cache', desc: 'Generates and caches embeddings for GitLab issue/epic titles in Redis. Used by the AI Tasks Service for duplicate detection via cosine similarity.', tech: 'Azure OpenAI · Redis cache' } },
+      { id: 'gl-apply', x: 620, y: 150, w: 220, h: 65, icon: '📤', label: 'Backlog Applier', sub: 'POST /gitlab/apply-backlog', tech: 'Idempotent create/update', type: 'default', tooltip: { title: 'Backlog Applier', desc: 'Applies generated backlog to GitLab: creates epics, stories, tasks. Idempotent — skips existing items. Links parent-child relationships. Returns partial-failure report.', tech: 'python-gitlab · Idempotent writes' } },
+      { id: 'gl-client', x: 200, y: 300, w: 220, h: 55, icon: '🦊', label: 'python-gitlab Client', sub: 'REST API wrapper', type: 'default', tooltip: { title: 'GitLab API Client', desc: 'Official python-gitlab library. Authenticated with project/group access tokens. Handles rate limiting and retries.', tech: 'python-gitlab · OAuth' } },
+      { id: 'gl-redis', x: 500, y: 300, w: 180, h: 55, icon: '⚡', label: 'Redis', sub: 'Embeddings store', type: 'database', tooltip: { title: 'Redis Embeddings Store', desc: 'Stores cached embeddings keyed by project ID. TTL-based expiry for freshness.', tech: 'Redis · embeddings:projects:{id}' } },
+    ],
+    connections: [
+      { from: 'gl-router', to: 'gl-backlog', label: 'Fetch', type: '' },
+      { from: 'gl-router', to: 'gl-embeddings', label: 'Cache', type: '' },
+      { from: 'gl-router', to: 'gl-apply', label: 'Apply', type: '' },
+      { from: 'gl-backlog', to: 'gl-client', label: 'API calls', type: 'data-flow' },
+      { from: 'gl-apply', to: 'gl-client', label: 'Create/Update', type: 'data-flow' },
+      { from: 'gl-embeddings', to: 'gl-redis', label: 'Store vectors', type: 'data-flow' },
+    ]
+  },
+
+  // ─── ★ NEW DRILL-DOWN: GRAPHITI MEMORY ───
+  'graphiti-detail': {
+    title: 'C4 — LEVEL 3 ★ NEW',
+    heading: 'Graphiti Episodic Memory',
+    desc: 'Temporal knowledge graph that gives agents memory across pipeline runs. Stores episodes, tracks entity evolution, detects contradictions, and learns from human corrections.',
+    nodes: [
+      { id: 'gp-api', x: 300, y: 30, w: 280, h: 60, icon: '🧬', label: 'Graphiti Service API', sub: 'add_episode · search · get_entity', type: 'default', tooltip: { title: 'Graphiti API Layer', desc: 'FastAPI wrapper around graphiti-core. Exposes endpoints for adding episodes, searching memory, resolving entities, and querying temporal relationships.', tech: 'FastAPI · graphiti-core · async' } },
+      { id: 'gp-episode-proc', x: 80, y: 160, w: 220, h: 65, icon: '📝', label: 'Episode Processor', sub: 'Parse → Extract → Store', type: 'ai', tooltip: { title: 'Episode Processor', desc: 'When a pipeline stage completes, creates an episode capturing: what happened, which entities were involved, what decisions were made, and the pipeline state baton. Uses LLM for entity extraction from episode content.', tech: 'Azure OpenAI · Entity extraction' } },
+      { id: 'gp-entity-resolver', x: 360, y: 160, w: 220, h: 65, icon: '🔗', label: 'Entity Resolver', sub: 'Dedup · Merge · Link', type: 'ai', tooltip: { title: 'Entity Resolver', desc: 'Deduplicates entities using Neo4j native vector index (cosine similarity). Merges near-duplicates and creates temporal edges. Prevents entity proliferation across pipeline runs.', tech: 'Neo4j Vector Index · Cosine sim' } },
+      { id: 'gp-contradiction', x: 620, y: 160, w: 240, h: 65, icon: '⚠️', label: 'Contradiction Detector', sub: 'Temporal consistency check', type: 'ai', tooltip: { title: 'Contradiction Detector', desc: 'When new facts arrive, checks against existing temporal edges. Detects conflicts: "Risk threshold was 3% as of Jan 15, but new episode says 5% as of Feb 1." Flags for agent or human review. Uses valid_from/valid_to timestamps on edges.', tech: 'Cypher temporal queries · LLM validation' } },
+      { id: 'gp-feedback', x: 80, y: 300, w: 220, h: 65, icon: '🔄', label: 'Feedback Ingester', sub: 'GitLab webhook → episodes', type: 'default', tooltip: { title: 'Feedback Ingester', desc: 'Receives diffs from GitLab Client webhook listener. When a human edits a generated epic/story, creates a correction episode: "Human changed field X from A to B, reason inferred by LLM." This is how the agent learns preferences.', tech: 'Webhook consumer · Diff parsing' } },
+      { id: 'gp-search', x: 360, y: 300, w: 220, h: 65, icon: '🔍', label: 'Memory Search', sub: 'Hybrid: graph + vector + time', type: 'default', tooltip: { title: 'Memory Search Engine', desc: 'Three search modes: (1) Entity neighborhood — find all episodes involving entity X. (2) Semantic — vector similarity over episode content. (3) Temporal — "what did the agent know as of date D?" Combines all three for rich context retrieval.', tech: 'Cypher + Neo4j Vector + Temporal filters' } },
+      { id: 'gp-pattern', x: 620, y: 300, w: 240, h: 65, icon: '🧠', label: 'Pattern Recognizer', sub: 'Learn from correction history', type: 'ai', tooltip: { title: 'Pattern Recognizer', desc: 'Periodically analyzes correction episodes to identify systematic patterns: "Every KYC epic needs FINRA reference" or "This stakeholder always changes priority to HIGH." Surfaces learned rules that agents can apply proactively.', tech: 'LLM analysis · Rule extraction' } },
+      { id: 'gp-neo4j', x: 320, y: 430, w: 260, h: 60, icon: '🕸️', label: 'Neo4j — Graphiti Schema', sub: 'EntityNode · EpisodicNode · TemporalEdge', type: 'database', tooltip: { title: 'Graphiti Neo4j Schema', desc: 'Separate label prefix from GraphRAG. Key node types: EntityNode (concepts, people, systems with embeddings), EpisodicNode (timestamped events), TemporalEdge (relationships with valid_from/valid_to). Native vector index for entity dedup.', tech: 'Neo4j 5.x · Label prefix: GRAPHITI_' } },
+    ],
+    connections: [
+      { from: 'gp-api', to: 'gp-episode-proc', label: 'add_episode()', type: 'ai-flow' },
+      { from: 'gp-api', to: 'gp-entity-resolver', label: 'Entity ops', type: 'ai-flow' },
+      { from: 'gp-api', to: 'gp-search', label: 'search()', type: '' },
+      { from: 'gp-episode-proc', to: 'gp-entity-resolver', label: 'Extracted entities', type: 'ai-flow' },
+      { from: 'gp-entity-resolver', to: 'gp-contradiction', label: 'Check new facts', type: 'ai-flow' },
+      { from: 'gp-feedback', to: 'gp-episode-proc', label: 'Correction episodes', type: 'data-flow' },
+      { from: 'gp-feedback', to: 'gp-pattern', label: 'Correction history', type: 'data-flow' },
+      { from: 'gp-episode-proc', to: 'gp-neo4j', label: 'Store episodes', type: 'data-flow' },
+      { from: 'gp-entity-resolver', to: 'gp-neo4j', label: 'Merge entities', type: 'data-flow' },
+      { from: 'gp-search', to: 'gp-neo4j', label: 'Cypher + vector', type: 'data-flow' },
+    ]
+  },
+
+  // ─── ★ NEW DRILL-DOWN: LIGHTRAG ───
+  'lightrag-detail': {
+    title: 'C4 — LEVEL 3 ★ NEW',
+    heading: 'LightRAG Retrieval',
+    desc: 'Lightweight Graph RAG for fast entity-level and local queries. Complements MS GraphRAG/DRIFT — use LightRAG for speed, DRIFT for depth.',
+    nodes: [
+      { id: 'lr-api', x: 300, y: 30, w: 280, h: 60, icon: '⚡', label: 'LightRAG Service API', sub: 'query · insert · delete', type: 'default', tooltip: { title: 'LightRAG API', desc: 'FastAPI wrapper around lightrag-hku core library. Exposes query endpoints with mode selection: naive (vector-only), local (entity neighborhood), global (community summary), mix (hybrid with reranker).', tech: 'FastAPI · lightrag-hku · async' } },
+      { id: 'lr-naive', x: 60, y: 160, w: 180, h: 60, icon: '📐', label: 'Naive Mode', sub: 'Vector similarity only', type: 'default', tooltip: { title: 'Naive Query Mode', desc: 'Pure vector similarity search over chunk embeddings. Fastest mode — sub-100ms. Good for straightforward factual retrieval.', tech: 'Neo4j Vector Index · HNSW' } },
+      { id: 'lr-local', x: 250, y: 160, w: 180, h: 60, icon: '🔵', label: 'Local Mode', sub: 'Entity + 1-2 hops', type: 'default', tooltip: { title: 'Local Query Mode', desc: 'Finds matching entities via vector search, then traverses 1-2 hops for neighborhood context. Best for "tell me about entity X" queries. 200-500ms.', tech: 'Neo4j · Entity graph traversal' } },
+      { id: 'lr-global', x: 440, y: 160, w: 180, h: 60, icon: '🏘️', label: 'Global Mode', sub: 'Community summaries', type: 'ai', tooltip: { title: 'Global Query Mode', desc: 'Searches pre-computed community summaries for broad thematic queries. Similar concept to DRIFT but lighter. Good for "what does the corpus say about topic Y?"', tech: 'Leiden communities · LLM summary' } },
+      { id: 'lr-mix', x: 630, y: 160, w: 180, h: 60, icon: '🔀', label: 'Mix + Reranker', sub: 'Best quality · Default', type: 'ai', tooltip: { title: 'Mix Query Mode (Recommended)', desc: 'Combines naive + local + global results, then applies a reranker model (BAAI/bge-reranker-v2-m3) to surface the most relevant context. Best quality, slightly slower (~1s). Default for production.', tech: 'Hybrid retrieval · Reranker model' } },
+      { id: 'lr-neo4j', x: 220, y: 300, w: 240, h: 55, icon: '🕸️', label: 'Neo4j — LightRAG Schema', sub: 'LIGHTRAG_* label prefix', type: 'database', tooltip: { title: 'LightRAG Neo4j Schema', desc: 'Tables: LIGHTRAG_VDB_CHUNKS (chunk embeddings), LIGHTRAG_VDB_ENTITY (entity embeddings), LIGHTRAG_VDB_RELATION (relationship embeddings), LIGHTRAG_DOC_STATUS, LIGHTRAG_LLM_CACHE. HNSW cosine indexes on all vector tables.', tech: 'Neo4j · HNSW indexes · Label prefix: LIGHTRAG_' } },
+      { id: 'lr-cache', x: 520, y: 300, w: 200, h: 55, icon: '💾', label: 'LLM Cache', sub: 'Avoid re-extraction', type: 'database', tooltip: { title: 'LLM Response Cache', desc: 'Caches LLM entity extraction and summary generation responses. Prevents re-processing the same content on re-indexing. Keyed by content hash.', tech: 'Neo4j KV store · Content hash' } },
+    ],
+    connections: [
+      { from: 'lr-api', to: 'lr-naive', label: 'mode=naive', type: '' },
+      { from: 'lr-api', to: 'lr-local', label: 'mode=local', type: '' },
+      { from: 'lr-api', to: 'lr-global', label: 'mode=global', type: 'ai-flow' },
+      { from: 'lr-api', to: 'lr-mix', label: 'mode=mix', type: 'ai-flow' },
+      { from: 'lr-naive', to: 'lr-neo4j', label: 'Vector search', type: 'data-flow' },
+      { from: 'lr-local', to: 'lr-neo4j', label: 'Graph traversal', type: 'data-flow' },
+      { from: 'lr-global', to: 'lr-neo4j', label: 'Community read', type: 'data-flow' },
+      { from: 'lr-mix', to: 'lr-neo4j', label: 'All modes', type: 'data-flow' },
+      { from: 'lr-global', to: 'lr-cache', label: 'Cache hit?', type: 'data-flow' },
+    ]
+  },
+
+  // ─── ★ NEW DRILL-DOWN: FASTMCP HUB ───
+  'fastmcp-detail': {
+    title: 'C4 — LEVEL 3 ★ NEW',
+    heading: 'FastMCP v3 Hub',
+    desc: 'Generalized MCP gateway with composable server mounting. Replaces single-purpose MCP server. Serves VS Code Copilot + LangGraph agents.',
+    nodes: [
+      { id: 'mcp-gateway', x: 300, y: 30, w: 280, h: 60, icon: '🤖', label: 'FastMCP Gateway', sub: 'Composable server mount', type: 'default', tooltip: { title: 'FastMCP v3 Gateway', desc: 'Central MCP gateway that mounts multiple tool servers. Handles auth, routing, and OpenAPI schema auto-generation. Both VS Code Copilot and LangGraph ToolNodes connect here.', tech: 'FastMCP v3 · Streamable HTTP · OpenAPI', port: '8082' } },
+      { id: 'mcp-neo4j', x: 60, y: 160, w: 200, h: 65, icon: '🔍', label: 'Neo4j Tools', sub: 'resolve_project · retrieve', type: 'default', tooltip: { title: 'Neo4j MCP Server', desc: 'Original MCP functionality preserved. Tools: resolve_project (find project by name), retrieve_context (DRIFT + LightRAG combined query).', tech: 'Mounted at /neo4j' } },
+      { id: 'mcp-graphiti', x: 290, y: 160, w: 200, h: 65, icon: '🧬', label: 'Graphiti Tools', sub: 'search_memory · add_episode', type: 'default', tooltip: { title: 'Graphiti MCP Server', desc: 'Exposes agent memory as MCP tools. VS Code Copilot can ask: "What did the pipeline learn about KYC requirements?" Tools: search_memory, get_entity_timeline, list_recent_episodes.', tech: 'Mounted at /memory' } },
+      { id: 'mcp-gitlab', x: 520, y: 160, w: 200, h: 65, icon: '🦊', label: 'GitLab Tools', sub: 'fetch_backlog · apply · search', type: 'default', tooltip: { title: 'GitLab MCP Server', desc: 'GitLab operations as MCP tools. Tools: fetch_backlog (list epics/issues), search_issues (semantic), apply_backlog (create/update), get_epic_detail.', tech: 'Mounted at /gitlab' } },
+      { id: 'mcp-denodo', x: 60, y: 290, w: 200, h: 65, icon: '🗄️', label: 'Denodo Tools', sub: 'query_vdp · list_views', type: 'external', tooltip: { title: '★ NEW — Denodo MCP Server', desc: 'Exposes Denodo Virtual DataPort as MCP tools. Agents can query enterprise data layer directly: client portfolios, risk assessments, compliance datasets. Tools: query_vdp, list_views, describe_view.', tech: 'Mounted at /denodo · Denodo REST API' } },
+      { id: 'mcp-databricks', x: 290, y: 290, w: 200, h: 65, icon: '⚙️', label: 'Databricks Tools', sub: 'run_notebook · query_sql', type: 'external', tooltip: { title: '★ NEW — Databricks MCP Server', desc: 'Agents can trigger Databricks notebook runs and query Unity Catalog tables. Tools: run_notebook, query_sql, get_table_schema. Enables data-driven requirement enrichment.', tech: 'Mounted at /databricks · Databricks SDK' } },
+      { id: 'mcp-frame', x: 520, y: 290, w: 200, h: 65, icon: '📋', label: 'FRAME Tools', sub: 'pipeline_status · config', type: 'default', tooltip: { title: '★ NEW — FRAME Internal MCP Server', desc: 'Internal tools for pipeline management. Tools: get_pipeline_status, list_projects, get_project_config, trigger_reindex. Enables Copilot to manage FRAME without the UI.', tech: 'Mounted at /frame · Internal API' } },
+      { id: 'mcp-consumers', x: 240, y: 420, w: 380, h: 55, icon: '🔌', label: 'Consumers: VS Code Copilot + LangGraph ToolNode', sub: 'Standard MCP protocol · Both read same tool registry', type: 'user-actor', tooltip: { title: 'MCP Consumers', desc: 'Two consumer types share the same tool registry: (1) VS Code Copilot for interactive developer queries, (2) LangGraph ToolNode for autonomous agent tool calls. Same auth, same tools, different interaction patterns.', tech: 'MCP Protocol · stdio + HTTP transport' } },
+    ],
+    connections: [
+      { from: 'mcp-gateway', to: 'mcp-neo4j', label: 'Mount /neo4j', type: '' },
+      { from: 'mcp-gateway', to: 'mcp-graphiti', label: 'Mount /memory', type: '' },
+      { from: 'mcp-gateway', to: 'mcp-gitlab', label: 'Mount /gitlab', type: '' },
+      { from: 'mcp-gateway', to: 'mcp-denodo', label: 'Mount /denodo', type: '' },
+      { from: 'mcp-gateway', to: 'mcp-databricks', label: 'Mount /databricks', type: '' },
+      { from: 'mcp-gateway', to: 'mcp-frame', label: 'Mount /frame', type: '' },
+      { from: 'mcp-consumers', to: 'mcp-gateway', label: 'MCP protocol', type: '' },
+    ]
+  },
+};
+
+// ════════════════════════════════════════════
+// RENDERING ENGINE
+// ════════════════════════════════════════════
+
+let currentLevel = 'system';
+let history = [];
+const canvas = document.getElementById('canvas');
+const breadcrumb = document.getElementById('breadcrumb');
+const backBtn = document.getElementById('back-btn');
+const tooltip = document.getElementById('tooltip');
+const tooltipTitle = document.getElementById('tooltip-title');
+const tooltipDesc = document.getElementById('tooltip-desc');
+const tooltipTech = document.getElementById('tooltip-tech');
+
+function renderView(levelId, pushHistory = true) {
+  const data = DATA[levelId];
+  if (!data) return;
+
+  if (pushHistory && currentLevel !== levelId) {
+    history.push(currentLevel);
+  }
+  currentLevel = levelId;
+
+  // Update breadcrumb
+  updateBreadcrumb();
+
+  // Show/hide back button
+  backBtn.classList.toggle('visible', history.length > 0);
+
+  // Calculate SVG bounds
+  let maxX = 0, maxY = 0;
+  data.nodes.forEach(n => {
+    maxX = Math.max(maxX, n.x + n.w + 40);
+    maxY = Math.max(maxY, n.y + n.h + 60);
+  });
+  const svgW = Math.max(maxX, 900);
+  const svgH = maxY + 20;
+
+  // Build SVG
+  let svg = `<svg class="diagram-svg" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Defs
+  svg += `<defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="rgba(30,108,184,0.5)"/>
+    </marker>
+    <marker id="arrowhead-start" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto-start-reverse">
+      <polygon points="8 0, 0 3, 8 6" fill="rgba(30,108,184,0.5)"/>
+    </marker>
+  </defs>`;
+
+  // Connections (render first so they're behind nodes)
+  data.connections.forEach((conn, i) => {
+    const fromNode = data.nodes.find(n => n.id === conn.from);
+    const toNode = data.nodes.find(n => n.id === conn.to);
+    if (!fromNode || !toNode) return;
+
+    const fx = fromNode.x + fromNode.w / 2;
+    const fy = fromNode.y + fromNode.h / 2;
+    const tx = toNode.x + toNode.w / 2;
+    const ty = toNode.y + toNode.h / 2;
+
+    // Calculate edge points (from border, not center)
+    const { sx, sy, ex, ey } = getEdgePoints(fromNode, toNode);
+
+    // Curved path
+    const midX = (sx + ex) / 2;
+    const midY = (sy + ey) / 2;
+    const dx = ex - sx;
+    const dy = ey - sy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const curve = Math.min(dist * 0.15, 30);
+    const cx1 = midX - dy * 0.1;
+    const cy1 = midY + dx * 0.1;
+
+    const cls = conn.type ? `conn-line ${conn.type}` : 'conn-line';
+    svg += `<path d="M${sx},${sy} Q${cx1},${cy1} ${ex},${ey}" class="${cls}" style="animation-delay: ${0.4 + i * 0.08}s"/>`;
+
+    if (conn.label) {
+      const lx = midX * 0.5 + cx1 * 0.5;
+      const ly = midY * 0.5 + cy1 * 0.5 - 6;
+      svg += `<text x="${lx}" y="${ly}" class="conn-label">${conn.label}</text>`;
+    }
+  });
+
+  // Nodes
+  data.nodes.forEach((node, i) => {
+    const hasDrill = !!node.drillTo;
+    const groupClass = hasDrill ? 'node-group' : 'node-group no-drill';
+    const delay = 0.3 + i * 0.06;
+
+    svg += `<g class="${groupClass}" data-id="${node.id}" data-drill="${node.drillTo || ''}" style="animation-delay: ${delay}s"`;
+    if (node.tooltip) {
+      svg += ` data-tooltip-title="${escHtml(node.tooltip.title)}" data-tooltip-desc="${escHtml(node.tooltip.desc)}" data-tooltip-tech="${escHtml(node.tooltip.tech)}"`;
+      if (node.tooltip.port) svg += ` data-tooltip-port="${node.tooltip.port}"`;
+    }
+    svg += `>`;
+
+    // Box
+    const boxClass = node.type === 'external' ? 'node-box external' :
+                     node.type === 'database' ? 'node-box database' :
+                     node.type === 'ai' ? 'node-box ai' :
+                     node.type === 'user-actor' ? 'node-box user-actor' : 'node-box';
+    svg += `<rect x="${node.x}" y="${node.y}" width="${node.w}" height="${node.h}" class="${boxClass}"/>`;
+
+    // Icon
+    const iconY = node.tech ? node.y + node.h * 0.3 : node.y + node.h * 0.35;
+    svg += `<text x="${node.x + node.w/2}" y="${iconY}" class="node-icon">${node.icon}</text>`;
+
+    // Label
+    const labelY = node.tech ? node.y + node.h * 0.58 : node.y + node.h * 0.62;
+    svg += `<text x="${node.x + node.w/2}" y="${labelY}" class="node-label">${escHtml(node.label)}</text>`;
+
+    // Sublabel
+    if (node.sub) {
+      const subY = node.tech ? node.y + node.h * 0.74 : node.y + node.h * 0.82;
+      svg += `<text x="${node.x + node.w/2}" y="${subY}" class="node-sublabel">${escHtml(node.sub)}</text>`;
+    }
+
+    // Tech
+    if (node.tech) {
+      svg += `<text x="${node.x + node.w/2}" y="${node.y + node.h * 0.9}" class="node-tech">${escHtml(node.tech)}</text>`;
+    }
+
+    // Drill hint
+    if (hasDrill) {
+      svg += `<text x="${node.x + node.w/2}" y="${node.y + node.h + 16}" class="drill-hint">▼ CLICK TO DRILL DOWN</text>`;
+    }
+
+    svg += `</g>`;
+  });
+
+  svg += `</svg>`;
+
+  // Render
+  canvas.innerHTML = `
+    <div class="view-title">${data.title}</div>
+    <h1 class="view-heading">${data.heading}</h1>
+    <p class="view-desc">${data.desc}</p>
+    <div class="diagram-container">${svg}</div>
+  `;
+
+  // Bind events
+  bindNodeEvents();
+}
+
+function getEdgePoints(from, to) {
+  const fcx = from.x + from.w / 2, fcy = from.y + from.h / 2;
+  const tcx = to.x + to.w / 2, tcy = to.y + to.h / 2;
+
+  let sx, sy, ex, ey;
+
+  // From node exit point
+  const angle1 = Math.atan2(tcy - fcy, tcx - fcx);
+  if (Math.abs(Math.cos(angle1)) * from.h > Math.abs(Math.sin(angle1)) * from.w) {
+    sx = fcx + Math.sign(Math.cos(angle1)) * from.w / 2;
+    sy = fcy + Math.tan(angle1) * Math.sign(Math.cos(angle1)) * from.w / 2;
+  } else {
+    sy = fcy + Math.sign(Math.sin(angle1)) * from.h / 2;
+    sx = fcx + (1/Math.tan(angle1)) * Math.sign(Math.sin(angle1)) * from.h / 2;
+  }
+
+  // To node entry point
+  const angle2 = Math.atan2(fcy - tcy, fcx - tcx);
+  if (Math.abs(Math.cos(angle2)) * to.h > Math.abs(Math.sin(angle2)) * to.w) {
+    ex = tcx + Math.sign(Math.cos(angle2)) * to.w / 2;
+    ey = tcy + Math.tan(angle2) * Math.sign(Math.cos(angle2)) * to.w / 2;
+  } else {
+    ey = tcy + Math.sign(Math.sin(angle2)) * to.h / 2;
+    ex = tcx + (1/Math.tan(angle2)) * Math.sign(Math.sin(angle2)) * to.h / 2;
+  }
+
+  return { sx, sy, ex, ey };
+}
+
+function bindNodeEvents() {
+  document.querySelectorAll('.node-group').forEach(g => {
+    // Click to drill
+    g.addEventListener('click', () => {
+      const drill = g.dataset.drill;
+      if (drill && DATA[drill]) {
+        renderView(drill);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+
+    // Tooltip
+    g.addEventListener('mouseenter', (e) => {
+      const title = g.dataset.tooltipTitle;
+      const desc = g.dataset.tooltipDesc;
+      const tech = g.dataset.tooltipTech;
+      const port = g.dataset.tooltipPort;
+      if (!title) return;
+
+      tooltipTitle.textContent = title;
+      tooltipDesc.textContent = desc;
+      tooltipTech.innerHTML = tech + (port ? `<span class="tooltip-port">:${port}</span>` : '');
+      tooltip.classList.add('visible');
+    });
+
+    g.addEventListener('mousemove', (e) => {
+      const pad = 16;
+      let x = e.clientX + pad;
+      let y = e.clientY + pad;
+      const rect = tooltip.getBoundingClientRect();
+      if (x + rect.width > window.innerWidth - pad) x = e.clientX - rect.width - pad;
+      if (y + rect.height > window.innerHeight - pad) y = e.clientY - rect.height - pad;
+      tooltip.style.left = x + 'px';
+      tooltip.style.top = y + 'px';
+    });
+
+    g.addEventListener('mouseleave', () => {
+      tooltip.classList.remove('visible');
+    });
+  });
+}
+
+function updateBreadcrumb() {
+  const trail = [...history, currentLevel];
+  let html = '';
+  trail.forEach((levelId, i) => {
+    const data = DATA[levelId];
+    if (!data) return;
+    const isLast = i === trail.length - 1;
+    if (i > 0) html += `<span class="breadcrumb-sep">▸</span>`;
+    if (isLast) {
+      html += `<span class="breadcrumb-item active">${data.heading}</span>`;
+    } else {
+      html += `<span class="breadcrumb-item" onclick="navigateTo(${i})">${data.heading}</span>`;
+    }
+  });
+  breadcrumb.innerHTML = html;
+}
+
+function navigateTo(index) {
+  const trail = [...history, currentLevel];
+  const targetLevel = trail[index];
+  history = trail.slice(0, index);
+  renderView(targetLevel, false);
+  currentLevel = targetLevel;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goBack() {
+  if (history.length === 0) return;
+  const prev = history.pop();
+  renderView(prev, false);
+  currentLevel = prev;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function escHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Keyboard nav
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' || e.key === 'Backspace') {
+    e.preventDefault();
+    goBack();
+  }
+});
+
+// ═══ INIT ═══
+renderView('system');
+</script>
+</body>
+</html>
