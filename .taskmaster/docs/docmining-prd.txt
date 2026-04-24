@@ -1,0 +1,93 @@
+# PRD: DocMining Integration (MVP)
+
+## Goal
+Add a minimal FastAPI backend to FRAME2.0 that accepts document uploads
+(PDF/DOCX/PPTX), extracts markdown via Docling, and seamlessly feeds the
+result into the existing epic refinement pipeline. Zero disruption to the
+current SPA, deployment, or features.
+
+## Scope (MVP)
+IN: Phase A (backend service, local-only) + Phase B (SPA wiring, one upload
+    button in WorkspaceHeader, modal + client).
+OUT: Phase C (Dockerfile, Helm, Istio, Entra auth, observability, async
+     jobs) — deferred until MVP validated.
+
+## Non-Goals (explicitly rejected)
+- PyMuPDF pre-filter, Azure Document Intelligence fallback, Apache Tika
+- Docling HybridChunker (markdown pass-through is sufficient)
+- Large-corpus validation (>10 docs) before MVP sign-off
+- Unstructured.io Enterprise edition
+
+## Locked Decisions
+1. Docling pinned to exact version 2.90.0
+2. workers=1 intra-process (Docling PDF backends not thread-safe, upstream #1191)
+3. Process-level concurrency only (gunicorn -w N at Phase C)
+4. enable_remote_services = False guardrail (try/except fallback)
+5. Offline egress verified at A-8.3 (macOS Wi-Fi off / Linux netns / hosts block)
+6. Upload trigger in WorkspaceHeader only — WelcomeScreen untouched
+7. MIME validation = file-extension check (simpler for MVP)
+8. Auto-refine after successful upload (setMarkdown → openModal pipeline → refinePipelineAction)
+9. Markdown output only (no chunks, no structured fields, no tables-as-json)
+
+## Functional Requirements
+
+### Backend (Phase A)
+F1. FastAPI service exposing POST /api/docmining/convert
+F2. Accepts multipart/form-data with single file field, max 50 MB, max 300 pages
+F3. Uses Docling DocumentConverter with PdfFormatOption, OCR enabled by default
+F4. Returns JSON: { markdown: string, pages: int, duration_ms: int }
+F5. Config via pydantic-settings (workers, ocr, max_file_mb, convert_timeout_s, max_pages)
+F6. Lifespan hook preloads Docling converter at startup (no per-request init)
+F7. Offline operation (HF_HUB_OFFLINE=1, TRANSFORMERS_OFFLINE=1)
+F8. Models prefetched via `docling-tools models download` CLI (not cp -R)
+F9. 180 second timeout per conversion, returns 408 on timeout
+F10. Structured logs (JSON) with request_id, file_size, duration, status
+
+### Frontend (Phase B)
+F11. Vite dev proxy routes /api/docmining → http://localhost:8000
+F12. docminingClient.ts module exports convertDocument(file): Promise<Outcome>
+F13. Extend uiStore.ModalId with 'docUpload' value
+F14. DocUploadModal component: file input, validation, progress, error state
+F15. On success: epicStore.setMarkdown(md) → closeModal → openModal('pipeline')
+     → refinePipelineAction() fire-and-forget
+F16. Upload button rendered in WorkspaceHeader (never WelcomeScreen)
+F17. E2E test: Playwright uploads a sample PDF and verifies editor populated
+F18. Regression check: npm run test:run passes with zero new failures
+
+### Integration (cross-cutting)
+F19. Smoke test with 3 reference PDFs (simple, table-heavy, multi-column)
+F20. Offline verification: confirm service runs with network disabled and
+     produces identical output to online run
+
+## Non-Functional Requirements
+N1. Backend cold start ≤ 10s (models preloaded)
+N2. Conversion latency ≤ 30s for typical 20-page PDF on dev laptop
+N3. Zero new dependencies added to package.json in Phase A (backend-only)
+N4. Zero modifications to src/pipeline/ — reuses existing refinePipelineAction
+N5. Zero modifications to WelcomeScreen, epicStore schema, or blueprintStore
+
+## Success Criteria (MVP sign-off)
+S1. `uvicorn app.main:app` boots with 0 errors, 0 HuggingFace egress
+S2. curl POST /api/docmining/convert with sample.pdf returns valid markdown
+S3. SPA upload modal → PDF selected → pipeline auto-runs → editor shows extracted text
+S4. Full npm run test:run green (existing tests + new ones)
+S5. Offline run (network off) produces byte-identical output to online run
+S6. Deep-review at A-10 and B-10 returns zero critical findings
+
+## Risk Register (top 5)
+R1. Thread safety — mitigated by workers=1 + gunicorn process-level scaling
+R2. Model distribution for prod — deferred to Phase C, will follow reference
+    project's multi-stage Dockerfile pattern
+R3. Silent HF fallback — caught by A-8.3 offline egress verification
+R4. License compatibility — Docling is MIT, models are Apache 2.0 / CDLA
+R5. Disk space for models — ~1.5-2 GB baked into image (Phase C)
+
+## Deliverables
+D1. services/docmining/ — FastAPI app (pyproject.toml, app/{main,config,documents,docling_service}.py, tests/)
+D2. vite.config.ts — new /api/docmining proxy rule
+D3. src/services/docminingClient.ts — frontend client module
+D4. src/components/docmining/DocUploadModal.tsx — new modal component
+D5. src/stores/uiStore.ts — ModalId extended with 'docUpload'
+D6. src/components/WorkspaceHeader.tsx — Upload button added
+D7. e2e/docmining-upload.spec.ts — Playwright test
+D8. Two commits: Phase A checkpoint (A-10), Phase B checkpoint (B-10)
