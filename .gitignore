@@ -9,3 +9,9 @@ dist
 
 # Claude Code per-user local settings (committed settings.json is team-shared)
 .claude/settings.local.json
+
+# DocMining backend — venv, models, build artefacts
+backend/docmining/models/
+backend/docmining/.venv/
+backend/docmining/**/__pycache__/
+backend/docmining/*.egg-info/

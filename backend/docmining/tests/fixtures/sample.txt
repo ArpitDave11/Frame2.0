@@ -1,0 +1,3 @@
+Hello FRAME
+
+As a user, I want document upload so that I can skip paste.
