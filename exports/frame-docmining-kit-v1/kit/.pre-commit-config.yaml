@@ -1,0 +1,34 @@
+# Pre-commit framework config — tool-agnostic git-level enforcement.
+# Install once per clone:
+#   brew install pre-commit  (or: pip install pre-commit)
+#   pre-commit install
+# Kit reference: docs/runbooks/kit-hardening-v1.md
+
+repos:
+  - repo: local
+    hooks:
+      - id: require-journal-update
+        name: H5 — DocMining code changes require task_plan.md update
+        entry: scripts/hooks/require-journal-update.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: block-docmining-scope-violation
+        name: H1 backstop — block commits touching WelcomeScreen during DocMining
+        entry: scripts/hooks/block-scope-violation.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace

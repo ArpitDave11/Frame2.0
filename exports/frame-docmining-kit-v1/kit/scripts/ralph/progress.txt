@@ -1,0 +1,3 @@
+# Ralph Loop progress log — FRAME DocMining Phase A
+# Format: <iso-timestamp> TASK <task-id> <DONE|FAILED|BLOCKED|ESCALATE> <summary>
+# Terminal marker (harness reads this): <promise>COMPLETE</promise>

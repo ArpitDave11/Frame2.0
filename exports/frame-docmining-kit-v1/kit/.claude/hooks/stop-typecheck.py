@@ -50,34 +50,28 @@ def main() -> int:
     ):
         return 0
 
-    # Narrow scope: only TS-relevant DocMining artefacts. Phase A (Python
-    # backend/) is NOT typecheck-relevant — only Phase B SPA wiring is.
-    DOCMINING_TS_SCOPE = (
-        "src/components/docmining/",
-        "src/services/docminingClient",
-    )
-
-    # Activation: only gate when a file *on this branch* (vs main) is in scope.
-    # `git status` would also catch pre-existing uncommitted edits from main,
-    # which isn't this session's work.
+    # Only gate when DocMining-relevant files were modified in this session.
+    # Use `git status` + `git diff HEAD~1` scope.
     try:
-        diff = subprocess.run(
-            ["git", "-C", str(proj), "diff", "main...HEAD", "--name-only"],
-            capture_output=True, text=True, timeout=10,
-        )
-        branch_files = diff.stdout.splitlines()
-        # Also include staged/unstaged changes to scoped files.
         status = subprocess.run(
             ["git", "-C", str(proj), "status", "--porcelain"],
             capture_output=True, text=True, timeout=10,
         )
-        status_files = [ln[3:] for ln in status.stdout.splitlines() if len(ln) > 3]
+        changed = status.stdout
     except Exception:
         return 0  # Git errored — don't block.
 
-    all_files = branch_files + status_files
     docmining_touched = any(
-        any(needle in f for needle in DOCMINING_TS_SCOPE) for f in all_files
+        needle in changed
+        for needle in (
+            "services/docmining/",
+            "src/services/docminingClient",
+            "src/components/docmining/",
+            "src/stores/uiStore",
+            "vite.config.ts",
+            "docs/plans/2026-04-23-docmining",
+            "docs/runbooks/docmining",
+        )
     )
     if not docmining_touched:
         return 0
@@ -96,29 +90,18 @@ def main() -> int:
     except subprocess.TimeoutExpired:
         return 0  # Toolchain issue, don't block on infrastructure.
     except FileNotFoundError:
-        return 0  # tsc not available — skip gate.
+        return 0  # npx not available — skip gate.
 
     if r.returncode == 0:
         return 0
 
-    # Filter error lines to DocMining-scoped files. Block only if OUR scope
-    # has errors. Pre-existing failures elsewhere (uiStore, gitlabStore,
-    # pipelineFlow) are not our problem to fix in this session.
-    output = r.stdout + r.stderr
-    scoped_errors = [
-        ln for ln in output.splitlines()
-        if any(needle in ln for needle in DOCMINING_TS_SCOPE)
-    ]
-    if not scoped_errors:
-        return 0
-
     # Block the stop. stderr becomes Claude's feedback.
-    tail = "\n".join(scoped_errors[-40:])
+    tail = (r.stdout + r.stderr)[-1800:]
     print(json.dumps({
         "decision": "block",
         "reason": (
             "TypeScript typecheck is failing on DocMining-scoped files. "
-            "Fix before stopping. Scoped errors:\n\n"
+            "Fix before stopping. Last output:\n\n"
             f"{tail}\n\n"
             "To override (human-only): set KIT_SKIP_STOP_TYPECHECK=1 and retry."
         ),
