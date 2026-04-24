@@ -5,7 +5,7 @@
  * Rendered inside the shared <Modal> wrapper by ModalHost.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { UploadSimple, Warning, Spinner } from '@phosphor-icons/react';
 import { useEpicStore } from '@/stores/epicStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -35,6 +35,18 @@ export function DocUploadModal() {
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+
+  // On unmount (modal close / nav-away), abort any in-flight upload and
+  // mark the component unmounted so the resolved promise cannot write state
+  // or trigger refinePipelineAction() on a modal the user already dismissed.
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const validate = (f: File): string | null => {
     const ext = extOf(f.name);
@@ -72,18 +84,31 @@ export function DocUploadModal() {
     setPhase('uploading');
     setError(null);
 
-    const outcome = await convertDocument(file);
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const outcome = await convertDocument(file, { signal: controller.signal });
+
+    // If the modal has unmounted during the upload, bail — do not touch store,
+    // do not open pipeline modal, do not fire refine (C2 fix).
+    if (!isMountedRef.current) return;
+
     if (!outcome.ok) {
       setPhase('error');
       setError(outcome.error);
       return;
     }
 
-    // Decision #3: auto-fire refine.
+    // Zustand set is synchronous: store commit happens before openModal and
+    // refinePipelineAction below read the updated markdown.
     setMarkdown(outcome.data.markdown);
     closeModal();
     openModal('pipeline');
-    refinePipelineAction(); // fire-and-forget
+    // Fire-and-forget refine; the pipeline modal observes pipelineStore.isRunning.
+    refinePipelineAction().catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error('[docmining] refinePipelineAction threw', e);
+    });
   };
 
   const isBusy = phase === 'uploading';

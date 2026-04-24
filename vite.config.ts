@@ -39,6 +39,15 @@ export default defineConfig({
         rewrite: (p) => p.replace(/^\/gitlab-api/, ''),
         secure: false,
       },
+      // DocMining backend — DEV/PREVIEW ONLY proxy.
+      //
+      // The browser calls the relative path `/api/docmining/convert`; this proxy
+      // rewrites it to `${VITE_DOCMINING_BASE_URL || http://localhost:8000}/api/v1/documents/convert`.
+      //
+      // PRODUCTION: Vite does NOT bundle this proxy. Deployments must provide
+      // same-origin ingress (e.g., nginx / kubernetes ingress / federation shell)
+      // that forwards `/api/docmining/*` to the FastAPI service. Without it, the
+      // upload feature will 404 silently. See `docs/knowledge/services/docmining/docminingClient.md`.
       '/api/docmining': {
         target: process.env.VITE_DOCMINING_BASE_URL || 'http://localhost:8000',
         changeOrigin: true,

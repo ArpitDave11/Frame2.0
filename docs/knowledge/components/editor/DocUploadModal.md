@@ -17,6 +17,8 @@ Upload modal that converts a requirement document (PDF/DOCX/PPTX/XLSX/HTML/image
 - `error: string | null` — last validation / backend error message.
 - `dragOver: boolean` — visual state for drag-drop.
 - `inputRef: RefObject<HTMLInputElement>` — hidden `<input type="file">` for click-to-select.
+- `abortRef: RefObject<AbortController | null>` — abort in-flight fetch on unmount.
+- `isMountedRef: RefObject<boolean>` — guards post-resolve state/store writes if the modal unmounted during upload.
 
 ## Behavior
 1. User drops a file OR clicks the drop zone (opens native file picker).
@@ -25,6 +27,7 @@ Upload modal that converts a requirement document (PDF/DOCX/PPTX/XLSX/HTML/image
    - `{ ok: false }` → `phase='error'`, message rendered in red panel.
    - `{ ok: true }` → `setMarkdown(data.markdown)` → `closeModal()` → `openModal('pipeline')` → `refinePipelineAction()` (fire-and-forget, matches Refine button convention in `WorkspaceHeader`).
 4. Cancel button calls `closeModal()`; disabled while uploading.
+5. On unmount, the `useEffect` cleanup aborts the in-flight `AbortController` and sets `isMountedRef.current = false`. If the fetch later resolves, the `onSubmit` guard bails before touching `epicStore`, `uiStore`, or `refinePipelineAction` — prevents state corruption when the user closes the modal mid-upload (B-10 review C2).
 
 ## Testids
 - `doc-upload-modal` (root), `doc-upload-dropzone`, `doc-upload-input`, `doc-upload-status`, `doc-upload-error`, `doc-upload-cancel`, `doc-upload-submit`.

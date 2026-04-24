@@ -10,7 +10,7 @@ Browser-side client for the DocMining FastAPI backend. POSTs a single file to `/
 - `ConvertOutcome = { ok: true; data: ConvertResult } | { ok: false; error: string }`.
 
 ### Functions
-- `convertDocument(file: File): Promise<ConvertOutcome>` — builds a `FormData` with the file and `include_markdown=true`, POSTs to `/api/docmining/convert`. On `res.ok`, maps the JSON body (`markdown`, `file_name`, `pages`, `duration_ms`) into `ConvertResult`. On non-ok, parses `detail` (string or `{message}`) for the error; falls back to `HTTP <status>`. Network/parse failures → `{ ok: false, error: <message> }`.
+- `convertDocument(file, options?)` — `options` is `{ signal?: AbortSignal; timeoutMs?: number }`. Builds a `FormData` with the file and `include_markdown=true`, POSTs to `/api/docmining/convert`. Composes `options.signal` with an internal `AbortSignal.timeout(timeoutMs ?? 200_000)` via `AbortSignal.any`, so both caller-cancellation and client-side timeout are honoured. On `res.ok`, maps the JSON body (`markdown`, `file_name`, `pages`, `duration_ms`) into `ConvertResult`. On non-ok, parses `detail` (string or `{message}`) for the error; falls back to `HTTP <status>`. `AbortError` → `"Upload cancelled or timed out"`. `TimeoutError` → `"Upload timed out after <N>s"`. All other failures are `console.error`'d and returned as `{ ok: false, error }`.
 
 ### Constants
 - `ALLOWED_UPLOAD_EXTENSIONS` — readonly tuple: `.pdf .docx .pptx .xlsx .html .htm .png .jpg .jpeg .tiff .tif .md .txt`. Mirrors the backend allowlist.
@@ -31,8 +31,13 @@ Browser-side client for the DocMining FastAPI backend. POSTs a single file to `/
 ## Consumers
 - `src/components/editor/DocUploadModal.tsx` — sole caller today. On `ok:true`, writes `outcome.data.markdown` into `epicStore` via `setMarkdown`, then auto-opens the pipeline modal and fires `refinePipelineAction()`.
 
+## Deployment (important)
+- **Vite proxy is dev-only.** `vite.config.ts` declares `/api/docmining` only under `server.proxy` (dev) and implicitly `preview`. A Vite `build` does NOT bundle it — the browser will hit `/api/docmining/convert` against whatever static host serves the SPA and get 404.
+- **Production requirement:** the hosting shell MUST forward `/api/docmining/*` to the FastAPI service. Options: (1) nginx / ingress rule with same-origin rewrite to the Docling backend, (2) a proxy layer in the module-federation shell, (3) switch the client to an absolute URL sourced from `import.meta.env.VITE_DOCMINING_BASE_URL` (currently we use the relative path because `process.env` in `vite.config.ts` is config-time only).
+- Without one of those, the Upload button will surface a generic "HTTP 404" in the modal.
+
 ## Assumptions & edge cases
-- **Dev-only proxy**: `/api/docmining` is defined in `vite.config.ts`; production deploys must either expose the FastAPI service under the same origin or add CORS support on the backend.
+- **Dev-only proxy**: see Deployment above. Repeated here for grep hygiene.
 - **Backend contract**: backend returns `{ file_name, pages, duration_ms, markdown, ... }` on success and `HTTPException.detail` (string) on failure. The fallback `detail.message` lookup exists to stay resilient if FastAPI is ever reconfigured to return a dict-shaped detail.
 - **Empty markdown**: if the backend returns `markdown: null` the client coerces to `''` — the caller decides whether to treat that as a soft error.
 - **No retry / no abort**: a single attempt per call; no `AbortSignal` plumbing today. Long PDF conversions (≥60 s) will hit the user's default browser timeout before the 180 s backend timeout fires.

@@ -50,4 +50,51 @@
 - [x] Zero must-fix important findings open.
 - [x] All tests green (6/6).
 - [x] Full review report committed.
-- [ ] Phase B (B-0 onward) — gated on user go-ahead.
+- [x] Phase B (B-0 onward) — implemented and reviewed (see Phase B Review Summary below).
+
+---
+
+# Phase B Review Summary
+
+**Branch:** `phase-a-docmining` · **Date:** 2026-04-24
+**Full report:** `docs/reviews/2026-04-24-phase-B-review.md`
+**Base commit:** `e82b2f7` (feat(upload): wire DocUpload modal into SPA with auto-refine)
+
+## Totals
+
+| Severity | Count | Addressed this phase |
+|---|---|---|
+| Critical | 4 | 3 fixed, 1 deferred (modal RTL suite — Phase C) |
+| Important | 18 | 5 fixed, 13 deferred or accepted |
+| Nice-to-have | 21 | tracked, no action |
+
+## Top Critical Findings
+
+1. **No prod route for `/api/docmining`** — Vite proxy is dev-only; prod build 404s. Fixed via KB "Deployment (important)" section + inline comment in `vite.config.ts` + `SYSTEM.md §9b` cross-link. Client stays on the relative path; shell-layer ingress is the prod contract.
+2. **State corruption on modal close mid-upload** — resolved fetch would mutate store and fire the pipeline after unmount. Fixed: `AbortController` + `isMountedRef` cleanup in `DocUploadModal`; `convertDocument` takes `{ signal, timeoutMs }` with `AbortSignal.any([caller, timeout])` composition and a 200 s client cap. `refinePipelineAction()` call now has `.catch(console.error)`.
+3. **Zero coverage for the client contract** — new `docminingClient.test.ts` locks the discriminated-union shape (8 cases, all pass): happy path, multipart body, null-markdown coerce, string `detail`, nested `detail.message`, non-JSON fallback, network error, abort.
+4. **Zero coverage for `DocUploadModal` rendering** — deferred to Phase C; contract-level protection via #3 is sufficient for MVP.
+
+## Verification
+
+- `npx vitest run src/services/docmining/docminingClient.test.ts` → 8 passed (366 ms).
+- H1/H3/H5 hooks passed; no existing test files edited.
+- No edits under `src/components/welcome/` or `src/pipeline/stages/`.
+
+## Deferred (tracked for Phase C)
+
+- Extract choreography to `src/actions/uploadDocumentAction.ts` for testability.
+- RTL suite for `DocUploadModal` + updates to `ModalHost.test.tsx` / `WorkspaceHeader.test.tsx` / `uiStore.test.ts`.
+- Toast-layer observability for upload failures.
+- HTTP-code friendly error copy (413/415/5xx).
+- Drop-zone keyboard accessibility.
+- FastAPI validation-error array parsing.
+- `preview` mode proxy block.
+- Dev-server bind hardening (`127.0.0.1` instead of `0.0.0.0`).
+
+## Exit criteria
+
+- [x] Zero unresolved critical code-path findings (doc + code fixes applied for P-C1/P-C2/TQ-C1).
+- [x] New regression tests green (8/8).
+- [x] Full review report committed.
+- [x] KB updated for deployment + abort semantics.

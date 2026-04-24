@@ -323,8 +323,10 @@ sequenceDiagram
 ```
 
 - The Vite proxy rewrites `/api/docmining` → `${VITE_DOCMINING_BASE_URL || http://localhost:8000}/api/v1/documents` (see `vite.config.ts`).
+- **Production requires same-origin reverse proxy or backend CORS — the Vite proxy is dev-only.** See `docs/knowledge/services/docmining/docminingClient.md#deployment-important`.
 - Backend enforces `workers=1` (Docling PDF backends are not thread-safe; upstream #1191).
 - Errors surface inline in the modal — no toast until the pipeline stage raises one.
+- `DocUploadModal` uses an `AbortController` + unmount guard: closing the modal mid-upload aborts the fetch and prevents the resolved promise from mutating the store or firing the pipeline.
 
 ---
 
