@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from 'react';
 import { UploadSimple, Warning, Spinner } from '@phosphor-icons/react';
 import { useEpicStore } from '@/stores/epicStore';
 import { useUiStore } from '@/stores/uiStore';
+import { useConfigStore } from '@/stores/configStore';
+import { isAIEnabled } from '@/services/ai/aiClient';
 import { refinePipelineAction } from '@/pipeline/refinePipelineAction';
 import {
   convertDocument,
@@ -28,6 +30,7 @@ function extOf(name: string): string {
 export function DocUploadModal() {
   const closeModal = useUiStore((s) => s.closeModal);
   const openModal = useUiStore((s) => s.openModal);
+  const addToast = useUiStore((s) => s.addToast);
   const setMarkdown = useEpicStore((s) => s.setMarkdown);
 
   const [file, setFile] = useState<File | null>(null);
@@ -103,6 +106,19 @@ export function DocUploadModal() {
     // refinePipelineAction below read the updated markdown.
     setMarkdown(outcome.data.markdown);
     closeModal();
+
+    // Only open the pipeline modal if AI is actually configured. Otherwise
+    // refinePipelineAction() returns silently with a toast, leaving the
+    // pipeline modal open forever with no progress.
+    const cfg = useConfigStore.getState().config;
+    if (!isAIEnabled(cfg)) {
+      addToast({
+        type: 'warning',
+        title: 'Document extracted. Configure an AI provider in Settings to refine.',
+      });
+      return;
+    }
+
     openModal('pipeline');
     // Fire-and-forget refine; the pipeline modal observes pipelineStore.isRunning.
     refinePipelineAction().catch((e) => {

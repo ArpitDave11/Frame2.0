@@ -33,6 +33,9 @@
 
 ## Journal
 
+### 2026-04-24 · B-7 manual E2E — stall fix
+Backend log confirmed upload path works end-to-end (POST /api/v1/documents/convert → 200, 9 pages, 9.4s). User reported UI stall *after* upload. Root cause: `refinePipelineAction` returns silently with a toast when no AI provider is configured (line 44-50), but `DocUploadModal.onSubmit` opened the pipeline modal *before* firing the action — leaving the pipeline modal stuck on "Refining your epic…" forever because the pipeline never started. Same latent bug exists in `WorkspaceHeader.handleRefine`; left untouched (pre-existing, out of DocMining scope). Fix in DocUploadModal only: check `isAIEnabled(cfg)` after `setMarkdown + closeModal`, skip `openModal('pipeline')` when AI not configured, surface a warning toast ("Document extracted. Configure an AI provider in Settings to refine."). 8/8 client tests still green.
+
 ### 2026-04-24 · B-10 deep-review + fix loop
 Dispatched 5 parallel reviewer agents (Correctness, Architecture, Security, Production Readiness, Test Quality) against `8efe066..e82b2f7`. Aggregated 4 critical + 18 important + 21 nice-to-have into `docs/reviews/2026-04-24-phase-B-review.md`. Applied fixes:
 - **P-C1 (prod route)**: vite.config.ts gets an inline comment calling out the dev-only proxy contract; KB (`docminingClient.md`) grows a "Deployment (important)" section listing ingress options; `SYSTEM.md §9b` cross-links.
