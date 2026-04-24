@@ -5,3 +5,7 @@ dist
 *.tsbuildinfo
 .powerstack4/.action-count
 .powerstack4/.phase
+.powerstack4/ralph-logs/
+
+# Claude Code per-user local settings (committed settings.json is team-shared)
+.claude/settings.local.json
