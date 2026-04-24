@@ -20,9 +20,21 @@
 | A-8 Manual smoke | ✅ partial | .txt 28ms, PDF 2803ms, both success. onnxruntime added to deps. A-8.3 offline-egress test pending (needs network manipulation). |
 | A-9 Pytest | ✅ done | 4/4 passed in 4.7s. |
 | A-10 Phase A commit | ✅ done | Commit 6f2a1ee. Deep-review (5 agents) done; 3 critical + 6 must-fix important fixes applied + 2 regression tests added. 6/6 pytest green. See docs/reviews/2026-04-24-phase-A-review.md + REVIEWERS.md. |
-| B-0..B-10 | pending | Gated on user go-ahead. |
+| B-1 Vite proxy | ✅ done | `/api/docmining` → `http://localhost:8000`, rewrite to `/api/v1/documents`. |
+| B-2 docminingClient | ✅ done | `convertDocument(file)` discriminated union `{ ok, data | error }`; 50 MB cap + ext allowlist constants exported. |
+| B-3 uiStore ModalId | ✅ done | Added `'docUpload'` literal to `ModalId` union. |
+| B-4 DocUploadModal | ✅ done | Drag-drop + picker; validates ext/size; on success: `setMarkdown` → `openModal('pipeline')` → `refinePipelineAction()` fire-and-forget. |
+| B-5 ModalHost wiring | ✅ done | New case `'docUpload'` wrapped in shared `<Modal>` at width 560. |
+| B-6 WorkspaceHeader button | ✅ done | Upload button added to left group before Download, `data-testid="btn-upload"`. |
+| B-7 Manual E2E | ⏳ user-gated | Requires user to start backend + SPA and walk through Upload → pipeline. |
+| B-8 Regression safety | ✅ done | Stash/baseline/pop cycle: pre-existing 12 failing tests (auth context issues in WelcomeSidebar/App/helpers) unrelated. Zero regressions: 1296 passed. |
+| B-9 KB docs | ✅ done | `docs/knowledge/services/docmining/docminingClient.md`, `docs/knowledge/components/editor/DocUploadModal.md`, README + SYSTEM.md (§9b upload flow + modal fan-out) + WorkspaceHeader.md updated. |
+| B-10 Phase B commit | pending | Conventional commit: `feat(upload): wire DocUpload modal into SPA with auto-refine`. |
 
 ## Journal
+
+### 2026-04-24 · B-1..B-9 SPA wiring
+Phase B delivers the browser side of the upload flow. `vite.config.ts` gains a `/api/docmining` dev proxy (rewrites to `/api/v1/documents`, `VITE_DOCMINING_BASE_URL` override). `src/services/docmining/docminingClient.ts` is a pure function returning `{ ok, data | error }` — mirrors the GitLab-client envelope; parses `HTTPException.detail` as string (with `detail.message` fallback for future-proofing). `uiStore.ModalId` union gains `'docUpload'`. `DocUploadModal` is content-only (shared `<Modal>` wraps it in `ModalHost`): drag-drop + click-picker, validates extension + 50 MB cap, on success writes markdown into `epicStore` → closes itself → opens pipeline modal → fires `refinePipelineAction()` fire-and-forget (matches the Refine-button convention). `WorkspaceHeader` gets an Upload button next to Load (`data-testid="btn-upload"`). Regression check (stash → run baseline → pop → run): 12 pre-existing failures (all auth-context issues in WelcomeSidebar/App/helpers tests, unrelated) + 1296 passing, same as baseline — zero regressions. KB docs added at `docs/knowledge/services/docmining/docminingClient.md` and `docs/knowledge/components/editor/DocUploadModal.md`; `README.md` gains DocMining services section and DocUploadModal entry under editor; `SYSTEM.md` gets §9b upload-flow mermaid sequence + `docUpload` branch in the modal fan-out diagram; `WorkspaceHeader.md` mentions the Upload button.
 
 ### 2026-04-24 · A-10 deep-review + fix loop
 Dispatched 5 parallel reviewer agents (Correctness, Architecture, Security, Production Readiness, Test Quality) against `git diff main...HEAD -- backend/docmining/`. Aggregated 3 critical + 14 important + 22 nice-to-have findings into `docs/reviews/2026-04-24-phase-A-review.md`. Applied fixes:

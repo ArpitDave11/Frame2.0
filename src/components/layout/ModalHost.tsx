@@ -13,6 +13,7 @@ import { CritiqueReport } from '@/components/critique/CritiqueReport';
 import { LoadEpicModal } from '@/components/gitlab/LoadEpicModal';
 import { PublishModal } from '@/components/gitlab/PublishModal';
 import { IssueCreationModal } from '@/components/issues/IssueCreationModal';
+import { DocUploadModal } from '@/components/editor/DocUploadModal';
 
 export function ModalHost() {
   const activeModal = useUiStore((s) => s.activeModal);
@@ -56,6 +57,12 @@ export function ModalHost() {
       return (
         <Modal open onClose={closeModal} title="Quality Report" width={600}>
           <CritiqueReport />
+        </Modal>
+      );
+    case 'docUpload':
+      return (
+        <Modal open onClose={closeModal} title="Upload Requirement Document" width={560}>
+          <DocUploadModal />
         </Modal>
       );
     default:

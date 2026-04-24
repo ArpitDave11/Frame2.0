@@ -13,7 +13,7 @@ export type TabId = 'planner' | 'issues' | 'blueprint' | 'analytics';
 
 export type IssueSubTab = 'sprint' | 'epic';
 
-export type ModalId = 'publish' | 'loadEpic' | 'issueCreation' | 'critique' | 'pipeline' | 'settings';
+export type ModalId = 'publish' | 'loadEpic' | 'issueCreation' | 'critique' | 'pipeline' | 'settings' | 'docUpload';
 
 export type ActiveView = 'welcome' | 'workspace';
 

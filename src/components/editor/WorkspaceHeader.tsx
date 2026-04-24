@@ -52,6 +52,7 @@ export function WorkspaceHeader() {
 
   // ─── Handlers ───────────────────────────────────────────────
   const handleLoad = () => openModal('loadEpic');
+  const handleUpload = () => openModal('docUpload');
   const handleRefine = () => {
     openModal('pipeline');
     refinePipelineAction(); // fire-and-forget
@@ -232,6 +233,29 @@ export function WorkspaceHeader() {
           }}
         >
           <FloppyDisk size={14} weight="regular" /> Save
+        </button>
+
+        {/* Upload — DocMining */}
+        <button
+          onClick={handleUpload}
+          data-testid="btn-upload"
+          title="Upload a requirement document (PDF/DOCX/…) and auto-refine"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 14px',
+            border: '1px solid var(--col-border-illustrative)',
+            borderRadius: '0.375rem',
+            background: 'var(--col-background-ui-10)',
+            color: 'var(--col-text-primary)',
+            fontSize: 13,
+            fontWeight: 400,
+            cursor: 'pointer',
+            fontFamily: F,
+          }}
+        >
+          <UploadSimple size={14} weight="regular" /> Upload
         </button>
 
         {/* Download .md */}
