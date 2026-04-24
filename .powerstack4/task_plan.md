@@ -19,10 +19,23 @@
 | A-7 app/main.py lifespan | ✅ done | FastAPI + lifespan + CORS + healthz/readyz. |
 | A-8 Manual smoke | ✅ partial | .txt 28ms, PDF 2803ms, both success. onnxruntime added to deps. A-8.3 offline-egress test pending (needs network manipulation). |
 | A-9 Pytest | ✅ done | 4/4 passed in 4.7s. |
-| A-10 Phase A commit | in_progress | |
-| B-0..B-10 | pending | |
+| A-10 Phase A commit | ✅ done | Commit 6f2a1ee. Deep-review (5 agents) done; 3 critical + 6 must-fix important fixes applied + 2 regression tests added. 6/6 pytest green. See docs/reviews/2026-04-24-phase-A-review.md + REVIEWERS.md. |
+| B-0..B-10 | pending | Gated on user go-ahead. |
 
 ## Journal
+
+### 2026-04-24 · A-10 deep-review + fix loop
+Dispatched 5 parallel reviewer agents (Correctness, Architecture, Security, Production Readiness, Test Quality) against `git diff main...HEAD -- backend/docmining/`. Aggregated 3 critical + 14 important + 22 nice-to-have findings into `docs/reviews/2026-04-24-phase-A-review.md`. Applied fixes:
+- **C1** docling_service.py: pass `Path` directly to `converter.convert()`, drop `io.BytesIO(fh.read())` double-buffer.
+- **C2** documents.py: stringify error list into `HTTPException` detail (was malformed dict).
+- **C3** return `ok: bool` from `convert_sync`; route branches on it (was fragile string comparison).
+- **I1** try/finally cleanup replaces `BackgroundTasks` (deterministic on all exit paths).
+- **I2** suffix now derived from sanitized extension, not raw `upload.filename`.
+- **I3** `enable_remote_services=False` post-build assertion + post-read verification; raises `RuntimeError` if both attribute surfaces missing.
+- **I4** removed unreachable `except ConversionError` (raises_on_error=False).
+- **I5** `ThreadPoolExecutor(max_workers=1)` literal + `assert settings.workers == 1` in lifespan.
+- **I6** `executor.shutdown(cancel_futures=True)` — prevents SIGTERM hangs.
+Added regression tests in `tests/test_convert_error_paths.py` (new file, H3-compliant) covering C2 detail shape and C3 `ok`-branching via `monkeypatch.setattr(documents_module, "convert_sync", ...)`. Pytest 6/6 green. REVIEWERS.md summary written. 8 important findings deferred (polyglot sniff, XXE, XSS scrub, bind-host docs, offline-enforcement test, observability, ProcessPoolExecutor, test coverage) — tracked for Phase B/C.
 
 ### 2026-04-24 · A-5 Docling service
 Wrote `backend/docmining/app/services/docling_service.py` — `build_converter(artifacts_path, do_ocr, num_threads)` constructs a `DocumentConverter` with `PdfPipelineOptions` (artifacts_path, OCR, TableFormerMode.ACCURATE, RapidOcrOptions, CPU AcceleratorOptions) and enforces `enable_remote_services=False` with a fallback to the pdf options object for compatibility with Docling versions that move the attribute. `convert_sync(...)` reads file into `DocumentStream`, calls `converter.convert` with `raises_on_error=False`, and returns a dict with status/pages/markdown/errors. Import verification passes. Done-when is "file compiles on import" (per plan note: verified again in A-7).

@@ -20,6 +20,11 @@ async def lifespan(app: FastAPI):
         level=getattr(logging, settings.log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s - %(message)s",
     )
+    # Hard invariant: Docling's PDF backends are NOT thread-safe (upstream #1191).
+    # Settings.workers is constrained to ==1; this assert catches any code path
+    # that bypasses Settings (e.g. direct Settings(workers=N) construction).
+    assert settings.workers == 1, "Docling not thread-safe — workers must be 1"
+
     log.info("docmining.boot artifacts=%s workers=%d", settings.artifacts_path, settings.workers)
 
     # Sanity: artifacts dir exists
@@ -35,8 +40,10 @@ async def lifespan(app: FastAPI):
     # Warmup (optional — triggers model pre-load with a tiny in-memory doc)
     # Skipped in MVP to keep boot < 10s; first real request pays the cost.
 
+    # max_workers hardcoded to 1 — literal, not from settings — so the thread-safety
+    # invariant survives even if Settings is mis-constructed.
     executor = ThreadPoolExecutor(
-        max_workers=settings.workers,
+        max_workers=1,
         thread_name_prefix="docling",
     )
     app.state.docling = converter
@@ -45,7 +52,10 @@ async def lifespan(app: FastAPI):
     yield
 
     log.info("docmining.shutdown")
-    executor.shutdown(wait=True, cancel_futures=False)
+    # cancel_futures=True cancels queued but not-yet-running conversions;
+    # the one running thread completes best-effort. Prevents SIGTERM hangs
+    # that exceed k8s terminationGracePeriodSeconds.
+    executor.shutdown(wait=True, cancel_futures=True)
 
 
 app = FastAPI(
