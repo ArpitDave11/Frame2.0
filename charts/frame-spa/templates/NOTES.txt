@@ -1,0 +1,7 @@
+FRAME SPA deployed!
+
+Port-forward to test:
+  kubectl port-forward svc/{{ include "frame-spa.fullname" . }} 8080:{{ .Values.service.port }}
+
+Then:
+  open http://localhost:8080/frame/

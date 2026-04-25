@@ -1,0 +1,8 @@
+FRAME DocMining deployed!
+
+Port-forward to test:
+  kubectl port-forward svc/{{ include "frame-docmining.fullname" . }} 8000:{{ .Values.service.port }}
+
+Then:
+  curl http://localhost:8000/healthz
+  curl -F file=@sample.pdf http://localhost:8000/api/v1/documents/convert

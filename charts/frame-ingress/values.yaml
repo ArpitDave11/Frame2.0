@@ -1,0 +1,8 @@
+host: frame.local
+ingressClassName: nginx
+docmining:
+  serviceName: dm-frame-docmining
+  servicePort: 8000
+spa:
+  serviceName: spa-frame-spa
+  servicePort: 80

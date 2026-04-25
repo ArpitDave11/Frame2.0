@@ -1,0 +1,6 @@
+apiVersion: v2
+name: frame-docmining
+description: FRAME DocMining FastAPI service (Docling 2.90)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,32 @@
+replicaCount: 1
+
+image:
+  repository: frame-docmining
+  tag: dev
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+resources:
+  requests:
+    cpu: 1000m
+    memory: 2Gi
+  limits:
+    memory: 4Gi
+
+env:
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  HF_HUB_DISABLE_TELEMETRY: "1"
+  TOKENIZERS_PARALLELISM: "false"
+  DOCMINING_ARTIFACTS_PATH: /app/models
+
+# terminationGracePeriodSeconds must exceed convert_timeout_s (180s)
+# so in-flight conversions drain cleanly via executor.shutdown(cancel_futures=True)
+terminationGracePeriodSeconds: 200
+
+serviceAccount:
+  create: true
+  name: ""

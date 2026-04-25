@@ -1,0 +1,21 @@
+replicaCount: 2
+
+image:
+  repository: frame-spa
+  tag: dev
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+serviceAccount:
+  create: true
+  name: ""
