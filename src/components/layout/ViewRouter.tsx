@@ -16,6 +16,7 @@ import { SplitPane } from '@/components/layout/SplitPane';
 import { EditorPane } from '@/components/editor/EditorPane';
 import { PreviewPane } from '@/components/editor/PreviewPane';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
+import ExtremeInitiativeView from '@/components/initiative/ExtremeInitiativeView';
 
 // ─── Planner View ───────────────────────────────────────────
 
@@ -78,6 +79,8 @@ export function ViewRouter() {
       return <ErrorBoundary viewName="Blueprint"><BlueprintView /></ErrorBoundary>;
     case 'analytics':
       return <ErrorBoundary viewName="Analytics"><AnalyticsView /></ErrorBoundary>;
+    case 'initiative':
+      return <ErrorBoundary viewName="Extreme Initiative"><ExtremeInitiativeView /></ErrorBoundary>;
     default:
       return <ErrorBoundary viewName="Epic Planner"><PlannerView /></ErrorBoundary>;
   }

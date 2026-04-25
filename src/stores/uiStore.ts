@@ -9,7 +9,7 @@ import { create } from 'zustand';
 
 // ─── Types ─────────────────────────────────────────────────
 
-export type TabId = 'planner' | 'issues' | 'blueprint' | 'analytics';
+export type TabId = 'planner' | 'issues' | 'blueprint' | 'analytics' | 'initiative';
 
 export type IssueSubTab = 'sprint' | 'epic';
 
