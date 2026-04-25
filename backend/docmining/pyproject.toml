@@ -9,8 +9,11 @@ dependencies = [
   "pydantic-settings>=2.6",
   "docling==2.90.0",
   "python-multipart>=0.0.12",
-  # RapidOCR's default inference engine. Docling 2.90 does not declare it,
-  # but PDFs with OCR enabled fail with ImportError without it.
+  # Docling 2.90 imports `rapidocr` lazily for PDFs with OCR enabled but does
+  # NOT declare it as a dep. Without these two packages the convert endpoint
+  # fails with `ImportError: RapidOCR is not installed` at first PDF request.
+  # `onnxruntime` is RapidOCR's inference engine.
+  "rapidocr>=3.0,<4",
   "onnxruntime>=1.19,<2",
 ]
 

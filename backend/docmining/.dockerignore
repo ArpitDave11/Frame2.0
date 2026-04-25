@@ -1,0 +1,24 @@
+# Build context exclusions for `docker build backend/docmining`.
+#
+# IMPORTANT: do NOT exclude `models/` — those 1.2 GB are required at runtime.
+# The Dockerfile copies them in last so the layer is cache-stable.
+
+# Local Python venv from the A-2 dev flow — we recreate inside the builder.
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Per-developer env. The runtime image bakes the offline env vars itself.
+.env
+
+# Test fixtures are useful locally but not needed in the runtime image.
+# (Comment this back in if you want in-image smoke tests.)
+tests/fixtures/
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
