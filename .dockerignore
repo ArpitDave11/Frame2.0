@@ -1,0 +1,21 @@
+# SPA build context exclusions (repo root Dockerfile).
+# Keeps context small — node_modules alone is ~500 MB.
+
+node_modules/
+dist/
+backend/
+docs/
+.git/
+.taskmaster/
+.powerstack4/
+*.tsbuildinfo
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Test fixtures not needed in production image
+tests/
+*.test.ts
+*.test.tsx
