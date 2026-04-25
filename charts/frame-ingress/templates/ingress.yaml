@@ -1,9 +1,11 @@
+# SPA ingress — /frame/* → SPA service at /*
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: frame-ingress
+  name: frame-ingress-spa
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   ingressClassName: {{ .Values.ingressClassName }}
   rules:
@@ -17,6 +19,45 @@ spec:
                 name: {{ .Values.spa.serviceName }}
                 port:
                   number: {{ .Values.spa.servicePort }}
+---
+# DocMining healthz — /api/docmining/healthz → /healthz (no prefix rewrite)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frame-ingress-docmining-health
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: {{ .Values.ingressClassName }}
+  rules:
+    - host: {{ .Values.host }}
+      http:
+        paths:
+          - path: /api/docmining/(healthz|readyz)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ .Values.docmining.serviceName }}
+                port:
+                  number: {{ .Values.docmining.servicePort }}
+---
+# DocMining API — /api/docmining/* → /api/v1/documents/*
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frame-ingress-docmining
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /api/v1/documents/$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "200"
+spec:
+  ingressClassName: {{ .Values.ingressClassName }}
+  rules:
+    - host: {{ .Values.host }}
+      http:
+        paths:
           - path: /api/docmining(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
