@@ -1,6 +1,6 @@
 # DocMining Integration — Execution Journal
 
-**Branch:** `phase-a-docmining`
+**Branch:** `feature/phase-a-docmining`
 **Started:** 2026-04-24
 **Authoritative plan:** `docs/plans/2026-04-23-docmining-integration-ultraplan.md`
 **Runbook:** `docs/runbooks/docmining-execution-runbook.md`
@@ -30,8 +30,27 @@
 | B-8 Regression safety | ✅ done | Stash/baseline/pop cycle: pre-existing 12 failing tests (auth context issues in WelcomeSidebar/App/helpers) unrelated. Zero regressions: 1296 passed. |
 | B-9 KB docs | ✅ done | `docs/knowledge/services/docmining/docminingClient.md`, `docs/knowledge/components/editor/DocUploadModal.md`, README + SYSTEM.md (§9b upload flow + modal fan-out) + WorkspaceHeader.md updated. |
 | B-10 Phase B commit | ✅ done | Commit e82b2f7. Deep-review (5 agents) complete: 4 critical → 3 fixed + 1 deferred (modal RTL suite); 18 important → 5 fixed; AbortController + unmount guard + 8-case regression test added. See `docs/reviews/2026-04-24-phase-B-review.md` + REVIEWERS.md. Fix-loop commit pending. |
+| C-0 Prerequisites | ✅ done | Docker 29.4.0, Helm 4.1.4, Kind 0.31.0, kubectl — all installed via Homebrew. |
+| C-1 Backend Dockerfile | ✅ done | Two-stage build (uv + python:3.12-slim). Added rapidocr + onnxruntime to pyproject.toml. Runtime libs: libgomp1/libgl1/libglib2.0-0/libxcb1. Verified: healthz 200, PDF convert pages=1. Commit 2887b40. |
+| C-2 SPA Dockerfile | ✅ done | node:20-alpine builder (vite build) + nginx:1.27-alpine runtime. Created FederatedApp.tsx re-export (federation entry missing). Commit 70c284f. |
+| C-3 Root .dockerignore | ✅ done | Excludes node_modules/backend/docs/.git. Committed with C-2. |
+| C-4 docker-compose.yml | ✅ done | 3 services (docmining/spa/proxy). nginx reverse proxy rewrites /api/docmining/* → docmining:8000. E2E verified. Commit f155c59. |
+| C-5 Helm charts | ✅ done | 3 charts (frame-docmining, frame-spa, frame-ingress). helm lint 3/3 passed. Ingress split into 3 resources for correct rewrite-target per path. Commits b0bfb4c, 7905356. |
+| C-6 kind cluster | ✅ done | kind cluster + helm install → all pods Running 1/1, E2E convert pages=1 through ingress. Commit 7905356. |
+| C-7 Multi-env local | ✅ done | 3 namespaces (frame/frame-dev/frame-engg) with per-host ingress routing. deploy-all.sh script. All 9 pods healthy, all 3 URLs verified. Commit 2f85269. |
+
+## Kit-Runner Skill (parallel track)
+| Task | Status | Notes |
+|---|---|---|
+| Design doc | ✅ done | `docs/plans/2026-04-25-kit-runner-portable-design.md` — approved. Commit c1ad31b. |
+| Implementation plan | ✅ done | `docs/plans/2026-04-25-kit-runner-portable-implementation-plan.md` — 26 atomic tasks. Commit c1ad31b. |
+| Skill build (T0–T23) | ✅ done | 16 commits at `~/.claude/skills/kit-runner/`. 14 unit tests + 9 acceptance criteria — all green. |
+| FRAME bootstrap (T25) | ✅ done | Mode 3 applied: AGENTS.md, docs/adr/, docs/devlog/, /devlog + /adr slash commands, 3 hooks, 3 path-scoped rules. Commits 222d6ab, 1ea6dfa, ecc7174. |
 
 ## Journal
+
+### 2026-04-25 · Phase C-Local complete + kit-runner skill built
+Massive session covering two parallel tracks. **Phase C-Local (Steps 0–6):** installed Docker/Helm/Kind/kubectl; created backend Dockerfile (two-stage, uv, offline models, rapidocr+onnxruntime fix, libxcb/libgl system libs); SPA Dockerfile (vite build + nginx, created missing FederatedApp.tsx federation entry); root .dockerignore; docker-compose.yml with nginx reverse proxy; 3 Helm charts (docmining/spa/ingress — ingress needed split into 3 resources for correct per-path rewrite-target); kind cluster rehearsal passing all E2E checks; multi-environment deployment (3 namespaces × 3 hosts mirroring AKS: frame.local→main, frame-dev.local→dev, frame-engg.local→feature). **Kit-runner skill:** designed, planned (26 tasks), and built the portable self-discovering skill at `~/.claude/skills/kit-runner/` — 10 scripts, 15 templates, 4 references, SKILL.md with verb-routing. 14 unit tests + 9 acceptance criteria all green. Applied Mode 3 to FRAME (AGENTS.md, ADR, devlog, hooks, rules). Branch renamed from `phase-a-docmining` to `feature/phase-a-docmining`; created `dev` branch at same commit.
 
 ### 2026-04-24 · B-7 manual E2E — stall fix
 Backend log confirmed upload path works end-to-end (POST /api/v1/documents/convert → 200, 9 pages, 9.4s). User reported UI stall *after* upload. Root cause: `refinePipelineAction` returns silently with a toast when no AI provider is configured (line 44-50), but `DocUploadModal.onSubmit` opened the pipeline modal *before* firing the action — leaving the pipeline modal stuck on "Refining your epic…" forever because the pipeline never started. Same latent bug exists in `WorkspaceHeader.handleRefine`; left untouched (pre-existing, out of DocMining scope). Fix in DocUploadModal only: check `isAIEnabled(cfg)` after `setMarkdown + closeModal`, skip `openModal('pipeline')` when AI not configured, surface a warning toast ("Document extracted. Configure an AI provider in Settings to refine."). 8/8 client tests still green.
