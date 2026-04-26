@@ -172,6 +172,7 @@ describe('type compilation', () => {
       gitlab: {
         enabled: true,
         rootGroupId: '42',
+        streamGroupId: '',
         accessToken: 'glpat-xxx',
         authMode: 'pat',
       },

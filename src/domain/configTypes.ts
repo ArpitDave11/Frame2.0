@@ -55,6 +55,7 @@ export type GitLabAuthMode = 'pat' | 'oauth';
 export interface GitLabConfig {
   enabled: boolean;
   rootGroupId: string;
+  streamGroupId: string;
   accessToken: string;
   authMode: GitLabAuthMode;
 }
@@ -125,6 +126,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   gitlab: {
     enabled: false,
     rootGroupId: '',
+    streamGroupId: '',
     accessToken: '',
     authMode: 'pat',
   },

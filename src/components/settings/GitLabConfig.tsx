@@ -160,6 +160,22 @@ export function GitLabConfig() {
         </span>
       </div>
 
+      {/* Stream Group ID */}
+      <div>
+        <label style={labelStyle}>Stream Group ID</label>
+        <input
+          type="text"
+          style={inputStyle}
+          value={config.gitlab.streamGroupId}
+          onChange={(e) => updateConfig({ gitlab: { streamGroupId: e.target.value } })}
+          placeholder="e.g., 67890"
+          data-testid="gitlab-stream-group-id"
+        />
+        <span style={{ fontSize: 11, fontWeight: 300, color: 'var(--col-text-subtle)', fontFamily: F, marginTop: 4, display: 'block' }}>
+          Sub-group under root for streaming epic issues
+        </span>
+      </div>
+
       {/* Base URL (read-only, from environment) */}
       <div>
         <label style={labelStyle}>GitLab Base URL</label>
