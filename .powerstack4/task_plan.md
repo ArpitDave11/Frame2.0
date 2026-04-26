@@ -47,7 +47,28 @@
 | Skill build (T0–T23) | ✅ done | 16 commits at `~/.claude/skills/kit-runner/`. 14 unit tests + 9 acceptance criteria — all green. |
 | FRAME bootstrap (T25) | ✅ done | Mode 3 applied: AGENTS.md, docs/adr/, docs/devlog/, /devlog + /adr slash commands, 3 hooks, 3 path-scoped rules. Commits 222d6ab, 1ea6dfa, ecc7174. |
 
+## Extreme Initiative Module
+| Task | Status | Notes |
+|---|---|---|
+| EI-0 Design + UX research | ✅ done | Design doc at `docs/plans/2026-04-25-extreme-initiative-design.md`. UX: AI-proposed header-centric list with multi-select crew chips. Commit 83e02ce. |
+| EI-1 Implementation plan | ✅ done | 14 atomic TDD tasks at `docs/plans/2026-04-25-extreme-initiative-implementation-plan.md`. Commit b261cf2. |
+| EI-2 initiativeStore | ✅ done | Zustand store: Stream, Header, Crew, many-to-many via assignedCrewIds. 12/12 tests. Commit 47eb598. |
+| EI-3 Wire 5th tab | ✅ done | TabId + ViewRouter + Sidebar (Lightning icon). Commit ad7b3bf. |
+| EI-4 AI actions (3) | ✅ done | generateStreamEpic, proposeCrewSplit, refineCrewEpic. 12/12 tests. Commit 1b14860. |
+| EI-5 StepIndicator | ✅ done | 4-step non-linear stepper. 5/5 tests. Commit 42490b0. |
+| EI-6 Chip components | ✅ done | CrewChipSelector, HeaderRow, SharedHeaderBadge, CrewSummaryRail, CrewCard. 6/6 tests. Commit 69489d4. |
+| EI-7 InitStep + StreamCombobox | ✅ done | Creatable stream combobox, crew count stepper, crew naming. Commit 2710af6. |
+| EI-8 StreamEpicStep | ✅ done | AI epic viewer/editor with preview. Commit 0415f73. |
+| EI-9 SplitCrewsStep | ✅ done | Header-to-crew assignment, filter, re-propose, crew rail. Commit 87c3f07. |
+| EI-10 RefineCrewsStep | ✅ done | Per-crew AI refinement with progress cards. Commit 99b0bf6. |
+| EI-11 Full wizard wiring | ✅ done | StepIndicator + step routing + navigation guards. Commit 892886a. |
+| EI-12 Integration test | ✅ done | Full wizard flow + edge cases. 3/3 tests. Commit 8a0b828. |
+| EI-13 GitLab integration redesign | ⏳ planning | Ultraplan dispatched. Stream = GitLab group from API, traversal pattern from storyforge_gitlab_traversal_complete.md. |
+
 ## Journal
+
+### 2026-04-25 · Extreme Initiative module — 14 tasks implemented
+Built the full Extreme Initiative module via kit-runner standing protocol. New 5th tab with 4-step wizard (Init → Stream Epic → Split Crews → Refine). initiativeStore with many-to-many header-to-crew assignment via `assignedCrewIds[]`. 3 separate AI actions (generateStreamEpic, proposeCrewSplit, refineCrewEpic). 12 custom components (no new dependencies). 38 new tests across 7 files, all green. Now pivoting to GitLab integration redesign: Stream = GitLab group fetched from API, full hierarchy traversal (Stream Group → Crew Subgroup → Pod Subgroup → Commons → Home Project), epic tree chaining (Stream Epic → Crew Epic → Pod Epic → Issues). Ultraplan dispatched for the redesign.
 
 ### 2026-04-25 · Phase C-Local complete + kit-runner skill built
 Massive session covering two parallel tracks. **Phase C-Local (Steps 0–6):** installed Docker/Helm/Kind/kubectl; created backend Dockerfile (two-stage, uv, offline models, rapidocr+onnxruntime fix, libxcb/libgl system libs); SPA Dockerfile (vite build + nginx, created missing FederatedApp.tsx federation entry); root .dockerignore; docker-compose.yml with nginx reverse proxy; 3 Helm charts (docmining/spa/ingress — ingress needed split into 3 resources for correct per-path rewrite-target); kind cluster rehearsal passing all E2E checks; multi-environment deployment (3 namespaces × 3 hosts mirroring AKS: frame.local→main, frame-dev.local→dev, frame-engg.local→feature). **Kit-runner skill:** designed, planned (26 tasks), and built the portable self-discovering skill at `~/.claude/skills/kit-runner/` — 10 scripts, 15 templates, 4 references, SKILL.md with verb-routing. 14 unit tests + 9 acceptance criteria all green. Applied Mode 3 to FRAME (AGENTS.md, ADR, devlog, hooks, rules). Branch renamed from `phase-a-docmining` to `feature/phase-a-docmining`; created `dev` branch at same commit.

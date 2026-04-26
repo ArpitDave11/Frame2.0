@@ -1,39 +1,39 @@
 # Context Snapshot
-## Last Updated: 2026-04-25T12:10:00Z
-## Active Task: Phase C-Local complete — multi-env deployment verified
-## Current Phase: Phase C-Local DONE, kit-runner skill DONE
+## Last Updated: 2026-04-25T23:30:00Z
+## Active Task: Extreme Initiative GitLab integration redesign (plan only)
+## Current Phase: EI module local-first DONE, GitLab integration PLANNING
 
 ## Branch Layout
 - `main` (88ed7ca) — stable, pre-DocMining
 - `dev` (2f85269) — development branch with full infra
-- `feature/phase-a-docmining` (2f85269) — current feature branch
+- `feature/phase-a-docmining` (8a0b828) — current, all EI tasks done
 
-## Local Environment (kind cluster "frame")
-- `frame.local:8080` → namespace `frame` (main)
-- `frame-dev.local:8080` → namespace `frame-dev` (dev)
-- `frame-engg.local:8080` → namespace `frame-engg` (feature)
-- 9 pods total (3 per namespace: 1 docmining + 2 SPA replicas)
-- All E2E checks passing (healthz, /frame/, PDF convert)
+## Extreme Initiative Status
+- 14/14 implementation tasks complete (38 new tests, all green)
+- 12 new component files + 1 store + 3 AI actions + 0 new dependencies
+- Next: redesign to integrate GitLab API traversal (ultraplan dispatched)
+  - Stream = GitLab group fetched from API (not local-only)
+  - Full hierarchy: Stream Group → Crew Subgroup → Pod Subgroup → Commons → Home
+  - Epic tree: Stream Epic → Crew Epic → Pod Epic → Issues
+  - Traversal reference: docs/research/storyforge_gitlab_traversal_complete.md
 
-## Key Files Created This Session
-- `backend/docmining/Dockerfile` + `.dockerignore`
-- `Dockerfile` (SPA) + `nginx.conf` + `.dockerignore` (root)
-- `src/FederatedApp.tsx` — federation entry re-export
-- `docker-compose.yml` + `infra/local-proxy/nginx.conf`
-- `charts/frame-docmining/`, `charts/frame-spa/`, `charts/frame-ingress/`
-- `infra/kind/cluster.yaml` + `infra/local/deploy-all.sh`
-- `AGENTS.md`, `docs/adr/`, `docs/devlog/`, `.claude/commands/`, `.claude/rules/`
-- Kit-runner skill: `~/.claude/skills/kit-runner/` (16 commits, 14+9 tests)
+## Key GitLab Integration Facts (from research)
+- Two parallel hierarchies: Group tree (org) + Epic tree (work breakdown)
+- Three ID types: group.id (global), epic.id (global) vs epic.iid (internal), issue.id vs issue.iid
+- parent_id in epic edit = global epic.id (NOT iid)
+- Cross-group issue-to-epic linking requires 2 API calls
+- Commons → Home project convention for auto-discovery
+- GitBeaker `@gitbeaker/rest` for API calls
 
-## Gotchas Discovered
-- Docling 2.90 lazy-imports rapidocr without declaring it — must add to pyproject.toml
-- cv2 (via rapidocr) needs libgl1/libglib2.0-0/libxcb1 in python:3.12-slim runtime
-- `npm run build` = `tsc -b && vite build` — tsc fails on test files in Docker; use `npx vite build` directly
-- vite.config.ts references `src/FederatedApp.tsx` but file didn't exist — created re-export wrapper
-- nginx ingress rewrite-target is per-Ingress-resource, not per-path — split into 3 Ingress resources
-- macOS ships bash 3.2 — no `declare -A` associative arrays; use case/function pattern instead
+## Local Kind Cluster
+- 3 namespaces: frame.local / frame-dev.local / frame-engg.local
+- `bash infra/local/deploy-all.sh status` to check
 
-## Next Steps
-- Run existing test suite to confirm no regressions: `npm run test:run`
-- Merge `feature/phase-a-docmining` → `dev` when ready
-- Phase C-AKS (RDP): `docker buildx --platform linux/amd64`, ACR push, helm install against AKS
+## Files Modified This Session (EI module)
+- src/stores/initiativeStore.ts + test (new)
+- src/stores/uiStore.ts (TabId extended)
+- src/components/layout/ViewRouter.tsx (initiative case)
+- src/components/layout/WorkspaceSidebar.tsx (Lightning nav)
+- src/components/initiative/ (12 new files)
+- src/services/ai/initiative/ (3 actions + 3 tests)
+- src/test/integration/initiativeFlow.test.ts (new)
