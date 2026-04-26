@@ -1,13 +1,11 @@
-import React, { useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useInitiativeStore } from '@/stores/initiativeStore';
-import { StreamCombobox } from '../shared/StreamCombobox';
+import { useConfigStore } from '@/stores/configStore';
+import { useUiStore } from '@/stores/uiStore';
+import { fetchStreamTree, type StreamGroup } from '@/services/gitlab/initiativeService';
+import type { GitLabConfig } from '@/domain/configTypes';
 
 const FONT_FAMILY = "Frutiger, Arial, Helvetica, sans-serif";
-
-const CREW_DEFAULTS = [
-  'Crew Alpha', 'Crew Beta', 'Crew Gamma', 'Crew Delta', 'Crew Epsilon',
-  'Crew Zeta', 'Crew Eta', 'Crew Theta', 'Crew Iota', 'Crew Kappa',
-];
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -29,62 +27,175 @@ const labelStyle: React.CSSProperties = {
 };
 
 export function InitStep() {
-  const streams = useInitiativeStore((s) => s.streams);
-  const selectedStreamId = useInitiativeStore((s) => s.selectedStreamId);
   const title = useInitiativeStore((s) => s.title);
   const description = useInitiativeStore((s) => s.description);
-  const crews = useInitiativeStore((s) => s.crews);
+  const streamGroup = useInitiativeStore((s) => s.streamGroup);
   const setStep = useInitiativeStore((s) => s.setStep);
-  const selectStream = useInitiativeStore((s) => s.selectStream);
-  const createStream = useInitiativeStore((s) => s.createStream);
   const setTitle = useInitiativeStore((s) => s.setTitle);
   const setDescription = useInitiativeStore((s) => s.setDescription);
-  const addCrew = useInitiativeStore((s) => s.addCrew);
-  const removeCrew = useInitiativeStore((s) => s.removeCrew);
-  const renameCrew = useInitiativeStore((s) => s.renameCrew);
+  const setStreamGroup = useInitiativeStore((s) => s.setStreamGroup);
+  const setGroupTree = useInitiativeStore((s) => s.setGroupTree);
+  const setCrewsFromSubgroups = useInitiativeStore((s) => s.setCrewsFromSubgroups);
 
-  const [aiSuggest, setAiSuggest] = React.useState(false);
+  const config = useConfigStore((s) => s.config);
+  const openModal = useUiStore((s) => s.openModal);
 
-  const crewCount = crews.length;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [availableSubgroups, setAvailableSubgroups] = useState<StreamGroup[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  // ── Crew count stepper ──────────────────────────────────
-  const setCrewCount = useCallback(
-    (target: number) => {
-      const clamped = Math.max(2, Math.min(10, target));
-      if (clamped > crewCount) {
-        for (let i = crewCount; i < clamped; i++) {
-          addCrew(CREW_DEFAULTS[i] ?? `Crew ${i + 1}`);
-        }
-      } else if (clamped < crewCount) {
-        // Remove from end
-        const toRemove = crews.slice(clamped);
-        for (const c of toRemove) removeCrew(c.id);
+  const streamGroupId = config.gitlab.streamGroupId;
+
+  const gitlabConfig: GitLabConfig = {
+    enabled: config.gitlab.enabled,
+    rootGroupId: config.gitlab.rootGroupId,
+    streamGroupId: config.gitlab.streamGroupId,
+    accessToken: config.gitlab.accessToken,
+    authMode: config.gitlab.authMode,
+  };
+
+  // Fetch stream tree on mount when streamGroupId is set
+  useEffect(() => {
+    if (!streamGroupId) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    fetchStreamTree(gitlabConfig, streamGroupId).then((result) => {
+      if (cancelled) return;
+      setLoading(false);
+      if (result.ok) {
+        setStreamGroup(result.data.stream);
+        setGroupTree(result.data.tree);
+        setAvailableSubgroups(result.data.crews);
+        // Pre-select all subgroups
+        const allIds = new Set(result.data.crews.map((c) => c.id));
+        setSelectedIds(allIds);
+        setCrewsFromSubgroups(result.data.crews);
+      } else {
+        setError(result.error);
       }
-    },
-    [crewCount, crews, addCrew, removeCrew],
-  );
+    });
 
-  // Ensure at least 2 crews on mount
-  React.useEffect(() => {
-    if (crews.length < 2) {
-      const needed = 2 - crews.length;
-      for (let i = 0; i < needed; i++) {
-        addCrew(CREW_DEFAULTS[crews.length + i] ?? `Crew ${crews.length + i + 1}`);
-      }
-    }
-    // Run once on mount only
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [streamGroupId]);
 
-  const handleStreamCreate = useCallback(
-    (name: string) => {
-      const s = createStream(name);
-      selectStream(s.id);
+  const handleToggle = useCallback(
+    (subgroup: StreamGroup) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(subgroup.id)) {
+          next.delete(subgroup.id);
+        } else {
+          next.add(subgroup.id);
+        }
+        const selected = availableSubgroups.filter((sg) => next.has(sg.id));
+        setCrewsFromSubgroups(selected);
+        return next;
+      });
     },
-    [createStream, selectStream],
+    [availableSubgroups, setCrewsFromSubgroups],
   );
 
-  const canProceed = title.trim().length > 0 && selectedStreamId !== null;
+  // ── No streamGroupId configured ──
+  if (!streamGroupId) {
+    return (
+      <div
+        data-testid="init-step"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 16,
+          padding: 32,
+          fontFamily: FONT_FAMILY,
+        }}
+      >
+        <p style={{ fontSize: '0.925rem', color: '#666' }}>
+          Configure Stream Group ID in Settings to continue.
+        </p>
+        <button
+          data-testid="open-settings-btn"
+          type="button"
+          onClick={() => openModal('settings')}
+          style={{
+            padding: '10px 24px',
+            border: 'none',
+            borderRadius: 6,
+            background: '#E60000',
+            color: '#FFFFFF',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+            fontFamily: FONT_FAMILY,
+            cursor: 'pointer',
+          }}
+        >
+          Open Settings
+        </button>
+      </div>
+    );
+  }
+
+  // ── Loading state ──
+  if (loading) {
+    return (
+      <div
+        data-testid="init-step"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: 32,
+          fontFamily: FONT_FAMILY,
+          fontSize: '0.925rem',
+          color: '#666',
+        }}
+      >
+        Loading stream group...
+      </div>
+    );
+  }
+
+  // ── Error state ──
+  if (error) {
+    return (
+      <div
+        data-testid="init-step"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          padding: 32,
+          fontFamily: FONT_FAMILY,
+        }}
+      >
+        <p style={{ fontSize: '0.925rem', color: '#C00' }}>
+          Failed to load stream group: {error}
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          style={{
+            padding: '8px 16px',
+            border: '1px solid #CCCABC',
+            borderRadius: 6,
+            background: '#FFF',
+            fontSize: '0.875rem',
+            fontFamily: FONT_FAMILY,
+            cursor: 'pointer',
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const selectedCount = selectedIds.size;
+  const canProceed = title.trim().length > 0 && selectedCount >= 2;
 
   return (
     <div
@@ -97,13 +208,25 @@ export function InitStep() {
         fontFamily: FONT_FAMILY,
       }}
     >
-      {/* Stream selector */}
-      <StreamCombobox
-        streams={streams}
-        selectedStreamId={selectedStreamId}
-        onSelect={selectStream}
-        onCreate={handleStreamCreate}
-      />
+      {/* Stream group header (read-only) */}
+      {streamGroup && (
+        <div
+          data-testid="stream-group-header"
+          style={{
+            padding: '10px 14px',
+            background: '#F5F0E1',
+            borderRadius: 6,
+            border: '1px solid #CCCABC',
+          }}
+        >
+          <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+            {streamGroup.name}
+          </div>
+          <div style={{ fontSize: '0.8rem', color: '#888', marginTop: 2 }}>
+            {streamGroup.fullPath}
+          </div>
+        </div>
+      )}
 
       {/* Title */}
       <div>
@@ -131,106 +254,51 @@ export function InitStep() {
         />
       </div>
 
-      {/* Crew count stepper */}
-      <div>
-        <label style={labelStyle}>How many crews?</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            data-testid="crew-decrement"
-            type="button"
-            onClick={() => setCrewCount(crewCount - 1)}
-            disabled={crewCount <= 2}
-            style={{
-              width: 32,
-              height: 32,
-              border: '1px solid #CCCABC',
-              borderRadius: 6,
-              background: crewCount <= 2 ? '#F5F0E1' : '#FFFFFF',
-              cursor: crewCount <= 2 ? 'not-allowed' : 'pointer',
-              fontSize: 16,
-              fontWeight: 500,
-              fontFamily: FONT_FAMILY,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            -
-          </button>
-          <span
-            data-testid="crew-count-display"
-            style={{
-              minWidth: 28,
-              textAlign: 'center',
-              fontSize: '1rem',
-              fontWeight: 600,
-            }}
-          >
-            {crewCount}
-          </span>
-          <button
-            data-testid="crew-increment"
-            type="button"
-            onClick={() => setCrewCount(crewCount + 1)}
-            disabled={crewCount >= 10}
-            style={{
-              width: 32,
-              height: 32,
-              border: '1px solid #CCCABC',
-              borderRadius: 6,
-              background: crewCount >= 10 ? '#F5F0E1' : '#FFFFFF',
-              cursor: crewCount >= 10 ? 'not-allowed' : 'pointer',
-              fontSize: 16,
-              fontWeight: 500,
-              fontFamily: FONT_FAMILY,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            +
-          </button>
-        </div>
-      </div>
-
-      {/* Crew name inputs */}
+      {/* Crew subgroup checkboxes */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <label style={labelStyle}>Crew names</label>
-        {crews.map((crew, idx) => (
-          <input
-            key={crew.id}
-            data-testid={`crew-name-input-${idx}`}
-            type="text"
-            value={crew.name}
-            onChange={(e) => renameCrew(crew.id, e.target.value)}
-            disabled={aiSuggest}
+        <label style={labelStyle}>
+          Select crews ({selectedCount} selected)
+        </label>
+        {availableSubgroups.length === 0 && (
+          <p style={{ fontSize: '0.85rem', color: '#888', margin: 0 }}>
+            No subgroups found under this stream group.
+          </p>
+        )}
+        {availableSubgroups.map((sg) => (
+          <label
+            key={sg.id}
+            data-testid={`crew-checkbox-${sg.id}`}
             style={{
-              ...inputStyle,
-              opacity: aiSuggest ? 0.6 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '6px 10px',
+              border: '1px solid #CCCABC',
+              borderRadius: 6,
+              cursor: 'pointer',
+              background: selectedIds.has(sg.id) ? '#FAFAF5' : '#FFF',
+              fontFamily: FONT_FAMILY,
+              fontSize: '0.875rem',
             }}
-          />
+          >
+            <input
+              type="checkbox"
+              checked={selectedIds.has(sg.id)}
+              onChange={() => handleToggle(sg)}
+              style={{ accentColor: '#E60000' }}
+            />
+            <span style={{ fontWeight: 500 }}>{sg.name}</span>
+            <span style={{ fontSize: '0.75rem', color: '#999', marginLeft: 'auto' }}>
+              {sg.fullPath}
+            </span>
+          </label>
         ))}
+        {selectedCount < 2 && availableSubgroups.length > 0 && (
+          <p style={{ fontSize: '0.8rem', color: '#C00', margin: 0 }}>
+            Select at least 2 crews to proceed.
+          </p>
+        )}
       </div>
-
-      {/* AI suggest checkbox */}
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          fontSize: '0.875rem',
-          fontFamily: FONT_FAMILY,
-          cursor: 'pointer',
-        }}
-      >
-        <input
-          data-testid="ai-suggest-checkbox"
-          type="checkbox"
-          checked={aiSuggest}
-          onChange={(e) => setAiSuggest(e.target.checked)}
-        />
-        Let AI suggest crew names
-      </label>
 
       {/* Footer: Generate button */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
