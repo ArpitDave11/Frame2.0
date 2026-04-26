@@ -1,0 +1,72 @@
+# ---------- stage 1: builder (deps) ------------------------------------------
+FROM container-registry.ubs.net/python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+# UBS CA certs (org-wide, required for pip + HuggingFace through corporate proxy)
+ADD http://certinfo.ubs.com/aia/UBS_Server_CA_Production_4.crt /tmp/ca-certs/
+ADD http://certinfo.ubs.com/aia/UBS_Server_CA_Production_5.crt /tmp/ca-certs/
+RUN for F in /tmp/ca-certs/*.crt; do \
+      openssl x509 -in $F -inform DER \
+        -out /usr/local/share/ca-certificates/$(basename $F); \
+    done && rm -rf /tmp/ca-certs && update-ca-certificates
+
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+ && rm -rf /var/lib/apt/lists/*
+
+# UBS internal pip registry
+RUN pip config set global.index-url \
+      'https://it4it-nexus-tp-repo.swissbank.com/repository/public-lib-python-pypi/simple' \
+ && pip config set global.trusted-host 'it4it-nexus-tp-repo.swissbank.com'
+
+RUN pip install --no-cache-dir uv==0.5.4
+RUN uv venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" VIRTUAL_ENV=/opt/venv
+
+WORKDIR /build
+COPY pyproject.toml ./
+RUN uv pip install --no-cache .
+
+# ---------- stage 2: models (download at build time) -------------------------
+FROM builder AS models
+
+ENV HF_HOME=/app/.cache/huggingface \
+    DOCMINING_ARTIFACTS_PATH=/app/.cache/docling/models \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
+RUN mkdir -p "$HF_HOME" "$DOCMINING_ARTIFACTS_PATH" \
+ && docling-tools models download \
+      layout tableformer code_formula picture_classifier rapidocr \
+      -o "$DOCMINING_ARTIFACTS_PATH"
+
+# ---------- stage 3: runtime -------------------------------------------------
+FROM container-registry.ubs.net/python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" VIRTUAL_ENV=/opt/venv \
+    HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 TOKENIZERS_PARALLELISM=false \
+    DOCMINING_ARTIFACTS_PATH=/app/.cache/docling/models
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libgomp1 libgl1 libglib2.0-0 libxcb1 ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid 1000 app \
+ && useradd --uid 1000 --gid app --create-home --shell /sbin/nologin app
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=models /app/.cache /app/.cache
+WORKDIR /app
+COPY --chown=app:app app/ /app/app/
+COPY --chown=app:app pyproject.toml /app/
+
+USER app
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request,sys; \
+sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz',timeout=3).status==200 else 1)"
+
+ENTRYPOINT ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000","--workers","1"]

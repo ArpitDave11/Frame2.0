@@ -1,0 +1,60 @@
+  # Service 2: DocMining (appended by build-deploy.sh)
+  - istio:
+      Enabled: true
+      Host: "HOST_PLACEHOLDER"
+      Gateway: "GATEWAY_PLACEHOLDER"
+      Path: "/api/docmining"
+    app:
+      name: frame-docmining
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      pod:
+        image:
+          repository: snapshot-container-registry.ubs.net/ubs/wma/frame-docmining
+          tag: "latest"
+          pullPolicy: IfNotPresent
+        port: 8000
+        replicaCount: 1
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 1000m
+            memory: 4Gi
+        terminationGracePeriodSeconds: 200
+        env:
+          - name: HF_HUB_OFFLINE
+            value: "1"
+          - name: TRANSFORMERS_OFFLINE
+            value: "1"
+          - name: DOCMINING_ARTIFACTS_PATH
+            value: /app/.cache/docling/models
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+        nodeSelector: {}
+        tolerations:
+          - key: "kubernetes.azure.com/scalesetpriority"
+            operator: "Equal"
+            value: "spot"
+            effect: "NoSchedule"
+      service:
+        type: ClusterIP
+        port: 8000
+        targetPort: 8000
+      tolerations: []
+      affinity: {}

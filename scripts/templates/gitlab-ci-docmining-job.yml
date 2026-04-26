@@ -1,0 +1,31 @@
+
+# ————————————————————————————————————————
+# Build DocMining image via Kaniko
+# ————————————————————————————————————————
+build_docmining_image:
+  stage: build_publish_snapshot_image
+  variables:
+    SUFFIX: "-unstable"
+  image:
+    name: container-registry.ubs.net/ubs/ci/gitlab/kaniko:v1.6.0-debug
+    entrypoint: [""]
+  before_script:
+    - export UBSCTL_FINGERPRINT_ARTIFACTS="${DOCKER_REPOSITORY}${WMA_DOCKER_NAMESPACE}/frame-docmining:${DOCKER_IMAGE_TAG}${SUFFIX}"
+  script:
+    - mkdir -p /kaniko/.docker
+    - cat /usr/local/share/ca-certificates/*.crt >> /kaniko/ssl/certs/ubs-ca-certificates.crt || true
+    - umount /usr/local/share/ca-certificates/ || true
+    - cp /kaniko/ssl/certs/ubs-ca-certificates.crt $CI_PROJECT_DIR/ubs-ca-certificates.crt || true
+    - echo "{\"auths\":{\"$DOCKER_REPOSITORY\":{\"auth\":\"$(echo -n $WMA_DOCKER_USER:$WMA_DOCKER_PASS | base64)\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context $CI_PROJECT_DIR/backend/docmining
+      --dockerfile $CI_PROJECT_DIR/backend/docmining/Dockerfile
+      --destination "${DOCKER_REPOSITORY}${WMA_DOCKER_NAMESPACE}/frame-docmining:${CI_JOB_ID}${SUFFIX}"
+    - echo "DOCMINING_IMAGE=${DOCKER_REPOSITORY}${WMA_DOCKER_NAMESPACE}/frame-docmining:${CI_JOB_ID}${SUFFIX}"
+    - echo "DOCMINING_IMAGE=${DOCKER_REPOSITORY}${WMA_DOCKER_NAMESPACE}/frame-docmining:${CI_JOB_ID}${SUFFIX}" >> variables-docmining.env
+  artifacts:
+    reports:
+      dotenv: variables-docmining.env
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
