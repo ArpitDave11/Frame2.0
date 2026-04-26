@@ -7,21 +7,6 @@ const store = () => useInitiativeStore.getState();
 beforeEach(() => store().reset());
 
 describe('initiativeStore', () => {
-  describe('streams', () => {
-    it('creates a stream with id and name', () => {
-      const s = store().createStream('Wealth Onboarding', 'desc');
-      expect(s.name).toBe('Wealth Onboarding');
-      expect(s.id).toBeTruthy();
-      expect(store().streams).toHaveLength(1);
-    });
-
-    it('selects a stream', () => {
-      const s = store().createStream('S1');
-      store().selectStream(s.id);
-      expect(store().selectedStreamId).toBe(s.id);
-    });
-  });
-
   describe('crews', () => {
     it('adds a crew', () => {
       const c = store().addCrew('Alpha');
@@ -105,11 +90,9 @@ describe('initiativeStore', () => {
 
   describe('reset', () => {
     it('clears all state', () => {
-      store().createStream('S');
       store().addCrew('C');
       store().setTitle('T');
       store().reset();
-      expect(store().streams).toHaveLength(0);
       expect(store().crews).toHaveLength(0);
       expect(store().title).toBe('');
     });

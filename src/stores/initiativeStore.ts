@@ -1,7 +1,7 @@
 /**
  * Initiative Store — Extreme Initiative module.
  *
- * Zustand store managing the initiative wizard state: streams, crews,
+ * Zustand store managing the initiative wizard state: stream groups, crews,
  * headers (parsed from epic markdown), many-to-many assignment, and
  * per-crew refinement status.
  */
@@ -11,12 +11,6 @@ import { create } from 'zustand';
 // ─── Types ─────────────────────────────────────────────────
 
 export type WizardStep = 'init' | 'streamEpic' | 'splitCrews' | 'refineCrews';
-
-export interface Stream {
-  id: string;
-  name: string;
-  description?: string;
-}
 
 export interface Header {
   id: string;
@@ -57,8 +51,6 @@ export interface PublishState {
 
 interface InitiativeState {
   currentStep: WizardStep;
-  streams: Stream[];
-  selectedStreamId: string | null;
   title: string;
   description: string;
   streamEpicMarkdown: string;
@@ -72,8 +64,6 @@ interface InitiativeState {
 
 interface InitiativeActions {
   setStep: (step: WizardStep) => void;
-  createStream: (name: string, description?: string) => Stream;
-  selectStream: (id: string) => void;
   setTitle: (title: string) => void;
   setDescription: (desc: string) => void;
   setStreamEpic: (markdown: string) => void;
@@ -118,8 +108,6 @@ function extractHeaders(markdown: string): Header[] {
 
 const INITIAL: InitiativeState = {
   currentStep: 'init',
-  streams: [],
-  selectedStreamId: null,
   title: '',
   description: '',
   streamEpicMarkdown: '',
@@ -138,12 +126,6 @@ export const useInitiativeStore = create<InitiativeStore>()((set, get) => ({
 
   setStep: (step) => set({ currentStep: step }),
 
-  createStream: (name, description) => {
-    const stream: Stream = { id: uid(), name, description };
-    set((s) => ({ streams: [...s.streams, stream] }));
-    return stream;
-  },
-  selectStream: (id) => set({ selectedStreamId: id }),
   setTitle: (title) => set({ title }),
   setDescription: (desc) => set({ description: desc }),
 
