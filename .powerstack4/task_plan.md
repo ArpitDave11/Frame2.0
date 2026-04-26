@@ -67,6 +67,9 @@
 
 ## Journal
 
+### 2026-04-26 · Feedback feature (Tasks 1-4 of 5)
+Implemented feedbackService.ts (submitFeedback commits markdown file to GitLab via Repository Files API, 3/3 tests), FeedbackModal.tsx (category dropdown + message textarea + MSAL user info read-only, submit calls feedbackService, toast on success, 3/3 tests), added 'feedback' to ModalId + ModalHost case, added Feedback nav item to sidebar with ChatCircle icon + genericized handleNav to use item.id as ModalId. Task 5 (set project ID + E2E) pending user providing the GitLab project ID.
+
 ### 2026-04-26 · GitLab integration (10 tasks) + vite proxy fix
 Implemented all 10 GitLab integration tasks: streamGroupId in settings, parent_id on updateGitLabEpic, store extensions (StreamGroup/GroupNode/PublishState), initiativeService (fetchStreamTree + publishInitiativeEpics), InitStep rewrite (fetch tree, crew checkboxes), StreamEpicStep (real crew names in AI prompt), RefineCrewsStep (real publish with progress + epic links), cleanup (removed StreamCombobox + old Stream type), integration test. 47/47 tests green. Fixed critical vite.config.ts bug: `process.env` doesn't have `.env` values at config time — switched to `loadEnv()` so proxy targets (`VITE_GITLAB_BASE_URL`) load correctly. Verified: `curl http://localhost:3002/gitlab-api/groups/131025594` returns 200 from gitlab.com.
 

@@ -14,6 +14,7 @@ import { LoadEpicModal } from '@/components/gitlab/LoadEpicModal';
 import { PublishModal } from '@/components/gitlab/PublishModal';
 import { IssueCreationModal } from '@/components/issues/IssueCreationModal';
 import { DocUploadModal } from '@/components/editor/DocUploadModal';
+import { FeedbackModal } from '@/components/settings/FeedbackModal';
 
 export function ModalHost() {
   const activeModal = useUiStore((s) => s.activeModal);
@@ -63,6 +64,12 @@ export function ModalHost() {
       return (
         <Modal open onClose={closeModal} title="Upload Requirement Document" width={560}>
           <DocUploadModal />
+        </Modal>
+      );
+    case 'feedback':
+      return (
+        <Modal open onClose={closeModal} title="Share Feedback" width={480}>
+          <FeedbackModal />
         </Modal>
       );
     default:
