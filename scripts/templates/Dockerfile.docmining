@@ -1,31 +1,63 @@
+# Frame DocMining — FastAPI + Docling 2.90 service.
+#
+# 3-stage build matching FRAME3 reference base image pattern exactly:
+#   stage 1 (builder)  — deps via pip (UBS Nexus registry)
+#   stage 2 (models)   — docling-tools models download at build time
+#   stage 3 (runtime)  — copies venv + models, fully offline at request time
+#
+# Base image: python:3.11.4-slim-buster from UBS container registry
+# (matches FRAME3 services/base/Dockerfile ARG PYTHON_VERSION=3.11.4, IMAGE_VARIANT=slim-buster)
+
 # ---------- stage 1: builder (deps) ------------------------------------------
-FROM container-registry.ubs.net/python:3.12-slim AS builder
+ARG PYTHON_VERSION=3.11.4
+ARG IMAGE_VARIANT=slim-buster
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+FROM container-registry.ubs.net/python:${PYTHON_VERSION}-${IMAGE_VARIANT} AS builder
 
-# UBS CA certs (org-wide, required for pip + HuggingFace through corporate proxy)
-ADD http://certinfo.ubs.com/aia/UBS_Server_CA_Production_4.crt /tmp/ca-certs/
-ADD http://certinfo.ubs.com/aia/UBS_Server_CA_Production_5.crt /tmp/ca-certs/
-RUN for F in /tmp/ca-certs/*.crt; do \
-      openssl x509 -in $F -inform DER \
-        -out /usr/local/share/ca-certificates/$(basename $F); \
-    done && rm -rf /tmp/ca-certs && update-ca-certificates
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=120
 
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
- && rm -rf /var/lib/apt/lists/*
+# UBS CA certs — exact same pattern as FRAME3 services/base/Dockerfile
+ADD http://certinfo.ubs.com/aia/UBS_Server_CA_Production_4.crt /tmp/ca-certificates/
+ADD http://certinfo.ubs.com/aia/UBS_Server_CA_Production_5.crt /tmp/ca-certificates/
 
-# UBS internal pip registry
-RUN pip config set global.index-url \
-      'https://it4it-nexus-tp-repo.swissbank.com/repository/public-lib-python-pypi/simple' \
- && pip config set global.trusted-host 'it4it-nexus-tp-repo.swissbank.com'
+# Redirect apt to UBS internal Nexus mirror (Buster EOL, public repos dead)
+# Exact same sources.list as FRAME3 services/base/Dockerfile
+RUN echo "\
+deb https://it4it-nexus-tp-repo.swissbank.com/repository/proxy-pkg-linux-debian-apt-oss-debian-org-stretch/ buster main\n\
+deb https://it4it-nexus-tp-repo.swissbank.com/repository/proxy-pkg-linux-debian-apt-oss-debian-org-stretch/ buster-backports main\n\
+deb https://it4it-nexus-tp-repo.swissbank.com/repository/proxy-pkg-linux-debian-apt-com-security-debian-dists/ buster/updates main"\
+\
+    > /etc/apt/sources.list
 
-RUN pip install --no-cache-dir uv==0.5.4
-RUN uv venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH" VIRTUAL_ENV=/opt/venv
+# Convert DER certs to PEM and install — exact same as FRAME3
+RUN for F in /tmp/ca-certificates/*.crt; \
+    do openssl x509 -in $F -inform DER -out /usr/local/share/ca-certificates/$(basename $F .crt).crt; \
+    done \
+    && rm -r /tmp/ca-certificates \
+    && update-ca-certificates
+
+# apt-get with retry — exact same pattern as FRAME3 (5 retries, https enforcement)
+RUN for i in 1 2 3 4 5; do \
+    find /etc/apt -type f \( -name 'sources.list' -o -name '*.list' -o -name '*.sources' \) -print0 | xargs -0 sed -i 's|http://|https://|g'; \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    break || (echo "Retry $i/5 failed, waiting..." && sleep 5); \
+    done && update-ca-certificates
+
+# UBS internal pip registry — exact same as FRAME3
+RUN pip config set global.index-url 'https://it4it-nexus-tp-repo.swissbank.com/repository/public-lib-python-pypi/simple'
+RUN pip config set global.trusted-host 'it4it-nexus-tp-repo.swissbank.com'
+RUN python -m pip install --upgrade pip
 
 WORKDIR /build
 COPY pyproject.toml ./
-RUN uv pip install --no-cache .
+RUN pip install --no-cache-dir .
 
 # ---------- stage 2: models (download at build time) -------------------------
 FROM builder AS models
@@ -41,32 +73,74 @@ RUN mkdir -p "$HF_HOME" "$DOCMINING_ARTIFACTS_PATH" \
       -o "$DOCMINING_ARTIFACTS_PATH"
 
 # ---------- stage 3: runtime -------------------------------------------------
-FROM container-registry.ubs.net/python:3.12-slim AS runtime
+FROM container-registry.ubs.net/python:${PYTHON_VERSION}-${IMAGE_VARIANT} AS runtime
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH" VIRTUAL_ENV=/opt/venv \
-    HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
-    HF_HUB_DISABLE_TELEMETRY=1 TOKENIZERS_PARALLELISM=false \
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    TOKENIZERS_PARALLELISM=false \
     DOCMINING_ARTIFACTS_PATH=/app/.cache/docling/models
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      libgomp1 libgl1 libglib2.0-0 libxcb1 ca-certificates \
- && rm -rf /var/lib/apt/lists/*
+# Same CA cert + apt source setup as builder (needed for runtime system libs)
+ADD http://certinfo.ubs.com/aia/UBS_Server_CA_Production_4.crt /tmp/ca-certificates/
+ADD http://certinfo.ubs.com/aia/UBS_Server_CA_Production_5.crt /tmp/ca-certificates/
 
+RUN echo "\
+deb https://it4it-nexus-tp-repo.swissbank.com/repository/proxy-pkg-linux-debian-apt-oss-debian-org-stretch/ buster main\n\
+deb https://it4it-nexus-tp-repo.swissbank.com/repository/proxy-pkg-linux-debian-apt-oss-debian-org-stretch/ buster-backports main\n\
+deb https://it4it-nexus-tp-repo.swissbank.com/repository/proxy-pkg-linux-debian-apt-com-security-debian-dists/ buster/updates main"\
+\
+    > /etc/apt/sources.list
+
+RUN for F in /tmp/ca-certificates/*.crt; \
+    do openssl x509 -in $F -inform DER -out /usr/local/share/ca-certificates/$(basename $F .crt).crt; \
+    done \
+    && rm -r /tmp/ca-certificates \
+    && update-ca-certificates
+
+# Runtime system libs with retry — same pattern as FRAME3
+# libgomp1         — onnxruntime OpenMP
+# libgl1           — opencv (transitive via rapidocr)
+# libglib2.0-0     — opencv
+# libxcb1          — opencv
+# curl             — healthcheck
+# ca-certificates  — TLS roots
+RUN for i in 1 2 3 4 5; do \
+    find /etc/apt -type f \( -name 'sources.list' -o -name '*.list' -o -name '*.sources' \) -print0 | xargs -0 sed -i 's|http://|https://|g'; \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libgomp1 libgl1 libglib2.0-0 libxcb1 curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    break || (echo "Retry $i/5 failed, waiting..." && sleep 5); \
+    done && update-ca-certificates
+
+# Non-root runtime user (uid 1000, matches FRAME2.0 convention)
 RUN groupadd --gid 1000 app \
  && useradd --uid 1000 --gid app --create-home --shell /sbin/nologin app
 
-COPY --from=builder /opt/venv /opt/venv
+# Pull in venv from builder + models from models stage
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=models /app/.cache /app/.cache
+
 WORKDIR /app
+
+# Copy app code
 COPY --chown=app:app app/ /app/app/
-COPY --chown=app:app pyproject.toml /app/
+COPY --chown=app:app pyproject.toml /app/pyproject.toml
+
+RUN chown -R app:app /app
 
 USER app
 EXPOSE 8000
 
+# Healthcheck using curl (same as FRAME3 pattern)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request,sys; \
-sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz',timeout=3).status==200 else 1)"
+    CMD curl -f http://localhost:8000/healthz || exit 1
 
-ENTRYPOINT ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000","--workers","1"]
+# workers=1 is the Docling thread-safety invariant
+ENTRYPOINT ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
