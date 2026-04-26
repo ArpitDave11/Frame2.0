@@ -10,6 +10,7 @@ import { useInitiativeStore } from '@/stores/initiativeStore';
 import { useConfigStore } from '@/stores/configStore';
 import { useUiStore } from '@/stores/uiStore';
 import { refineCrewEpic } from '@/services/ai/initiative/refineCrewEpic';
+import { publishInitiativeEpics } from '@/services/gitlab/initiativeService';
 import type { Crew, Header } from '@/stores/initiativeStore';
 
 // ─── Styles ────────────────────────────────────────────────
@@ -105,6 +106,8 @@ export default function RefineCrewsStep() {
     crews,
     headers,
     streamEpicMarkdown,
+    publish,
+    streamGroup,
     setCrewRefineStatus,
     setCrewRefinedEpic,
     setStep,
@@ -165,12 +168,46 @@ export default function RefineCrewsStep() {
   // Progress counts
   const doneCount = crews.filter((c) => c.refineStatus === 'done').length;
   const allDone = crews.length > 0 && crews.every((c) => c.refineStatus === 'done');
+  const canPublish = allDone && publish.status !== 'publishing';
 
-  const handlePublish = () => {
-    addToast({
-      type: 'success',
-      title: 'Initiative refined! Select a crew epic to publish.',
+  // Derive the GitLab UI base URL from the API URL (strip /api/v4 suffix)
+  const gitlabBaseUrl = config.endpoints.gitlabBaseUrl
+    ? config.endpoints.gitlabBaseUrl.replace(/\/api\/v4\/?$/, '')
+    : 'https://gitlab.com';
+
+  const handlePublish = async () => {
+    const state = useInitiativeStore.getState();
+    const cfg = useConfigStore.getState().config;
+    if (!state.streamGroup) return;
+
+    const gitlabConfig = cfg.gitlab;
+    state.setPublishStatus('publishing');
+
+    const result = await publishInitiativeEpics(gitlabConfig, {
+      streamGroupId: state.streamGroup.id,
+      streamTitle: state.title,
+      streamEpicMarkdown: state.streamEpicMarkdown,
+      crews: state.crews
+        .filter((c) => c.refineStatus === 'done' && c.gitlabGroupId != null)
+        .map((c) => ({
+          gitlabGroupId: c.gitlabGroupId!,
+          name: c.name,
+          refinedEpic: c.refinedEpic ?? '',
+          localId: c.id,
+        })),
     });
+
+    if (result.ok) {
+      state.setPublishStreamEpic(result.data.streamEpicId, result.data.streamEpicIid);
+      for (const ce of result.data.crewEpics) {
+        state.setPublishCrewEpic(ce.localId, ce.epicId, ce.epicIid);
+      }
+      state.setPublishStatus('done');
+      addToast({ type: 'success', title: 'Initiative published to GitLab!' });
+    } else {
+      state.setPublishStatus('error', result.error);
+      addToast({ type: 'error', title: result.error });
+    }
   };
 
   const handleRetry = (crew: Crew) => {
@@ -240,9 +277,40 @@ export default function RefineCrewsStep() {
             {expandedCrewId === crew.id && crew.refinedEpic && (
               <div style={previewBoxStyle}>{crew.refinedEpic}</div>
             )}
+
+            {/* Publish status */}
+            {publish.status === 'publishing' && (
+              <div style={{ marginTop: 8, fontSize: 13, color: '#666', fontStyle: 'italic' }}>
+                Publishing...
+              </div>
+            )}
+            {publish.crewEpicIds[crew.id] && (
+              <div style={{ marginTop: 8, fontSize: 13, color: '#00A651' }}>
+                {'\u2713'} Published
+              </div>
+            )}
+            {publish.status === 'error' && !publish.crewEpicIds[crew.id] && (
+              <div style={{ marginTop: 8, fontSize: 13, color: '#E60000' }}>
+                {'\u2717'} Publish failed
+              </div>
+            )}
           </div>
         ))}
       </div>
+
+      {/* Stream epic link (shown after publish) */}
+      {publish.status === 'done' && streamGroup && publish.streamEpicIid && (
+        <div style={{ padding: '12px 0', fontSize: 14 }}>
+          <a
+            href={`${gitlabBaseUrl}/groups/${streamGroup.fullPath}/-/epics/${publish.streamEpicIid}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#1A73E8', textDecoration: 'underline' }}
+          >
+            View Stream Epic in GitLab
+          </a>
+        </div>
+      )}
 
       {/* Footer navigation */}
       <div style={footerStyle}>
@@ -252,12 +320,12 @@ export default function RefineCrewsStep() {
         <button
           style={{
             ...btnPrimary,
-            ...(allDone ? {} : { opacity: 0.4, cursor: 'not-allowed' }),
+            ...(canPublish ? {} : { opacity: 0.4, cursor: 'not-allowed' }),
           }}
-          disabled={!allDone}
+          disabled={!canPublish}
           onClick={handlePublish}
         >
-          Publish Initiative &rarr;
+          {publish.status === 'publishing' ? 'Publishing...' : 'Publish Initiative \u2192'}
         </button>
       </div>
     </div>
