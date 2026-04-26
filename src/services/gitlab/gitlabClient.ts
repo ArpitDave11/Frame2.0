@@ -199,6 +199,7 @@ export async function updateGitLabEpic(
   if (params.title !== undefined) body.title = params.title;
   if (params.description !== undefined) body.description = params.description;
   if (params.labels !== undefined) body.labels = params.labels.join(',');
+  if (params.parent_id != null) body.parent_id = params.parent_id;
 
   const result = await gitlabPut<GitLabEpic>(config, `/groups/${groupId}/epics/${epicIid}`, body);
   if (!result.ok) return { success: false, error: result.error };

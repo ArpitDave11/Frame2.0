@@ -245,4 +245,5 @@ export interface GitLabUpdateEpicParams {
   title?: string;
   description?: string;
   labels?: string[];
+  parent_id?: number;
 }
