@@ -114,4 +114,41 @@ describe('initiativeStore', () => {
       expect(store().title).toBe('');
     });
   });
+
+  describe('gitlab integration', () => {
+    it('sets streamGroup from API data', () => {
+      store().setStreamGroup({ id: 280115, name: 'Wealth', fullPath: 'ubs/wealth' });
+      expect(store().streamGroup?.id).toBe(280115);
+    });
+
+    it('populates crews from subgroups with gitlabGroupId', () => {
+      store().setCrewsFromSubgroups([
+        { id: 111, name: 'Crew Alpha', fullPath: 'ubs/wealth/alpha' },
+        { id: 222, name: 'Crew Beta', fullPath: 'ubs/wealth/beta' },
+      ]);
+      expect(store().crews).toHaveLength(2);
+      expect(store().crews[0]!.gitlabGroupId).toBe(111);
+      expect(store().crews[0]!.name).toBe('Crew Alpha');
+    });
+
+    it('tracks publish state transitions', () => {
+      expect(store().publish.status).toBe('idle');
+      store().setPublishStatus('publishing');
+      expect(store().publish.status).toBe('publishing');
+      store().setPublishStreamEpic(9001, 12);
+      expect(store().publish.streamEpicId).toBe(9001);
+      store().setPublishCrewEpic('c1', 9002, 5);
+      expect(store().publish.crewEpicIds['c1']).toEqual({ id: 9002, iid: 5 });
+      store().setPublishStatus('done');
+      expect(store().publish.status).toBe('done');
+    });
+
+    it('reset clears gitlab state', () => {
+      store().setStreamGroup({ id: 1, name: 'S', fullPath: 's' });
+      store().setPublishStatus('done');
+      store().reset();
+      expect(store().streamGroup).toBeNull();
+      expect(store().publish.status).toBe('idle');
+    });
+  });
 });

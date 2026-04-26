@@ -28,9 +28,31 @@ export interface Header {
 
 export interface Crew {
   id: string;
+  gitlabGroupId?: number;
   name: string;
   refinedEpic?: string;
   refineStatus: 'pending' | 'refining' | 'done' | 'error';
+}
+
+export interface StreamGroup {
+  id: number;
+  name: string;
+  fullPath: string;
+}
+
+export interface GroupNode {
+  id: number;
+  name: string;
+  fullPath: string;
+  children: GroupNode[];
+}
+
+export interface PublishState {
+  status: 'idle' | 'publishing' | 'done' | 'error';
+  streamEpicId?: number;
+  streamEpicIid?: number;
+  crewEpicIds: Record<string, { id: number; iid: number }>;
+  error?: string;
 }
 
 interface InitiativeState {
@@ -42,6 +64,10 @@ interface InitiativeState {
   streamEpicMarkdown: string;
   headers: Header[];
   crews: Crew[];
+  streamGroup: StreamGroup | null;
+  groupTree: GroupNode | null;
+  crewSubgroups: StreamGroup[];
+  publish: PublishState;
 }
 
 interface InitiativeActions {
@@ -60,6 +86,12 @@ interface InitiativeActions {
   applyAiProposal: (assignments: Record<string, string[]>) => void;
   setCrewRefineStatus: (crewId: string, status: Crew['refineStatus']) => void;
   setCrewRefinedEpic: (crewId: string, markdown: string) => void;
+  setStreamGroup: (group: StreamGroup) => void;
+  setGroupTree: (tree: GroupNode) => void;
+  setCrewsFromSubgroups: (subgroups: StreamGroup[]) => void;
+  setPublishStatus: (status: PublishState['status'], error?: string) => void;
+  setPublishStreamEpic: (id: number, iid: number) => void;
+  setPublishCrewEpic: (localCrewId: string, id: number, iid: number) => void;
   reset: () => void;
 }
 
@@ -93,6 +125,10 @@ const INITIAL: InitiativeState = {
   streamEpicMarkdown: '',
   headers: [],
   crews: [],
+  streamGroup: null,
+  groupTree: null,
+  crewSubgroups: [],
+  publish: { status: 'idle' as const, crewEpicIds: {} },
 };
 
 // ─── Store ─────────────────────────────────────────────────
@@ -160,6 +196,27 @@ export const useInitiativeStore = create<InitiativeStore>()((set, get) => ({
   })),
   setCrewRefinedEpic: (crewId, markdown) => set((s) => ({
     crews: s.crews.map((c) => c.id === crewId ? { ...c, refinedEpic: markdown } : c),
+  })),
+
+  setStreamGroup: (group) => set({ streamGroup: group }),
+  setGroupTree: (tree) => set({ groupTree: tree }),
+  setCrewsFromSubgroups: (subgroups) => set({
+    crewSubgroups: subgroups,
+    crews: subgroups.map((sg) => ({
+      id: uid(),
+      gitlabGroupId: sg.id,
+      name: sg.name,
+      refineStatus: 'pending' as const,
+    })),
+  }),
+  setPublishStatus: (status, error) => set((s) => ({
+    publish: { ...s.publish, status, error },
+  })),
+  setPublishStreamEpic: (id, iid) => set((s) => ({
+    publish: { ...s.publish, streamEpicId: id, streamEpicIid: iid },
+  })),
+  setPublishCrewEpic: (localCrewId, id, iid) => set((s) => ({
+    publish: { ...s.publish, crewEpicIds: { ...s.publish.crewEpicIds, [localCrewId]: { id, iid } } },
   })),
 
   reset: () => { _counter = 0; set(INITIAL); },
