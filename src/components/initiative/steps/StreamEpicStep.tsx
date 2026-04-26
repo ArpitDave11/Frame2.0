@@ -121,11 +121,15 @@ export default function StreamEpicStep() {
     setLoading(true);
     setError(null);
     const crewCount = Math.max(crews.length, 2);
+    const crewNames = crews.map((c) => c.name).filter(Boolean);
+    const enrichedDesc = crewNames.length > 0
+      ? `${description}\n\nCrews: ${crewNames.join(', ')}`
+      : description;
     const result = await generateStreamEpic(
       config.ai.azure,
       config.endpoints.azureEndpoint,
       title,
-      description,
+      enrichedDesc,
       crewCount,
     );
     if (result.ok) {
