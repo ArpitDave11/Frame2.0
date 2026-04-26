@@ -11,6 +11,7 @@
 
 import React from 'react';
 import {
+  ChatCircle,
   ClipboardText,
   Kanban,
   SquaresFour,
@@ -22,7 +23,7 @@ import {
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { useUiStore } from '@/stores/uiStore';
-import type { TabId, IssueSubTab } from '@/stores/uiStore';
+import type { TabId, IssueSubTab, ModalId } from '@/stores/uiStore';
 import ubsLogo from '@/assets/00ac1239b9b421f7eee8b4e260132b1ac860676a.png';
 import { UserMenu } from '@/components/auth/UserMenu';
 
@@ -52,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'initiative', icon: Lightning, label: 'Extreme Initiative' },
   { id: 'analytics', icon: ChartBar, label: 'Analytics' },
   { id: 'settings', icon: GearSix, label: 'Settings', isModal: true },
+  { id: 'feedback', icon: ChatCircle, label: 'Feedback', isModal: true },
 ];
 
 const FONT = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
@@ -73,7 +75,7 @@ export function WorkspaceSidebar() {
 
   const handleNav = (item: NavItem) => {
     if (item.isModal) {
-      openModal('settings');
+      openModal(item.id as ModalId);
     } else {
       const tabId = (item.tabOverride ?? item.id) as TabId;
       setActiveTab(tabId);
