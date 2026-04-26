@@ -67,6 +67,9 @@
 
 ## Journal
 
+### 2026-04-26 · GitLab integration (10 tasks) + vite proxy fix
+Implemented all 10 GitLab integration tasks: streamGroupId in settings, parent_id on updateGitLabEpic, store extensions (StreamGroup/GroupNode/PublishState), initiativeService (fetchStreamTree + publishInitiativeEpics), InitStep rewrite (fetch tree, crew checkboxes), StreamEpicStep (real crew names in AI prompt), RefineCrewsStep (real publish with progress + epic links), cleanup (removed StreamCombobox + old Stream type), integration test. 47/47 tests green. Fixed critical vite.config.ts bug: `process.env` doesn't have `.env` values at config time — switched to `loadEnv()` so proxy targets (`VITE_GITLAB_BASE_URL`) load correctly. Verified: `curl http://localhost:3002/gitlab-api/groups/131025594` returns 200 from gitlab.com.
+
 ### 2026-04-25 · Extreme Initiative module — 14 tasks implemented
 Built the full Extreme Initiative module via kit-runner standing protocol. New 5th tab with 4-step wizard (Init → Stream Epic → Split Crews → Refine). initiativeStore with many-to-many header-to-crew assignment via `assignedCrewIds[]`. 3 separate AI actions (generateStreamEpic, proposeCrewSplit, refineCrewEpic). 12 custom components (no new dependencies). 38 new tests across 7 files, all green. Now pivoting to GitLab integration redesign: Stream = GitLab group fetched from API, full hierarchy traversal (Stream Group → Crew Subgroup → Pod Subgroup → Commons → Home Project), epic tree chaining (Stream Epic → Crew Epic → Pod Epic → Issues). Ultraplan dispatched for the redesign.
 

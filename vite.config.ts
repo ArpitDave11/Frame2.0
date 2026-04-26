@@ -1,9 +1,11 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import federation from '@originjs/vite-plugin-federation';
 import path from 'node:path';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  return {
   plugins: [
     react(),
     federation({
@@ -34,7 +36,7 @@ export default defineConfig({
 
     proxy: {
       '/gitlab-api': {
-        target: process.env.VITE_GITLAB_BASE_URL || 'https://devcloud.ubs.net/api/v4',
+        target: env.VITE_GITLAB_BASE_URL || 'https://devcloud.ubs.net/api/v4',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/gitlab-api/, ''),
         secure: false,
@@ -49,7 +51,7 @@ export default defineConfig({
       // that forwards `/api/docmining/*` to the FastAPI service. Without it, the
       // upload feature will 404 silently. See `docs/knowledge/services/docmining/docminingClient.md`.
       '/api/docmining': {
-        target: process.env.VITE_DOCMINING_BASE_URL || 'http://localhost:8000',
+        target: env.VITE_DOCMINING_BASE_URL || 'http://localhost:8000',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/docmining/, '/api/v1/documents'),
         secure: false,
@@ -75,4 +77,5 @@ export default defineConfig({
     minify: false,
     cssCodeSplit: false,
   },
+};
 });
