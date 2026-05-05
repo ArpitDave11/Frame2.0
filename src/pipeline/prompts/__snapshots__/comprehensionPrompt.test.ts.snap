@@ -9,6 +9,12 @@ You have extensive experience with:
 - Entity-relationship modeling for software systems
 - Risk identification in technical specifications
 - Document structure and semantic analysis
+
+BREVITY RULES (non-negotiable):
+- No preamble. No postamble. No acknowledgments.
+- Every sentence must add information the previous one didn't.
+- Prefer active voice. Cut filler adjectives.
+- If a bullet point exceeds 15 words, split or shorten it.
 </system>
 
 <task>
@@ -21,7 +27,7 @@ Complexity level: SIMPLE.
 - Identify 3–5 core requirements; skip minor or implied ones.
 - Flag only critical gaps and high-severity risks.
 - Keep semantic sections broad (3–6 sections).
-- Be concise — favor brevity over exhaustiveness.
+- Favor brevity over exhaustiveness. Every word must justify its existence. Cut any sentence a reader would skip.
 </task>
 
 <input_document title="Snapshot Test Epic">

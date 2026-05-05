@@ -28,28 +28,28 @@ export interface RefinementPromptVars {
   readonly iterationNumber: number;
   readonly documentContext?: string;
   readonly fewShotExample?: string;
+  readonly hint?: string;
+  readonly globalAntiPatterns?: string;
 }
 
 // ─── Complexity Scaling ─────────────────────────────────────
 
 const COMPLEXITY_INSTRUCTIONS: Record<ComplexityLevel, string> = {
   simple: `Complexity level: SIMPLE.
-- Keep the rewrite concise and focused on essentials.
-- Use straightforward language; avoid unnecessary jargon.
-- Prioritize clarity over comprehensiveness.
-- Aim for the lower end of the word target.`,
+- Keep concise and focused on essentials. Every word must justify its existence.
+- Use straightforward language; no jargon unless domain-essential.
+- Aim for the LOWER end of the word target. Cut any sentence a reader would skip.`,
 
   moderate: `Complexity level: MODERATE.
-- Balance thoroughness with readability.
-- Include relevant details, examples, and context where helpful.
-- Address edge cases for critical functionality.
-- Aim for the middle of the word target range.`,
+- Balance thoroughness with brevity. No redundant points. If two bullets say the same thing, merge them.
+- Include relevant details and context only where they change the reader's understanding.
+- Aim for the MIDDLE of the word target range.`,
 
   complex: `Complexity level: COMPLEX.
-- Provide exhaustive coverage of the topic.
-- Include detailed examples, rationale for decisions, and cross-references to other sections.
-- Address edge cases, failure modes, and alternative approaches.
-- Aim for the upper end of the word target — depth matters.`,
+- Be exhaustive in coverage but not in words. Say each thing once, precisely.
+- Use tables and lists over prose paragraphs wherever structured data fits.
+- Address edge cases and failure modes with specific values, not vague statements.
+- Aim for the LOWER end of the word target. Density over length.`,
 };
 
 // ─── Transformation Action Instructions ─────────────────────
@@ -111,6 +111,13 @@ export function buildRefinementPrompt(vars: RefinementPromptVars): string {
 You are an expert technical writer specializing in ${categoryName} documentation. Your task is to refine a single section of an epic document, producing polished, professional content that follows the specified format and category conventions.
 
 You write with precision and clarity, adapting your tone and depth to the document category and complexity level.
+
+BREVITY RULES (non-negotiable):
+- No preamble. No postamble. No "Certainly", "Of course", "Sure", "Great".
+- No "It is important to note that...", "This section outlines...", "In order to...".
+- Lead with the answer. Every sentence must add information the previous one didn't.
+- Prefer active voice. Cut filler adjectives ("robust", "comprehensive", "seamless", "cutting-edge").
+- If a bullet point exceeds 15 words, split or shorten it.
 </system>
 
 <task>
@@ -132,7 +139,18 @@ Apply the following format when writing the section content:
 
 ${formatInstruction}
 </format_instruction>
-
+<gfm_formatting>
+GITLAB MARKDOWN FORMATTING (mandatory for all sections):
+- First line of every section: a **bold one-sentence TL;DR** summarizing the key point.
+- Acceptance criteria use task-list syntax: - [ ] Criterion here
+- Use **bold** for key terms, metrics, and system names on first mention.
+- Use > blockquotes for important callouts, constraints, or warnings.
+- Tables over prose for structured data (dependencies, risks, metrics, comparisons).
+- Max 3 sentences per paragraph before a visual break (list, table, heading, or blank line).
+- No walls of text. If a paragraph exceeds 3 sentences, refactor into a list or add sub-headings.
+${complexityLevel === 'complex' ? '- For detailed content: wrap in <details><summary><strong>Section Name</strong></summary>\\n\\n[content]\\n\\n</details>' : ''}
+</gfm_formatting>
+${vars.hint ? `\n<section_hint>\n${vars.hint}\n</section_hint>` : ''}${vars.globalAntiPatterns ? `\n<anti_patterns>\n${vars.globalAntiPatterns}\n</anti_patterns>` : ''}
 <current_section title="${sectionTitle}">
 ${sectionContent}
 </current_section>${feedbackSection}

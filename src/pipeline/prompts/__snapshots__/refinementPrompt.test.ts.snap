@@ -5,16 +5,22 @@ exports[`refinementPrompt > buildRefinementPrompt — general > snapshot test �
 You are an expert technical writer specializing in technical_design documentation. Your task is to refine a single section of an epic document, producing polished, professional content that follows the specified format and category conventions.
 
 You write with precision and clarity, adapting your tone and depth to the document category and complexity level.
+
+BREVITY RULES (non-negotiable):
+- No preamble. No postamble. No "Certainly", "Of course", "Sure", "Great".
+- No "It is important to note that...", "This section outlines...", "In order to...".
+- Lead with the answer. Every sentence must add information the previous one didn't.
+- Prefer active voice. Cut filler adjectives ("robust", "comprehensive", "seamless", "cutting-edge").
+- If a bullet point exceeds 15 words, split or shorten it.
 </system>
 
 <task>
 Refine the section titled "Snapshot Section" for a technical_design document.
 
 Complexity level: SIMPLE.
-- Keep the rewrite concise and focused on essentials.
-- Use straightforward language; avoid unnecessary jargon.
-- Prioritize clarity over comprehensiveness.
-- Aim for the lower end of the word target.
+- Keep concise and focused on essentials. Every word must justify its existence.
+- Use straightforward language; no jargon unless domain-essential.
+- Aim for the LOWER end of the word target. Cut any sentence a reader would skip.
 
 Word target: approximately 200 words.
 - If this section contains a Mermaid diagram or flowchart, there is NO word limit — focus on diagram completeness.
@@ -34,6 +40,17 @@ Apply the following format when writing the section content:
 
 Use prose format.
 </format_instruction>
+<gfm_formatting>
+GITLAB MARKDOWN FORMATTING (mandatory for all sections):
+- First line of every section: a **bold one-sentence TL;DR** summarizing the key point.
+- Acceptance criteria use task-list syntax: - [ ] Criterion here
+- Use **bold** for key terms, metrics, and system names on first mention.
+- Use > blockquotes for important callouts, constraints, or warnings.
+- Tables over prose for structured data (dependencies, risks, metrics, comparisons).
+- Max 3 sentences per paragraph before a visual break (list, table, heading, or blank line).
+- No walls of text. If a paragraph exceeds 3 sentences, refactor into a list or add sub-headings.
+
+</gfm_formatting>
 
 <current_section title="Snapshot Section">
 Fixed content.
@@ -97,16 +114,22 @@ exports[`refinementPrompt > buildRefinementPrompt — general > snapshot test �
 You are an expert technical writer specializing in technical_design documentation. Your task is to refine a single section of an epic document, producing polished, professional content that follows the specified format and category conventions.
 
 You write with precision and clarity, adapting your tone and depth to the document category and complexity level.
+
+BREVITY RULES (non-negotiable):
+- No preamble. No postamble. No "Certainly", "Of course", "Sure", "Great".
+- No "It is important to note that...", "This section outlines...", "In order to...".
+- Lead with the answer. Every sentence must add information the previous one didn't.
+- Prefer active voice. Cut filler adjectives ("robust", "comprehensive", "seamless", "cutting-edge").
+- If a bullet point exceeds 15 words, split or shorten it.
 </system>
 
 <task>
 Refine the section titled "Snapshot Section" for a technical_design document.
 
 Complexity level: SIMPLE.
-- Keep the rewrite concise and focused on essentials.
-- Use straightforward language; avoid unnecessary jargon.
-- Prioritize clarity over comprehensiveness.
-- Aim for the lower end of the word target.
+- Keep concise and focused on essentials. Every word must justify its existence.
+- Use straightforward language; no jargon unless domain-essential.
+- Aim for the LOWER end of the word target. Cut any sentence a reader would skip.
 
 Word target: approximately 200 words.
 - If this section contains a Mermaid diagram or flowchart, there is NO word limit — focus on diagram completeness.
@@ -127,6 +150,17 @@ Apply the following format when writing the section content:
 
 Use prose format.
 </format_instruction>
+<gfm_formatting>
+GITLAB MARKDOWN FORMATTING (mandatory for all sections):
+- First line of every section: a **bold one-sentence TL;DR** summarizing the key point.
+- Acceptance criteria use task-list syntax: - [ ] Criterion here
+- Use **bold** for key terms, metrics, and system names on first mention.
+- Use > blockquotes for important callouts, constraints, or warnings.
+- Tables over prose for structured data (dependencies, risks, metrics, comparisons).
+- Max 3 sentences per paragraph before a visual break (list, table, heading, or blank line).
+- No walls of text. If a paragraph exceeds 3 sentences, refactor into a list or add sub-headings.
+
+</gfm_formatting>
 
 <current_section title="Snapshot Section">
 Fixed content.

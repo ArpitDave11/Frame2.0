@@ -17,6 +17,64 @@ import { useUiStore } from '@/stores/uiStore';
 import { runPremiumPipeline } from '@/pipeline/pipelineOrchestrator';
 import type { PipelineProgress } from '@/pipeline/pipelineTypes';
 
+// ─── Markdown Post-Processor ───────────────────────────────
+
+/**
+ * Deterministic cleanup of assembled epic markdown.
+ * Runs after pipeline completes, before writing to epicStore.
+ * No AI calls — pure string transforms.
+ */
+function cleanupMarkdown(md: string): string {
+  let lines = md.split('\n');
+
+  // 1. Ensure single H1 — keep only the first, strip duplicates
+  let foundH1 = false;
+  lines = lines.filter((line) => {
+    if (/^# [^#]/.test(line)) {
+      if (foundH1) return false;
+      foundH1 = true;
+    }
+    return true;
+  });
+
+  // 2. Add --- between H2 sections if missing (only when there are 3+ H2s,
+  //    indicating a substantial epic rather than a trivial fixture)
+  const h2Count = lines.filter((l) => /^## /.test(l)).length;
+  const result: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (h2Count >= 3 && /^## /.test(line) && i > 0) {
+      let j = result.length - 1;
+      while (j >= 0 && (result[j] ?? '').trim() === '') j--;
+      if (j >= 0 && (result[j] ?? '').trim() !== '---') {
+        result.push('');
+        result.push('---');
+        result.push('');
+      }
+    }
+    result.push(line);
+  }
+
+  // 3. Normalize heading hierarchy — no skipped levels
+  let lastLevel = 0;
+  const fixed = result.map((line) => {
+    const match = line.match(/^(#{1,6})\s/);
+    if (match?.[1]) {
+      const level = match[1].length;
+      if (lastLevel > 0 && level > lastLevel + 1) {
+        const fixedLevel = lastLevel + 1;
+        lastLevel = fixedLevel;
+        return '#'.repeat(fixedLevel) + line.slice(match[1].length);
+      }
+      lastLevel = level;
+    }
+    return line;
+  });
+
+  // 4. Trim trailing whitespace per line
+  return fixed.map((line) => line.trimEnd()).join('\n');
+}
+
 // ─── Stage Number Mapping ───────────────────────────────────
 
 const STAGE_MAP: Record<string, 1 | 2 | 3 | 4 | 5 | 6> = {
@@ -104,8 +162,8 @@ export async function refinePipelineAction(): Promise<void> {
     });
 
     if (result.success && result.epicContent) {
-      // Write refined epic to epicStore
-      useEpicStore.getState().applyRefinedEpic(result.epicContent);
+      // Write refined epic to epicStore (post-processed for consistent GFM)
+      useEpicStore.getState().applyRefinedEpic(cleanupMarkdown(result.epicContent));
 
       // Set quality score (validation is 0-100, store expects 0-10)
       useEpicStore.getState().setQualityScore(result.validation.overallScore / 10);
@@ -148,7 +206,7 @@ export async function refinePipelineAction(): Promise<void> {
       // Still write content (user gets best effort) and complete (not fail)
       // so the modal auto-closes. Warning toast tells user the score was low.
       if (result.epicContent) {
-        useEpicStore.getState().applyRefinedEpic(result.epicContent);
+        useEpicStore.getState().applyRefinedEpic(cleanupMarkdown(result.epicContent));
         if (result.validation.overallScore > 0) {
           useEpicStore.getState().setQualityScore(result.validation.overallScore / 10);
         }

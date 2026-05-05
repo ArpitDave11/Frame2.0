@@ -37,19 +37,19 @@ export interface MandatoryPromptVars {
 
 const COMPLEXITY_INSTRUCTIONS: Record<ComplexityLevel, string> = {
   simple: `Complexity level: SIMPLE.
-- Architecture diagram: a single flowchart or graph showing main components and their connections. STRICT LIMIT: 4–6 nodes maximum. Do NOT exceed 6 nodes.
-- User stories: focus on core user-facing functionality. Keep acceptance criteria brief (2–3 per story).
-- Epic assembly: include only required sections. Minimal metadata.`,
+- Architecture diagram: single flowchart, main components only. STRICT LIMIT: 4–6 nodes. Do NOT exceed 6.
+- User stories: core user-facing functionality only. 2–3 acceptance criteria per story, each ≤20 words.
+- Epic assembly: required sections only. No filler metadata.`,
 
   moderate: `Complexity level: MODERATE.
-- Architecture diagram: a detailed graph showing components, data stores, external integrations, and primary data flows. STRICT LIMIT: 6–8 nodes maximum. Do NOT exceed 8 nodes.
-- User stories: cover both user-facing and key technical stories. Include 3–4 acceptance criteria per story.
-- Epic assembly: include required and key optional sections. Standard metadata.`,
+- Architecture diagram: components, data stores, external integrations, primary data flows. STRICT LIMIT: 6–8 nodes. Do NOT exceed 8.
+- User stories: user-facing and key technical stories. 3–4 acceptance criteria per story, each ≤20 words.
+- Epic assembly: required and key optional sections. Terse metadata.`,
 
   complex: `Complexity level: COMPLEX.
-- Architecture diagram: a comprehensive multi-layer diagram showing all components, services, data flows, external dependencies, and cross-cutting concerns. STRICT LIMIT: 8–12 nodes maximum. Do NOT exceed 12 nodes.
-- User stories: exhaustive coverage including edge cases, error handling stories, and non-functional requirement stories. Include 4–5 acceptance criteria per story.
-- Epic assembly: include all sections. Comprehensive metadata with cross-references.`,
+- Architecture diagram: comprehensive multi-layer showing all components, services, flows, dependencies. STRICT LIMIT: 8–12 nodes. Do NOT exceed 12.
+- User stories: exhaustive coverage including edge cases and non-functional requirements. 4–5 acceptance criteria per story, each ≤20 words.
+- Epic assembly: all sections. Dense metadata, no padding.`,
 };
 
 // ─── Prompt Builder ─────────────────────────────────────────
@@ -107,6 +107,13 @@ Each test case must:
 
   return `<system>
 You are an expert software architect and requirements engineer. Your task is to generate mandatory epic components: an architecture diagram in Mermaid syntax, a set of user stories with acceptance criteria, and an assembled epic document. You combine deep technical knowledge with clear, stakeholder-friendly writing.
+
+BREVITY RULES (non-negotiable):
+- No preamble. No postamble. No acknowledgments.
+- Every sentence must add information the previous one didn't.
+- Acceptance criteria: each must be ≤20 words and testable.
+- User story titles: ≤10 words.
+- Cut filler adjectives ("robust", "comprehensive", "seamless").
 </system>
 
 <task>
@@ -324,6 +331,19 @@ ${slaInstructions}${testCaseInstructions}
 2. The "assembledEpic.sections" field in your JSON output should be empty ([]). The system will merge refined sections automatically.
 3. Focus entirely on producing a high-quality "architectureDiagram" and "userStories" in the output.
 4. Populate metadata: totalSections (0 is fine), totalStories, diagramType, generatedAt.
+
+### Epic Assembly Formatting (mandatory)
+When generating the assembledEpic sections array or any markdown content:
+- H1 (#) for epic title only — one per document.
+- H2 (##) with emoji prefix for each major section:
+  ## 🎯 Overview, ## ✅ Acceptance Criteria, ## 📦 Scope & Non-Scope,
+  ## ⚠️ Risks, ## 🔗 Dependencies, ## 🏁 Definition of Done,
+  ## 📋 Requirements, ## 🏗️ Architecture, ## 👤 User Stories,
+  ## 📊 Success Metrics, ## 🔄 Process Flow
+- H3 (###) for user stories: ### US-001: Title
+- Never skip heading levels (no ## → ####).
+- Separate major sections with --- horizontal rules.
+- Place architecture diagram immediately after Overview, before detailed sections.
 
 ### Quality Criteria
 - The Mermaid diagram must be syntactically valid and renderable.

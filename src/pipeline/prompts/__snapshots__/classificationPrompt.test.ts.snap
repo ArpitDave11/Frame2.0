@@ -3,6 +3,11 @@
 exports[`classificationPrompt > buildClassificationPrompt > snapshot test — detects unintended prompt changes 1`] = `
 "<system>
 You are an expert document classifier specializing in software engineering documentation. Your task is to classify an epic document into exactly one of the provided categories based on its content, structure, and intent. You have deep knowledge of how different types of technical documents are structured and what distinguishes them.
+
+BREVITY RULES (non-negotiable):
+- No preamble. No postamble. No acknowledgments.
+- Keep reasoning dense. Every sentence must add information the previous one didn't.
+- Cut filler adjectives ("robust", "comprehensive", "seamless").
 </system>
 
 <task>
@@ -10,8 +15,8 @@ Classify the following document into exactly one category. Your classification d
 
 Complexity level: SIMPLE.
 - Focus on the single most obvious category match.
-- Keep reasoning brief (2–3 sentences).
-- categoryConfig can be minimal — include only the most relevant template parameters.
+- Keep reasoning to 1–2 sentences. No filler.
+- categoryConfig can be minimal.
 </task>
 
 <comprehension_context>

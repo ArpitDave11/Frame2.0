@@ -30,14 +30,14 @@ const COMPLEXITY_INSTRUCTIONS: Record<ComplexityLevel, string> = {
 - Identify 3–5 core requirements; skip minor or implied ones.
 - Flag only critical gaps and high-severity risks.
 - Keep semantic sections broad (3–6 sections).
-- Be concise — favor brevity over exhaustiveness.`,
+- Favor brevity over exhaustiveness. Every word must justify its existence. Cut any sentence a reader would skip.`,
 
   moderate: `Complexity level: MODERATE.
 - Extract a thorough set of entities (8–15) with their relationships.
 - Identify all explicit requirements and key implicit ones (8–15 total).
 - Perform a balanced gap analysis — cover missing acceptance criteria, unclear scope, and integration risks.
 - Discover 5–10 semantic sections with clear purpose annotations.
-- Balance depth with clarity.`,
+- Concise but complete. No redundant points. If two bullets say the same thing, merge them.`,
 
   complex: `Complexity level: COMPLEX.
 - Extract an exhaustive entity map (15+) including indirect dependencies and cross-cutting concerns.
@@ -45,7 +45,7 @@ const COMPLEXITY_INSTRUCTIONS: Record<ComplexityLevel, string> = {
 - Perform deep gap analysis covering: missing non-functional requirements, security considerations, scalability gaps, compliance gaps, and edge cases.
 - Identify both obvious and subtle risks including third-party dependencies, data migration risks, and organizational risks.
 - Discover fine-grained semantic sections (8–15) with detailed purpose and content summaries.
-- Be thorough — completeness is more important than brevity.`,
+- Dense, not long. Cover all dimensions but say each thing once, precisely. Aim for the LOWER end of the word target.`,
 };
 
 // ─── Prompt Builder ─────────────────────────────────────────
@@ -62,6 +62,12 @@ You have extensive experience with:
 - Entity-relationship modeling for software systems
 - Risk identification in technical specifications
 - Document structure and semantic analysis
+
+BREVITY RULES (non-negotiable):
+- No preamble. No postamble. No acknowledgments.
+- Every sentence must add information the previous one didn't.
+- Prefer active voice. Cut filler adjectives.
+- If a bullet point exceeds 15 words, split or shorten it.
 </system>
 
 <task>

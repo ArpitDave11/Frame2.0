@@ -52,18 +52,18 @@ const CATEGORY_DESCRIPTIONS: Record<EpicCategory, string> = {
 const COMPLEXITY_INSTRUCTIONS: Record<ComplexityLevel, string> = {
   simple: `Complexity level: SIMPLE.
 - Focus on the single most obvious category match.
-- Keep reasoning brief (2–3 sentences).
-- categoryConfig can be minimal — include only the most relevant template parameters.`,
+- Keep reasoning to 1–2 sentences. No filler.
+- categoryConfig can be minimal.`,
 
   moderate: `Complexity level: MODERATE.
 - Consider the top 2–3 candidate categories before deciding.
-- Provide clear reasoning (3–5 sentences) explaining why the chosen category fits best and why alternatives were rejected.
-- categoryConfig should include key template parameters: tone, primary section types, and any category-specific settings.`,
+- Reasoning: 2–3 sentences explaining match and why alternatives were rejected. No redundancy.
+- categoryConfig should include key template parameters.`,
 
   complex: `Complexity level: COMPLEX.
 - Evaluate all 7 categories systematically before deciding.
-- Provide thorough reasoning (5–8 sentences) covering: primary match indicators, secondary category overlaps, and why the chosen category is the strongest fit.
-- categoryConfig should be comprehensive: tone, section types, format preferences, diagram types, and any cross-category considerations.`,
+- Reasoning: 3–5 sentences covering primary match, overlaps, and final decision. Dense, not long.
+- categoryConfig should be comprehensive but terse.`,
 };
 
 // ─── Prompt Builder ─────────────────────────────────────────
@@ -78,6 +78,11 @@ export function buildClassificationPrompt(vars: ClassificationPromptVars): strin
 
   return `<system>
 You are an expert document classifier specializing in software engineering documentation. Your task is to classify an epic document into exactly one of the provided categories based on its content, structure, and intent. You have deep knowledge of how different types of technical documents are structured and what distinguishes them.
+
+BREVITY RULES (non-negotiable):
+- No preamble. No postamble. No acknowledgments.
+- Keep reasoning dense. Every sentence must add information the previous one didn't.
+- Cut filler adjectives ("robust", "comprehensive", "seamless").
 </system>
 
 <task>

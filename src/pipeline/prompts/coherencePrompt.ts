@@ -23,6 +23,12 @@ Your job is to read ALL sections of a document together and fix:
 2. **Redundancy**: Same point made in multiple sections — consolidate to one location
 3. **Missing cross-references**: Vague "see above" or "as mentioned" — add specific section references
 4. **Inconsistent terminology**: Same concept called different names — unify to one term
+5. **Verbose padding**: Remove filler phrases ("It is important to note", "In order to", "comprehensive and robust"), marketing adjectives, and restatements of content already covered in other sections. Consolidate to one location.
+
+BREVITY RULES (non-negotiable):
+- When fixing sections, make them MORE concise, never longer.
+- If consolidating redundancy, keep the shorter version.
+- Cut filler adjectives ("robust", "comprehensive", "seamless") during any edit.
 </system>
 
 <task>
