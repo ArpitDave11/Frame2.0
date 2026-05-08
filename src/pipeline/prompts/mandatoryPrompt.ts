@@ -286,18 +286,20 @@ Follow these instructions precisely:
 
 ### Diagram Generation${categoryName ? ` (Category: ${categoryName})` : ''}
 
-**Primary Diagram (architectureDiagram field):**
+**Primary Diagram → goes into the "architectureDiagram" JSON field:**
+This diagram will be displayed under the heading "Deployment Architecture — Component and Flow Diagram".
 Generate a \`${diagramPrimaryType ?? 'flowchart LR'}\` diagram.
 Purpose: ${diagramPrimaryPurpose ?? 'System architecture showing main components and connections'}
-- This is the MAIN diagram for this epic type.
+- This MUST be a STRUCTURAL / ARCHITECTURE diagram — components, services, data stores, connections.
 - Include ALL known entities from the comprehension analysis.
-- Show relationships, data flows, and decision points as appropriate.
+- Do NOT put a process flow or workflow here — that goes in processFlowDiagram.
 
-**Secondary Diagram (processFlowDiagram field):**
+**Secondary Diagram → goes into the "processFlowDiagram" JSON field:**
+This diagram will be displayed under the heading "Process Flow".
 Generate a \`${diagramSecondaryType ?? 'flowchart TD'}\` diagram.
 Purpose: ${diagramSecondaryPurpose ?? 'Primary workflow with decision points'}
-- This complements the primary diagram with a different perspective.
-- Focus on behavior/flow rather than structure (or vice versa).
+- This MUST be a BEHAVIORAL / PROCESS diagram — steps, decisions, outcomes, sequences.
+- Do NOT put architecture or component layout here — that goes in architectureDiagram.
 - This is a SEPARATE diagram — do NOT merge it with the primary diagram.
 
 **Rules for BOTH diagrams:**
