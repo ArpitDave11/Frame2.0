@@ -75,6 +75,32 @@ function cleanupMarkdown(md: string): string {
   return fixed.map((line) => line.trimEnd()).join('\n');
 }
 
+// ─── Diagram Post-Processor ───────────────────────────────
+
+/**
+ * Strips flowchart-only syntax (classDef, linkStyle, class, :::) from
+ * non-flowchart diagram types (sequenceDiagram, stateDiagram, etc.).
+ */
+function sanitizeDiagram(code: string): string {
+  if (!code) return code;
+  const firstLine = code.trim().split('\n')[0]?.trim() ?? '';
+  // Only strip for non-flowchart diagram types
+  if (firstLine.startsWith('flowchart') || firstLine.startsWith('graph')) {
+    return code;
+  }
+  // Remove classDef and linkStyle lines from sequenceDiagram, stateDiagram, etc.
+  return code
+    .split('\n')
+    .filter(line => {
+      const trimmed = line.trim();
+      return !trimmed.startsWith('classDef ') &&
+             !trimmed.startsWith('linkStyle ') &&
+             !trimmed.startsWith('class ') &&
+             !trimmed.startsWith(':::');
+    })
+    .join('\n');
+}
+
 // ─── Stage Number Mapping ───────────────────────────────────
 
 const STAGE_MAP: Record<string, 1 | 2 | 3 | 4 | 5 | 6> = {
@@ -172,7 +198,7 @@ export async function refinePipelineAction(): Promise<void> {
       if (result.mandatory.architectureDiagram) {
         const _diagCode = result.mandatory.architectureDiagram;
         const _diagType = (_diagCode.match(/^\s*(?:%%\{[^}]*\}%%\s*)*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie)/m)?.[1] ?? 'flowchart').replace(/^graph.*/, 'flowchart');
-        useBlueprintStore.getState().setCode(_diagCode, _diagType);
+        useBlueprintStore.getState().setCode(sanitizeDiagram(_diagCode), _diagType);
       }
 
       // Store full validation output for critique UI
@@ -213,7 +239,7 @@ export async function refinePipelineAction(): Promise<void> {
         if (result.mandatory.architectureDiagram) {
           const _diagCode = result.mandatory.architectureDiagram;
         const _diagType = (_diagCode.match(/^\s*(?:%%\{[^}]*\}%%\s*)*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie)/m)?.[1] ?? 'flowchart').replace(/^graph.*/, 'flowchart');
-        useBlueprintStore.getState().setCode(_diagCode, _diagType);
+        useBlueprintStore.getState().setCode(sanitizeDiagram(_diagCode), _diagType);
         }
       }
 

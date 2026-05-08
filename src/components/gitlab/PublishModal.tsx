@@ -62,6 +62,11 @@ export function PublishModal() {
       if (result.success && result.data) {
         setSubgroups(result.data);
       }
+    }).catch((err) => {
+      if (!cancelled) {
+        setLoadingGroups(false);
+        console.error('[PublishModal] fetchGitLabSubgroups failed:', err);
+      }
     });
 
     return () => { cancelled = true; };
@@ -124,7 +129,8 @@ export function PublishModal() {
         );
         // F12: Invalidate cache so Load modal shows fresh data
         useGitlabStore.getState().invalidateGroupCache(targetGroup);
-        addToast({ type: 'success', title: 'Epic published to GitLab' });
+        const webUrl = result.data.web_url;
+        addToast({ type: 'success', title: webUrl ? `Epic published to GitLab: ${webUrl}` : 'Epic published to GitLab' });
         closeModal();
       } else {
         addToast({ type: 'error', title: result.error ?? 'Failed to publish epic' });

@@ -87,7 +87,14 @@ export function LoadEpicModal() {
       setLoadingEpic(false);
 
       if (result.success && result.data) {
-        setMarkdown(result.data.description ?? '');
+        const desc = result.data.description ?? '';
+        if (!desc.trim()) {
+          const defaultTemplate = `# ${result.data.title}\n\n## Overview\n\n_This epic has no content yet. Add your requirements below._\n\n## Goals & Non-Goals\n\n- \n\n## Requirements\n\n1. \n\n## Scope & Non-Scope\n\n**In scope:**\n- \n\n**Out of scope:**\n- \n`;
+          setMarkdown(defaultTemplate);
+          addToast({ type: 'warning', title: 'Epic is blank — loaded with default template' });
+        } else {
+          setMarkdown(desc);
+        }
         useGitlabStore.getState().setLoadedEpicContext(epic.iid, epicGroupId);
         closeModal();
         setActiveView('workspace');

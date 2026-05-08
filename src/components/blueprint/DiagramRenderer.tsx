@@ -82,7 +82,10 @@ export function DiagramRenderer() {
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : String(err);
+          const raw = err instanceof Error ? err.message : String(err);
+          const msg = raw.includes('Syntax error')
+            ? 'Diagram syntax error — try regenerating with the controls above.'
+            : raw;
           setRenderError(msg);
           setError(msg);
           setSvgHtml('');

@@ -45,17 +45,33 @@ export function IssueRow({ issue, isSelected, onClick }: IssueRowProps) {
         }}
       >
         <StatusIcon status={issue.status} />
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 500,
-            color: 'var(--col-text-subtle)',
-            fontFamily: F,
-            letterSpacing: '0.02em',
-          }}
-        >
-          {issue.id}
-        </span>
+        {issue.web_url ? (
+          <a href={issue.web_url} target="_blank" rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: '#E60000',
+              textDecoration: 'none',
+              fontFamily: F,
+              letterSpacing: '0.02em',
+            }}
+          >
+            {issue.id} ↗
+          </a>
+        ) : (
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: 'var(--col-text-subtle)',
+              fontFamily: F,
+              letterSpacing: '0.02em',
+            }}
+          >
+            {issue.id}
+          </span>
+        )}
         {/* Priority pill */}
         <div
           style={{

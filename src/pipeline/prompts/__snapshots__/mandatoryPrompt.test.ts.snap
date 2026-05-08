@@ -160,7 +160,7 @@ Purpose: Primary workflow with decision points
        api --"REST/JSON"--> db
        subgraph Auth & Security
 
-### Diagram Styling (Required)
+### Diagram Styling (Required for flowchart/graph diagrams)
 
 #### Node Shapes by Component Type
 Use different Mermaid node shapes to convey meaning:
@@ -171,7 +171,7 @@ Use different Mermaid node shapes to convey meaning:
 - Processes: \`ID("Label")\` (rounded rectangle)
 
 #### Semantic Colors via classDef (Paul Tol Light — WCAG AA, colorblind-safe)
-Define these classDef classes at the top of EVERY diagram, then apply them:
+Define these classDef classes at the top of every flowchart/graph diagram, then apply them:
 
 \`\`\`
 classDef service fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
@@ -203,8 +203,6 @@ After ALL connections, add linkStyle commands for colored arrows. Index is 0-bas
 Apply the appropriate color based on what each arrow represents. You do not need to style every arrow — focus on the most important 5-10 connections.
 
 **IMPORTANT:** All text inside nodes MUST be dark (#1A1A2E). Never use \`color:#fff\` or \`color:#ffffff\` — all fills are medium-lightness pastels designed for dark text.
-
-**IMPORTANT:** classDef and linkStyle are ONLY for flowchart/graph diagrams. For sequenceDiagram and stateDiagram-v2, do NOT include any classDef or linkStyle declarations — they will cause syntax errors. Theming is handled automatically.
 
 ### User Story Generation
 1. Derive stories from the extracted requirements in the comprehension analysis.

@@ -53,6 +53,11 @@ export function IssueDetail({ issue }: IssueDetailProps) {
       if (result.success && result.data) {
         setRealNotes(result.data);
       }
+    }).catch((err) => {
+      if (!cancelled) {
+        setLoadingNotes(false);
+        console.error('[IssueDetail] fetchIssueNotes failed:', err);
+      }
     });
 
     return () => { cancelled = true; };
@@ -66,6 +71,8 @@ export function IssueDetail({ issue }: IssueDetailProps) {
     }
     fetchIssueLinks(gitlabConfig, issue.project_id, issue.iid).then((r) => {
       if (r.success && r.data) setIssueLinksData(r.data);
+    }).catch((err) => {
+      console.error('[IssueDetail] fetchIssueLinks failed:', err);
     });
   }, [isRealIssue, issue?.project_id, issue?.iid, gitlabConfig]);
 
@@ -87,6 +94,12 @@ export function IssueDetail({ issue }: IssueDetailProps) {
         setEpicContext({ title: result.data.title, description: result.data.description ?? '' });
       } else {
         setEpicContext(null);
+      }
+    }).catch((err) => {
+      if (!cancelled) {
+        setLoadingEpic(false);
+        setEpicContext(null);
+        console.error('[IssueDetail] fetchIssueEpic failed:', err);
       }
     });
 
@@ -244,9 +257,16 @@ export function IssueDetail({ issue }: IssueDetailProps) {
         {/* Status + ID row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <StatusIcon status={issue.status} size={16} />
-          <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--col-text-subtle)', fontFamily: F, letterSpacing: '0.02em' }}>
-            {issue.id}
-          </span>
+          {issue.web_url ? (
+            <a href={issue.web_url} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 12, fontWeight: 400, color: '#E60000', textDecoration: 'none', fontFamily: F, letterSpacing: '0.02em' }}>
+              {issue.id} ↗
+            </a>
+          ) : (
+            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--col-text-subtle)', fontFamily: F, letterSpacing: '0.02em' }}>
+              {issue.id}
+            </span>
+          )}
           <div data-testid="issue-status-badge" style={{ padding: '4px 12px', borderRadius: 6, background: statusCfg.bg, fontSize: 11, fontWeight: 500, color: statusCfg.color, fontFamily: F }}>
             {statusCfg.label}
           </div>

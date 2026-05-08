@@ -61,9 +61,9 @@ export async function createIssuesAction(
 
       // Create issue
       const result = await createGitLabIssue(cfg.gitlab, projectId, {
-        title: `${story.id}: ${story.title}`,
+        title: story.id.startsWith('custom-') ? story.title : `${story.id}: ${story.title}`,
         description,
-        labels: [story.priority, ...(extraLabels ?? [])],
+        labels: ['HALLMARK: FRAME', story.priority, ...(extraLabels ?? [])],
         weight: story.storyPoints ?? undefined,
       });
 

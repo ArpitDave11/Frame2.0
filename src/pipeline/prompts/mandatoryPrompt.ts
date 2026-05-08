@@ -105,6 +105,78 @@ Each test case must:
     .map((e, i) => `${i + 1}. ${e}`)
     .join('\n');
 
+  // ─── Conditional Diagram Styling ──────────────────────────
+  const isFlowchartPrimary = !diagramPrimaryType || diagramPrimaryType.startsWith('flowchart') || diagramPrimaryType.startsWith('graph');
+  const isFlowchartSecondary = !diagramSecondaryType || diagramSecondaryType.startsWith('flowchart') || diagramSecondaryType.startsWith('graph');
+
+  const flowchartStylingBlock = `### Diagram Styling (Required for flowchart/graph diagrams)
+
+#### Node Shapes by Component Type
+Use different Mermaid node shapes to convey meaning:
+- Services/APIs: \`ID["Label"]\` (rectangle)
+- Databases/Storage: \`ID[("Label")]\` (cylinder)
+- External/3rd-Party: \`ID{{"Label"}}\` (hexagon)
+- Events/Triggers: \`ID(("Label"))\` (circle)
+- Processes: \`ID("Label")\` (rounded rectangle)
+
+#### Semantic Colors via classDef (Paul Tol Light — WCAG AA, colorblind-safe)
+Define these classDef classes at the top of every flowchart/graph diagram, then apply them:
+
+\`\`\`
+classDef service fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
+classDef database fill:#DDCC77,stroke:#AA9944,stroke-width:2px,color:#1A1A2E
+classDef external fill:#B3B3B3,stroke:#888888,stroke-width:1.5px,color:#1A1A2E
+classDef queue fill:#EE8866,stroke:#C56040,stroke-width:1.5px,color:#1A1A2E
+classDef cache fill:#44BB99,stroke:#228877,stroke-width:1.5px,color:#1A1A2E
+classDef security fill:#FFAABB,stroke:#CC7799,stroke-width:1.5px,color:#1A1A2E
+classDef infra fill:#8DA0CB,stroke:#6070A8,stroke-width:1.5px,color:#1A1A2E
+\`\`\`
+
+Apply classes using the \`:::\` shorthand: \`API["API Gateway"]:::service\`
+
+These same classDef definitions also serve as the process flow palette. Map roles consistently:
+- Primary services/components: \`:::service\` (steel blue)
+- Supporting services/APIs: \`:::infra\` (lavender)
+- Databases/caches/storage: \`:::database\` (sand)
+- Decision diamonds: \`:::cache\` (mint green)
+- Error/failure paths: \`:::queue\` (coral)
+
+#### Arrow Styling via linkStyle
+After ALL connections, add linkStyle commands for colored arrows. Index is 0-based, counting arrows in order of appearance:
+- User/client flows: \`linkStyle 0 stroke:#4477AA,stroke-width:2.5px\`
+- Service-to-service: \`linkStyle 1 stroke:#6070A8,stroke-width:2px\`
+- Database calls: \`linkStyle 2 stroke:#AA9944,stroke-width:2px\`
+- Async/events: \`linkStyle 3 stroke:#228877,stroke-width:2px,stroke-dasharray:5\`
+- External calls: \`linkStyle 4 stroke:#CC7799,stroke-width:2px\`
+
+Apply the appropriate color based on what each arrow represents. You do not need to style every arrow — focus on the most important 5-10 connections.
+
+**IMPORTANT:** All text inside nodes MUST be dark (#1A1A2E). Never use \`color:#fff\` or \`color:#ffffff\` — all fills are medium-lightness pastels designed for dark text.`;
+
+  const nonFlowchartStylingBlock = (diagramType: string) =>
+    `### Diagram Styling
+For ${diagramType} diagrams: Do NOT use classDef, linkStyle, or node shape syntax (rectangles, cylinders, hexagons).
+These are flowchart-only features and will cause "Syntax error in text" rendering failures.
+Use participant/state/note syntax as appropriate for ${diagramType}.
+Theming is applied automatically by the system.`;
+
+  let diagramStylingSection: string;
+  if (isFlowchartPrimary && isFlowchartSecondary) {
+    diagramStylingSection = flowchartStylingBlock;
+  } else if (!isFlowchartPrimary && !isFlowchartSecondary) {
+    diagramStylingSection = nonFlowchartStylingBlock(diagramPrimaryType ?? 'non-flowchart');
+  } else {
+    // Mixed: one flowchart, one not — include flowchart styling with a warning for the non-flowchart diagram
+    const parts: string[] = [flowchartStylingBlock];
+    if (!isFlowchartPrimary) {
+      parts.push(`\n\n**Primary diagram (${diagramPrimaryType}):** ` + nonFlowchartStylingBlock(diagramPrimaryType!));
+    }
+    if (!isFlowchartSecondary) {
+      parts.push(`\n\n**Secondary diagram (${diagramSecondaryType}):** ` + nonFlowchartStylingBlock(diagramSecondaryType!));
+    }
+    diagramStylingSection = parts.join('');
+  }
+
   return `<system>
 You are an expert software architect and requirements engineer. Your task is to generate mandatory epic components: an architecture diagram in Mermaid syntax, a set of user stories with acceptance criteria, and an assembled epic document. You combine deep technical knowledge with clear, stakeholder-friendly writing.
 
@@ -260,51 +332,7 @@ Purpose: ${diagramSecondaryPurpose ?? 'Primary workflow with decision points'}
        api --"REST/JSON"--> db
        subgraph Auth & Security
 
-### Diagram Styling (Required)
-
-#### Node Shapes by Component Type
-Use different Mermaid node shapes to convey meaning:
-- Services/APIs: \`ID["Label"]\` (rectangle)
-- Databases/Storage: \`ID[("Label")]\` (cylinder)
-- External/3rd-Party: \`ID{{"Label"}}\` (hexagon)
-- Events/Triggers: \`ID(("Label"))\` (circle)
-- Processes: \`ID("Label")\` (rounded rectangle)
-
-#### Semantic Colors via classDef (Paul Tol Light — WCAG AA, colorblind-safe)
-Define these classDef classes at the top of EVERY diagram, then apply them:
-
-\`\`\`
-classDef service fill:#77AADD,stroke:#4477AA,stroke-width:2px,color:#1A1A2E
-classDef database fill:#DDCC77,stroke:#AA9944,stroke-width:2px,color:#1A1A2E
-classDef external fill:#B3B3B3,stroke:#888888,stroke-width:1.5px,color:#1A1A2E
-classDef queue fill:#EE8866,stroke:#C56040,stroke-width:1.5px,color:#1A1A2E
-classDef cache fill:#44BB99,stroke:#228877,stroke-width:1.5px,color:#1A1A2E
-classDef security fill:#FFAABB,stroke:#CC7799,stroke-width:1.5px,color:#1A1A2E
-classDef infra fill:#8DA0CB,stroke:#6070A8,stroke-width:1.5px,color:#1A1A2E
-\`\`\`
-
-Apply classes using the \`:::\` shorthand: \`API["API Gateway"]:::service\`
-
-These same classDef definitions also serve as the process flow palette. Map roles consistently:
-- Primary services/components: \`:::service\` (steel blue)
-- Supporting services/APIs: \`:::infra\` (lavender)
-- Databases/caches/storage: \`:::database\` (sand)
-- Decision diamonds: \`:::cache\` (mint green)
-- Error/failure paths: \`:::queue\` (coral)
-
-#### Arrow Styling via linkStyle
-After ALL connections, add linkStyle commands for colored arrows. Index is 0-based, counting arrows in order of appearance:
-- User/client flows: \`linkStyle 0 stroke:#4477AA,stroke-width:2.5px\`
-- Service-to-service: \`linkStyle 1 stroke:#6070A8,stroke-width:2px\`
-- Database calls: \`linkStyle 2 stroke:#AA9944,stroke-width:2px\`
-- Async/events: \`linkStyle 3 stroke:#228877,stroke-width:2px,stroke-dasharray:5\`
-- External calls: \`linkStyle 4 stroke:#CC7799,stroke-width:2px\`
-
-Apply the appropriate color based on what each arrow represents. You do not need to style every arrow — focus on the most important 5-10 connections.
-
-**IMPORTANT:** All text inside nodes MUST be dark (#1A1A2E). Never use \`color:#fff\` or \`color:#ffffff\` — all fills are medium-lightness pastels designed for dark text.
-
-**IMPORTANT:** classDef and linkStyle are ONLY for flowchart/graph diagrams. For sequenceDiagram and stateDiagram-v2, do NOT include any classDef or linkStyle declarations — they will cause syntax errors. Theming is handled automatically.
+${diagramStylingSection}
 
 ### User Story Generation
 1. Derive stories from the extracted requirements in the comprehension analysis.

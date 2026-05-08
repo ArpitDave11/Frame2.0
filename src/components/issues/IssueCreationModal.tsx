@@ -84,6 +84,11 @@ export function IssueCreationModal() {
           setProjectId(String(result.data[0]!.id));
         }
       }
+    }).catch((err) => {
+      if (!cancelled) {
+        setLoadingProjects(false);
+        console.error('[IssueCreationModal] fetchGroupProjects failed:', err);
+      }
     });
 
     return () => { cancelled = true; };
@@ -259,7 +264,7 @@ export function IssueCreationModal() {
     if (result.created > 0) {
       fetchIssuesAction();
     }
-  }, [storiesWithAnalysis, projectId, epicTitle, markdown]);
+  }, [storiesWithAnalysis, projectId, epicTitle, markdown, selectedLabels]);
 
   // ─── Loading states ─────────────────────────────────────
   if (phase === 'parsing') {
@@ -445,6 +450,7 @@ export function IssueCreationModal() {
                 fontSize: 12, fontWeight: 500, fontFamily: F,
               }}
             >
+              {isGeneratingCustom && <Spinner size={16} className="animate-spin" />}
               {isGeneratingCustom ? 'Generating...' : 'Generate Stories'}
             </button>
           </div>
