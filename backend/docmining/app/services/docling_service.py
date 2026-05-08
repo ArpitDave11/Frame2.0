@@ -87,10 +87,39 @@ def convert_sync(
     doc = result.document
     ok = result.status in (ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS)
     status_val = result.status.value if hasattr(result.status, "value") else str(result.status)
+    # Best-effort outline extraction
+    outline = []
+    try:
+        for item in doc.iterate_items():
+            if hasattr(item, 'label') and item.label == 'section_header':
+                level = getattr(item, 'level', 1)
+                text = item.text if hasattr(item, 'text') else str(item)
+                page = item.prov[0].page_no if hasattr(item, 'prov') and item.prov else 0
+                outline.append({"level": level, "text": text, "page": page})
+    except Exception:
+        pass  # outline extraction is best-effort
+
+    # Best-effort table extraction
+    tables_data = []
+    try:
+        if hasattr(doc, 'tables'):
+            for i, table in enumerate(doc.tables):
+                html = table.export_to_html() if hasattr(table, 'export_to_html') else ''
+                csv_str = ''
+                try:
+                    csv_str = table.export_to_dataframe().to_csv(index=False) if hasattr(table, 'export_to_dataframe') else ''
+                except Exception:
+                    pass
+                tables_data.append({"index": i, "html": html, "csv": csv_str})
+    except Exception:
+        pass  # table extraction is best-effort
+
     return {
         "ok": ok,
         "status": status_val,
         "pages": len(doc.pages) if getattr(doc, "pages", None) else 0,
         "markdown": doc.export_to_markdown() if ok else None,
         "errors": [str(getattr(e, "error_message", e) or "") for e in (result.errors or [])],
+        "outline": outline,
+        "tables": tables_data,
     }

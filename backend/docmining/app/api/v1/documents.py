@@ -19,7 +19,9 @@ from fastapi import (
     Request,
     UploadFile,
 )
+from fastapi import BackgroundTasks
 from pydantic import BaseModel
+from typing import Optional
 
 from app.core.config import Settings, get_settings
 from app.services.docling_service import convert_sync
@@ -47,6 +49,40 @@ class ConvertResponse(BaseModel):
     duration_ms: int
     markdown: str | None = None
     errors: list[str] = []
+
+
+class OutlineItem(BaseModel):
+    level: int
+    text: str
+    page: int
+
+
+class TableData(BaseModel):
+    index: int
+    html: str
+    csv: str
+
+
+class DocMetadata(BaseModel):
+    filename: str
+    page_count: int
+    binary_hash: str
+
+
+class AnalyzeResponse(BaseModel):
+    request_id: str
+    file_name: str
+    file_size: int
+    file_sha256: str
+    extension: str
+    status: str
+    pages: int
+    duration_ms: int
+    markdown: Optional[str] = None
+    errors: list[str] = []
+    outline: list[OutlineItem] = []
+    tables: list[TableData] = []
+    metadata: Optional[DocMetadata] = None
 
 
 def _sanitize(name: str) -> str:
@@ -162,4 +198,77 @@ async def convert_document(
     finally:
         # Deterministic cleanup — runs on every exit path (success, HTTPException,
         # unexpected error). BackgroundTasks was unreliable across exception paths.
+        _cleanup(path)
+
+
+@router.post("/analyze", response_model=AnalyzeResponse)
+async def analyze_document(
+    request: Request,
+    background: BackgroundTasks,
+    file: Annotated[UploadFile, File()],
+    include_markdown: Annotated[bool, Form()] = True,
+    settings: Settings = Depends(get_settings),
+    converter: DocumentConverter = Depends(get_converter),
+    executor: ThreadPoolExecutor = Depends(get_executor),
+) -> AnalyzeResponse:
+    """Extract document content with enriched metadata (outline, tables, metadata)."""
+    req_id = str(uuid.uuid4())
+    name = _sanitize(file.filename or "upload.bin")
+    ext = Path(name).suffix.lower()
+
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            415,
+            f"Extension '{ext}' not permitted. Allowed: {sorted(ALLOWED_EXTENSIONS)}",
+        )
+
+    path, size, sha = await _stream_to_tempfile(file, settings.max_file_bytes, ext)
+
+    log.info("analyze.start id=%s file=%s size=%d", req_id, name, size)
+
+    loop = asyncio.get_running_loop()
+    t0 = time.perf_counter()
+    try:
+        try:
+            payload = await asyncio.wait_for(
+                loop.run_in_executor(
+                    executor,
+                    convert_sync,
+                    converter, path, name, settings.max_pages, settings.max_file_bytes,
+                ),
+                timeout=settings.convert_timeout_s,
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(504, f"Conversion exceeded {settings.convert_timeout_s}s.")
+
+        ms = int((time.perf_counter() - t0) * 1000)
+        if not payload["ok"]:
+            msg = "; ".join(payload["errors"]) or "unknown conversion failure"
+            raise HTTPException(422, f"Conversion failed: {msg}")
+
+        # Extract enriched data from the docling result
+        outline = payload.get("outline", [])
+        tables = payload.get("tables", [])
+        doc_metadata = DocMetadata(
+            filename=Path(name).stem,
+            page_count=payload["pages"],
+            binary_hash=sha,
+        )
+
+        return AnalyzeResponse(
+            request_id=req_id,
+            file_name=name,
+            file_size=size,
+            file_sha256=sha,
+            extension=ext,
+            status=payload["status"],
+            pages=payload["pages"],
+            duration_ms=ms,
+            markdown=payload["markdown"] if include_markdown else None,
+            errors=payload["errors"],
+            outline=[OutlineItem(**o) for o in outline],
+            tables=[TableData(**t) for t in tables],
+            metadata=doc_metadata,
+        )
+    finally:
         _cleanup(path)

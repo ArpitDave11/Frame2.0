@@ -56,6 +56,12 @@ export default defineConfig(({ mode }) => {
         rewrite: (p) => p.replace(/^\/api\/docmining/, '/api/v1/documents'),
         secure: false,
       },
+      '/api/export': {
+        target: env.VITE_EXPORT_BASE_URL || 'http://localhost:8001',
+        changeOrigin: true,
+        rewrite: (p: string) => p.replace(/^\/api\/export/, '/api/v1/export'),
+        secure: false,
+      },
     },
   },
 

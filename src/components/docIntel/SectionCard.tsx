@@ -1,14 +1,15 @@
 /**
- * SectionCard — single analysis section with markdown rendering + regenerate/revert.
+ * SectionCard — single analysis section with BlockNote editing + regenerate/revert.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { ArrowCounterClockwise, ArrowsClockwise, Spinner } from '@phosphor-icons/react';
+import { useCreateBlockNote } from '@blocknote/react';
+import { BlockNoteView } from '@blocknote/mantine';
+import '@blocknote/mantine/style.css';
 import { useDocIntelStore } from '@/stores/docIntelStore';
 import type { Section } from '@/stores/docIntelStore';
 import { regenerateSection } from '@/services/docIntel/analyzeAction';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
@@ -22,6 +23,38 @@ interface Props {
 
 export function SectionCard({ section }: Props) {
   const revertSection = useDocIntelStore((s) => s.revertSection);
+  const updateSection = useDocIntelStore((s) => s.updateSection);
+  const lastImportedRef = useRef<string>('');
+
+  const editor = useCreateBlockNote();
+
+  // Import markdown into editor when section.markdown changes externally
+  // (from analysis or regeneration — not from user edits)
+  useEffect(() => {
+    if (!editor || !section.markdown || section.markdown === lastImportedRef.current) return;
+    lastImportedRef.current = section.markdown;
+    (async () => {
+      try {
+        const blocks = await editor.tryParseMarkdownToBlocks(section.markdown);
+        editor.replaceBlocks(editor.document, blocks);
+      } catch {
+        // fallback: just set a paragraph with raw text
+      }
+    })();
+  }, [editor, section.markdown]);
+
+  const handleChange = useCallback(async () => {
+    if (!editor) return;
+    try {
+      const md = await editor.blocksToMarkdownLossy(editor.document);
+      if (md !== lastImportedRef.current) {
+        lastImportedRef.current = md;
+        updateSection(section.id, md);
+      }
+    } catch {
+      // ignore export errors
+    }
+  }, [editor, section.id, updateSection]);
 
   const handleRegenerate = useCallback(() => {
     regenerateSection(section.id);
@@ -76,9 +109,9 @@ export function SectionCard({ section }: Props) {
       </div>
 
       {/* Content */}
-      <div style={{ padding: 16, fontFamily: F, fontSize: 14, lineHeight: 1.6 }}>
+      <div style={{ padding: '8px 16px', fontFamily: F, fontSize: 14, lineHeight: 1.6 }}>
         {isGenerating ? (
-          <div style={{ color: 'var(--col-text-subtle)', fontStyle: 'italic' }}>
+          <div style={{ color: 'var(--col-text-subtle)', fontStyle: 'italic', padding: 8 }}>
             Analyzing document...
           </div>
         ) : section.status === 'error' ? (
@@ -86,11 +119,7 @@ export function SectionCard({ section }: Props) {
             {section.error ?? 'Analysis failed'}
           </div>
         ) : (
-          <div className="prose prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {section.markdown}
-            </ReactMarkdown>
-          </div>
+          <BlockNoteView editor={editor} onChange={handleChange} theme="light" />
         )}
       </div>
     </div>
