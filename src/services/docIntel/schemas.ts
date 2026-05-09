@@ -16,12 +16,17 @@ export const CLASSIFIER_SCHEMA = {
     schema: {
       type: 'object',
       additionalProperties: false,
-      required: ['complexity_tier', 'recommended_summary_words', 'recommended_insight_count', 'recommended_diagram_count'],
+      required: ['complexity_tier', 'recommended_lens', 'recommended_summary_words', 'recommended_insight_count', 'recommended_diagram_count'],
       properties: {
         complexity_tier: {
           type: 'string',
           enum: ['trivial', 'low', 'medium', 'high', 'very_high'],
           description: 'Document complexity based on length, domain density, and structural depth.',
+        },
+        recommended_lens: {
+          type: 'string',
+          enum: ['executive', 'technical', 'legal', 'financial', 'operational', 'risk', 'summary'],
+          description: 'Best-fit analysis lens based on document domain. executive for business/strategy docs, technical for engineering/architecture, legal for contracts/compliance, financial for budgets/reports, operational for processes/runbooks, risk for assessments/audits, summary for general/mixed.',
         },
         recommended_summary_words: {
           type: 'number',

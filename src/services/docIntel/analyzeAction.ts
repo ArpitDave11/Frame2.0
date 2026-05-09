@@ -14,6 +14,7 @@
  */
 
 import { useDocIntelStore } from '@/stores/docIntelStore';
+import type { LensType } from '@/stores/docIntelStore';
 import { useConfigStore } from '@/stores/configStore';
 import { useUiStore } from '@/stores/uiStore';
 import { isAIEnabled, callAI } from '@/services/ai/aiClient';
@@ -112,12 +113,13 @@ function formatVisuals(parsed: Record<string, unknown>): string {
 // ─── Nano Pre-Classifier ───────────────────────────────────
 
 interface ClassifierResult {
+  lens: LensType;
   summaryWords: number;
   insightCount: number;
   diagramCount: number;
 }
 
-const DEFAULT_TARGETS: ClassifierResult = { summaryWords: 90, insightCount: 5, diagramCount: 2 };
+const DEFAULT_TARGETS: ClassifierResult = { lens: 'summary', summaryWords: 90, insightCount: 5, diagramCount: 2 };
 
 async function classifyDocument(docMarkdown: string, baseCfg: AIClientConfig): Promise<ClassifierResult> {
   try {
@@ -134,6 +136,7 @@ async function classifyDocument(docMarkdown: string, baseCfg: AIClientConfig): P
     });
     const parsed = JSON.parse(response.content);
     return {
+      lens: parsed.recommended_lens ?? DEFAULT_TARGETS.lens,
       summaryWords: parsed.recommended_summary_words ?? DEFAULT_TARGETS.summaryWords,
       insightCount: parsed.recommended_insight_count ?? DEFAULT_TARGETS.insightCount,
       diagramCount: parsed.recommended_diagram_count ?? DEFAULT_TARGETS.diagramCount,
@@ -188,7 +191,6 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
     return;
   }
 
-  const lens = store.lens ?? 'summary';
   const baseCfg = getBaseConfig();
 
   // Step 1: Upload + extract via backend
@@ -206,8 +208,12 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
     metadata: uploadResult.data.metadata,
   });
 
-  // Step 2: Nano pre-classifier — get complexity-adaptive targets
+  // Step 2: Nano pre-classifier — auto-detect lens + complexity-adaptive targets
   const targets = await classifyDocument(uploadResult.data.markdown, baseCfg);
+
+  // Use AI-detected lens (user no longer picks manually)
+  const lens = targets.lens;
+  useDocIntelStore.getState().setLens(lens);
 
   // Step 3: Sequential-then-parallel — Summary first, then Insights + Visuals
   // Research: Insights and Visuals depend on Summary for coherence.
