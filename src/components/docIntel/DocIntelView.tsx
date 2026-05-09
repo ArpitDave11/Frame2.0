@@ -49,7 +49,21 @@ export default function DocIntelView() {
   const hasFile = uploadedFile !== null;
   const showResults = sections.length > 0 || phase === 'analyzing';
 
+  const [fileError, setFileError] = useState<string | null>(null);
+
   const handleFileUpload = (file: File) => {
+    // Validate extension
+    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    if (!ALLOWED_UPLOAD_EXTENSIONS.includes(ext as typeof ALLOWED_UPLOAD_EXTENSIONS[number])) {
+      setFileError(`Unsupported type "${ext}". Allowed: ${ALLOWED_UPLOAD_EXTENSIONS.join(', ')}`);
+      return;
+    }
+    // Validate size
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      setFileError(`File too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Max ${MAX_UPLOAD_MB} MB.`);
+      return;
+    }
+    setFileError(null);
     setUploadedFile({ name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(1)} MB` });
     pendingFileRef.current = file;
   };
@@ -192,6 +206,16 @@ export default function DocIntelView() {
                   }}>
                     <X size={16} weight="bold" />
                   </button>
+                </div>
+              )}
+
+              {/* File validation error */}
+              {fileError && (
+                <div style={{
+                  padding: 12, marginBottom: 16, borderRadius: 6,
+                  background: '#fef2f2', color: '#991b1b', fontSize: 13, fontFamily: F,
+                }}>
+                  {fileError}
                 </div>
               )}
 

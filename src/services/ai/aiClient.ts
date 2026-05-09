@@ -61,7 +61,7 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
   if (request.reasoningEffort) bodyObj.reasoning_effort = request.reasoningEffort;
   if (request.verbosity) bodyObj.verbosity = request.verbosity;
   if (request.seed != null) bodyObj.seed = request.seed;
-  if (request.isDocIntel) bodyObj.is_doc_intel = true;
+  // isDocIntel is handled by the RDP proxy (deployment routing), not sent to Azure API directly
 
   const body = JSON.stringify(bodyObj);
 
