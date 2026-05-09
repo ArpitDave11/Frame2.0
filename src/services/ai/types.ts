@@ -14,6 +14,17 @@ export interface AIRequest {
   userPrompt: string;
   maxTokens?: number;
   temperature?: number;
+  /** Strict JSON schema output — only used by DocIntel. Existing callers unaffected. */
+  responseFormat?: {
+    type: 'json_schema';
+    json_schema: { name: string; strict: boolean; schema: Record<string, unknown> };
+  };
+  /** Azure AI Foundry reasoning effort — only used by DocIntel. */
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high';
+  /** Azure AI Foundry output verbosity — only used by DocIntel. */
+  verbosity?: 'low' | 'medium' | 'high';
+  /** Deterministic seed for reproducible evals — only used by DocIntel. */
+  seed?: number;
 }
 
 export interface AIResponse {

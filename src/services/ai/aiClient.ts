@@ -56,6 +56,12 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
     bodyObj.temperature = request.temperature ?? userTemp ?? limits.temperature;
   }
 
+  // DocIntel-only optional params — no-op when unset (all existing callers)
+  if (request.responseFormat) bodyObj.response_format = request.responseFormat;
+  if (request.reasoningEffort) bodyObj.reasoning_effort = request.reasoningEffort;
+  if (request.verbosity) bodyObj.verbosity = request.verbosity;
+  if (request.seed != null) bodyObj.seed = request.seed;
+
   const body = JSON.stringify(bodyObj);
 
   const response = await fetch(url, {

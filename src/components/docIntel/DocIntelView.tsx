@@ -7,14 +7,14 @@
  * (BlockNote editing, MermaidPreview, regenerate/revert, DOCX/PDF export, GitLab publish).
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   FileText, FilePdf, Sparkle, ArrowsClockwise, X, Spinner,
 } from '@phosphor-icons/react';
 import { useDocIntelStore } from '@/stores/docIntelStore';
 import type { LensType } from '@/stores/docIntelStore';
 import { ALLOWED_UPLOAD_EXTENSIONS, MAX_UPLOAD_MB } from '@/services/docmining/docminingClient';
-import { runDocIntelAnalysis } from '@/services/docIntel/analyzeAction';
+import { runDocIntelAnalysis, warmSchemas } from '@/services/docIntel/analyzeAction';
 import { SectionCard } from './SectionCard';
 import { ExportBar } from './ExportBar';
 
@@ -53,6 +53,15 @@ export default function DocIntelView() {
   const fileName = useDocIntelStore((s) => s.fileName);
   const sections = useDocIntelStore((s) => s.sections);
   const reset = useDocIntelStore((s) => s.reset);
+
+  // Warm schema cache on first mount (eliminates 2-60s cold-start penalty)
+  const warmedRef = useRef(false);
+  useEffect(() => {
+    if (!warmedRef.current) {
+      warmedRef.current = true;
+      warmSchemas().catch(() => {}); // fire-and-forget
+    }
+  }, []);
 
   const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);

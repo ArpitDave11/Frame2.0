@@ -1,8 +1,16 @@
 /**
- * Doc Intelligence action — orchestrates upload + 3 parallel AI calls.
+ * Doc Intelligence action — production-grade prompt pipeline.
  *
- * Flow: upload file → /analyze API → setDocument → startAnalysis →
- * 3 parallel callAI (summary, insights, visuals) → updateSection per result.
+ * Flow: upload → Docling extract → nano pre-classify → 3 parallel gpt-5.5 calls
+ *       (strict json_schema) → post-validate → 1 retry if needed → sections.
+ *
+ * Model config:
+ *   Pre-classifier: gpt-5-nano (minimal reasoning, low verbosity)
+ *   Summary:        gpt-5.5   (medium reasoning, low verbosity)
+ *   Insights:       gpt-5.5   (high reasoning, medium verbosity)
+ *   Visuals:        gpt-5.5   (medium reasoning, low verbosity)
+ *
+ * All calls use strict json_schema + seed:42 for reproducibility.
  */
 
 import { useDocIntelStore } from '@/stores/docIntelStore';
@@ -10,63 +18,162 @@ import { useConfigStore } from '@/stores/configStore';
 import { useUiStore } from '@/stores/uiStore';
 import { isAIEnabled, callAI } from '@/services/ai/aiClient';
 import { analyzeDocument as callAnalyzeAPI } from './docIntelClient';
-import { getLensSystemPrompt, buildSummaryPrompt, buildInsightsPrompt, buildVisualsPrompt } from './lensPrompts';
-import type { AIClientConfig } from '@/services/ai/types';
+import {
+  buildSystemMessage,
+  buildSummaryUserMessage,
+  buildInsightsUserMessage,
+  buildVisualsUserMessage,
+  buildClassifierUserMessage,
+  type PromptContext,
+} from './lensPrompts';
+import { CLASSIFIER_SCHEMA, SUMMARY_SCHEMA, INSIGHTS_SCHEMA, VISUALS_SCHEMA } from './schemas';
+import {
+  validateSummary,
+  validateInsights,
+  validateVisuals,
+  buildRetryMessage,
+  type ValidationError,
+} from './validators';
+import type { AIClientConfig, AIRequest } from '@/services/ai/types';
 
-// ─── JSON Parser (handles raw + fenced) ────────────────────
+// ─── Model Constants ───────────────────────────────────────
 
-function parseJSON(raw: string): Record<string, unknown> | null {
-  try { return JSON.parse(raw); } catch { /* try markdown fence */ }
-  const match = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (match?.[1]) try { return JSON.parse(match[1]); } catch { /* fall through */ }
-  return null;
+const DOCINTEL_MODEL = 'gpt-5.5';
+const CLASSIFIER_MODEL = 'gpt-5-nano';
+const SEED = 42;
+
+// ─── AI Config Builders ────────────────────────────────────
+
+function makeDocIntelConfig(baseCfg: AIClientConfig, model: string): AIClientConfig {
+  return {
+    provider: baseCfg.provider,
+    azure: { ...baseCfg.azure, deploymentName: model },
+    openai: { ...baseCfg.openai, model },
+    endpoints: baseCfg.endpoints,
+  };
+}
+
+function getBaseConfig(): AIClientConfig {
+  const cfg = useConfigStore.getState().config;
+  return {
+    provider: cfg.ai.provider,
+    azure: cfg.ai.azure,
+    openai: cfg.ai.openai,
+    endpoints: cfg.endpoints,
+  };
 }
 
 // ─── Section Formatters ────────────────────────────────────
 
-function formatSummary(parsed: Record<string, unknown> | null): string {
-  if (!parsed) return '_Analysis failed — try regenerating._';
+function formatSummary(parsed: Record<string, unknown>): string {
   return [
     `# ${(parsed.title as string) ?? 'Document Analysis'}`,
     '',
-    `> ${(parsed.oneLineSummary as string) ?? ''}`,
+    `> ${(parsed.one_line_summary as string) ?? ''}`,
     '',
-    (parsed.executiveSummaryMd as string) ?? '',
+    (parsed.executive_summary as string) ?? '',
     '',
     '---',
     '',
     '## Audience Brief',
     '',
-    (parsed.audienceBriefMd as string) ?? '',
+    (parsed.audience_brief as string) ?? '',
   ].join('\n');
 }
 
-function formatInsights(parsed: Record<string, unknown> | null): string {
-  if (!parsed) return '_Analysis failed — try regenerating._';
+function formatInsights(parsed: Record<string, unknown>): string {
   const parts: string[] = ['## Key Insights', ''];
-  for (const i of (parsed.keyInsights as Array<Record<string, string>>) ?? []) {
-    parts.push(`### ${i.heading}`, '', i.bodyMd ?? '', '');
+  for (const i of (parsed.key_insights as Array<Record<string, string>>) ?? []) {
+    parts.push(`### ${i.heading}`, '', i.body_md ?? '', '');
+    if (i.evidence_quote) parts.push(`> _"${i.evidence_quote}"_`, '');
   }
   parts.push('---', '', '## Simplified Explanations', '');
-  for (const e of (parsed.simplifiedExplanations as Array<Record<string, string>>) ?? []) {
-    parts.push(`**${e.term}:** ${e.plainMd ?? ''}`, '');
+  for (const e of (parsed.simplified_explanations as Array<Record<string, string>>) ?? []) {
+    parts.push(`**${e.term}:** ${e.plain_md ?? ''}`, '');
   }
   parts.push('---', '', '## Risks', '');
   for (const r of (parsed.risks as Array<Record<string, string>>) ?? []) {
-    parts.push(`- **[${r.likelihood}/${r.impact}]** ${r.descriptionMd ?? ''}`, '');
+    parts.push(`- **[${r.likelihood}/${r.impact}]** ${r.description_md ?? ''}`, '');
   }
   return parts.join('\n');
 }
 
-function formatVisuals(parsed: Record<string, unknown> | null): string {
-  const diagrams = (parsed?.diagrams as Array<Record<string, string>>) ?? [];
+function formatVisuals(parsed: Record<string, unknown>): string {
+  const diagrams = (parsed.diagrams as Array<Record<string, string>>) ?? [];
   if (!diagrams.length) return '_No diagrams generated — try regenerating._';
   const parts: string[] = [];
   for (const d of diagrams) {
-    parts.push(`### ${d.title ?? 'Diagram'}`, '', '```mermaid', d.mermaidSource ?? '', '```', '');
+    parts.push(`### ${d.title ?? 'Diagram'}`, '', '```mermaid', d.mermaid_source ?? '', '```', '');
     if (d.caption) parts.push(`_${d.caption}_`, '');
   }
   return parts.join('\n');
+}
+
+// ─── Nano Pre-Classifier ───────────────────────────────────
+
+interface ClassifierResult {
+  summaryWords: number;
+  insightCount: number;
+  diagramCount: number;
+}
+
+const DEFAULT_TARGETS: ClassifierResult = { summaryWords: 90, insightCount: 5, diagramCount: 2 };
+
+async function classifyDocument(docMarkdown: string, baseCfg: AIClientConfig): Promise<ClassifierResult> {
+  try {
+    const config = makeDocIntelConfig(baseCfg, CLASSIFIER_MODEL);
+    const preview = docMarkdown.slice(0, 12000); // ~3000 tokens
+    const response = await callAI(config, {
+      systemPrompt: 'Classify this document for downstream analysis sizing.',
+      userPrompt: buildClassifierUserMessage(preview),
+      maxTokens: 200,
+      responseFormat: CLASSIFIER_SCHEMA,
+      reasoningEffort: 'minimal',
+      verbosity: 'low',
+      seed: SEED,
+    });
+    const parsed = JSON.parse(response.content);
+    return {
+      summaryWords: parsed.recommended_summary_words ?? DEFAULT_TARGETS.summaryWords,
+      insightCount: parsed.recommended_insight_count ?? DEFAULT_TARGETS.insightCount,
+      diagramCount: parsed.recommended_diagram_count ?? DEFAULT_TARGETS.diagramCount,
+    };
+  } catch {
+    return DEFAULT_TARGETS; // fail silently — use sensible defaults
+  }
+}
+
+// ─── Call with Retry ───────────────────────────────────────
+
+async function callWithRetry(
+  config: AIClientConfig,
+  request: AIRequest,
+  validate: (parsed: Record<string, unknown>) => Promise<ValidationError[]> | ValidationError[],
+): Promise<Record<string, unknown>> {
+  // Attempt 1
+  const response1 = await callAI(config, request);
+  const parsed1 = JSON.parse(response1.content);
+  const errors1 = await validate(parsed1);
+
+  if (errors1.length === 0) return parsed1;
+
+  // Attempt 2 — Instructor-style retry
+  const retryMsg = buildRetryMessage(errors1);
+  const retryRequest: AIRequest = {
+    ...request,
+    // Append prior response + error as conversation continuation
+    userPrompt: [
+      request.userPrompt,
+      '\n\n--- PRIOR RESPONSE (has errors) ---\n',
+      response1.content,
+      '\n\n--- RETRY INSTRUCTION ---\n',
+      retryMsg,
+    ].join(''),
+  };
+
+  const response2 = await callAI(config, retryRequest);
+  return JSON.parse(response2.content);
+  // No attempt 3 — if retry fails, caller gets whatever attempt 2 produced
 }
 
 // ─── Main Action ───────────────────────────────────────────
@@ -82,7 +189,7 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
   }
 
   const lens = store.lens ?? 'summary';
-  const focusContext = store.focusContext;
+  const baseCfg = getBaseConfig();
 
   // Step 1: Upload + extract via backend
   const uploadResult = await callAnalyzeAPI(file);
@@ -99,39 +206,80 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
     metadata: uploadResult.data.metadata,
   });
 
-  // Step 2: Fire 3 parallel AI calls
+  // Step 2: Nano pre-classifier — get complexity-adaptive targets
+  const targets = await classifyDocument(uploadResult.data.markdown, baseCfg);
+
+  // Step 3: Fire 3 parallel gpt-5.5 calls with strict schemas
   store.startAnalysis();
 
-  const aiConfig: AIClientConfig = {
-    provider: cfg.ai.provider,
-    azure: cfg.ai.azure,
-    openai: cfg.ai.openai,
-    endpoints: cfg.endpoints,
+  const docIntelCfg = makeDocIntelConfig(baseCfg, DOCINTEL_MODEL);
+  const systemPrompt = buildSystemMessage(lens);
+
+  const promptCtx: PromptContext = {
+    documentMarkdown: uploadResult.data.markdown,
+    fileName: uploadResult.data.fileName,
+    pageCount: uploadResult.data.pages,
+    userFocus: store.focusContext,
+    targets,
   };
 
-  const systemPrompt = getLensSystemPrompt(lens, focusContext);
-  const docContext = uploadResult.data.markdown;
-
   const calls = [
-    { id: 'summary', prompt: buildSummaryPrompt(docContext), format: formatSummary },
-    { id: 'insights', prompt: buildInsightsPrompt(docContext), format: formatInsights },
-    { id: 'visuals', prompt: buildVisualsPrompt(docContext), format: formatVisuals },
-  ] as const;
+    {
+      id: 'summary',
+      request: {
+        systemPrompt,
+        userPrompt: buildSummaryUserMessage(promptCtx),
+        maxTokens: 1500,
+        responseFormat: SUMMARY_SCHEMA,
+        reasoningEffort: 'medium' as const,
+        verbosity: 'low' as const,
+        seed: SEED,
+      },
+      validate: (p: Record<string, unknown>) => validateSummary(p, targets),
+      format: formatSummary,
+    },
+    {
+      id: 'insights',
+      request: {
+        systemPrompt,
+        userPrompt: buildInsightsUserMessage(promptCtx),
+        maxTokens: 4000,
+        responseFormat: INSIGHTS_SCHEMA,
+        reasoningEffort: 'high' as const,
+        verbosity: 'medium' as const,
+        seed: SEED,
+      },
+      validate: (p: Record<string, unknown>) => validateInsights(p, targets),
+      format: formatInsights,
+    },
+    {
+      id: 'visuals',
+      request: {
+        systemPrompt,
+        userPrompt: buildVisualsUserMessage(promptCtx),
+        maxTokens: 2000,
+        responseFormat: VISUALS_SCHEMA,
+        reasoningEffort: 'medium' as const,
+        verbosity: 'low' as const,
+        seed: SEED,
+      },
+      validate: (p: Record<string, unknown>) => validateVisuals(p, targets),
+      format: formatVisuals,
+    },
+  ];
 
   await Promise.allSettled(
-    calls.map(async ({ id, prompt, format }) => {
+    calls.map(async ({ id, request, validate, format }) => {
       try {
-        const response = await callAI(aiConfig, { systemPrompt, userPrompt: prompt });
-        const parsed = parseJSON(response.content);
-        const markdown = format(parsed);
-        useDocIntelStore.getState().updateSection(id, markdown);
+        const parsed = await callWithRetry(docIntelCfg, request, validate);
+        useDocIntelStore.getState().updateSection(id, format(parsed));
       } catch (e) {
         useDocIntelStore.getState().failSection(id, e instanceof Error ? e.message : 'AI call failed');
       }
     }),
   );
 
-  // Explanations = extracted from insights response (same data, different view)
+  // Explanations = subset of insights (already included in insights markdown)
   const insightsSec = useDocIntelStore.getState().sections.find(s => s.id === 'insights');
   if (insightsSec?.status === 'done') {
     useDocIntelStore.getState().updateSection('explanations', insightsSec.markdown);
@@ -144,25 +292,69 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
 
 export async function regenerateSection(sectionId: string): Promise<void> {
   const store = useDocIntelStore.getState();
-  const cfg = useConfigStore.getState().config;
   const docMarkdown = store.documentMarkdown;
   if (!docMarkdown) return;
 
   const lens = store.lens ?? 'summary';
-  const systemPrompt = getLensSystemPrompt(lens, store.focusContext);
-  const aiConfig: AIClientConfig = {
-    provider: cfg.ai.provider, azure: cfg.ai.azure,
-    openai: cfg.ai.openai, endpoints: cfg.endpoints,
+  const baseCfg = getBaseConfig();
+  const docIntelCfg = makeDocIntelConfig(baseCfg, DOCINTEL_MODEL);
+  const systemPrompt = buildSystemMessage(lens);
+
+  // Re-classify for current targets (cheap, ensures consistency)
+  const targets = await classifyDocument(docMarkdown, baseCfg);
+
+  const promptCtx: PromptContext = {
+    documentMarkdown: docMarkdown,
+    fileName: store.fileName ?? 'document',
+    pageCount: store.metadata?.pageCount ?? 1,
+    userFocus: store.focusContext,
+    targets,
   };
 
-  const prompts: Record<string, { prompt: string; format: (p: Record<string, unknown> | null) => string }> = {
-    summary: { prompt: buildSummaryPrompt(docMarkdown), format: formatSummary },
-    insights: { prompt: buildInsightsPrompt(docMarkdown), format: formatInsights },
-    explanations: { prompt: buildInsightsPrompt(docMarkdown), format: formatInsights },
-    visuals: { prompt: buildVisualsPrompt(docMarkdown), format: formatVisuals },
+  const configs: Record<string, {
+    request: AIRequest;
+    validate: (p: Record<string, unknown>) => Promise<ValidationError[]> | ValidationError[];
+    format: (p: Record<string, unknown>) => string;
+  }> = {
+    summary: {
+      request: {
+        systemPrompt, userPrompt: buildSummaryUserMessage(promptCtx),
+        maxTokens: 1500, responseFormat: SUMMARY_SCHEMA,
+        reasoningEffort: 'medium', verbosity: 'low', seed: SEED,
+      },
+      validate: (p) => validateSummary(p, targets),
+      format: formatSummary,
+    },
+    insights: {
+      request: {
+        systemPrompt, userPrompt: buildInsightsUserMessage(promptCtx),
+        maxTokens: 4000, responseFormat: INSIGHTS_SCHEMA,
+        reasoningEffort: 'high', verbosity: 'medium', seed: SEED,
+      },
+      validate: (p) => validateInsights(p, targets),
+      format: formatInsights,
+    },
+    explanations: {
+      request: {
+        systemPrompt, userPrompt: buildInsightsUserMessage(promptCtx),
+        maxTokens: 4000, responseFormat: INSIGHTS_SCHEMA,
+        reasoningEffort: 'high', verbosity: 'medium', seed: SEED,
+      },
+      validate: (p) => validateInsights(p, targets),
+      format: formatInsights,
+    },
+    visuals: {
+      request: {
+        systemPrompt, userPrompt: buildVisualsUserMessage(promptCtx),
+        maxTokens: 2000, responseFormat: VISUALS_SCHEMA,
+        reasoningEffort: 'medium', verbosity: 'low', seed: SEED,
+      },
+      validate: (p) => validateVisuals(p, targets),
+      format: formatVisuals,
+    },
   };
 
-  const entry = prompts[sectionId];
+  const entry = configs[sectionId];
   if (!entry) return;
 
   // Mark generating
@@ -172,10 +364,30 @@ export async function regenerateSection(sectionId: string): Promise<void> {
   useDocIntelStore.setState({ sections });
 
   try {
-    const response = await callAI(aiConfig, { systemPrompt, userPrompt: entry.prompt });
-    const parsed = parseJSON(response.content);
+    const parsed = await callWithRetry(docIntelCfg, entry.request, entry.validate);
     useDocIntelStore.getState().updateSection(sectionId, entry.format(parsed));
   } catch (e) {
     useDocIntelStore.getState().failSection(sectionId, e instanceof Error ? e.message : 'Regeneration failed');
   }
+}
+
+// ─── Schema Warming ────────────────────────────────────────
+
+/**
+ * Fire 4 minimal calls to prime Azure's CFG schema cache.
+ * Eliminates 2-60s cold-start penalty on first real analysis.
+ * Call once on DocIntelView mount. Fire-and-forget.
+ */
+export async function warmSchemas(baseCfg?: AIClientConfig): Promise<void> {
+  const cfg = baseCfg ?? getBaseConfig();
+  const docIntelCfg = makeDocIntelConfig(cfg, DOCINTEL_MODEL);
+  const nanoCfg = makeDocIntelConfig(cfg, CLASSIFIER_MODEL);
+  const tiny = 'Hello';
+
+  await Promise.allSettled([
+    callAI(nanoCfg, { systemPrompt: tiny, userPrompt: tiny, maxTokens: 1, responseFormat: CLASSIFIER_SCHEMA, seed: SEED }),
+    callAI(docIntelCfg, { systemPrompt: tiny, userPrompt: tiny, maxTokens: 1, responseFormat: SUMMARY_SCHEMA, seed: SEED }),
+    callAI(docIntelCfg, { systemPrompt: tiny, userPrompt: tiny, maxTokens: 1, responseFormat: INSIGHTS_SCHEMA, seed: SEED }),
+    callAI(docIntelCfg, { systemPrompt: tiny, userPrompt: tiny, maxTokens: 1, responseFormat: VISUALS_SCHEMA, seed: SEED }),
+  ]);
 }
