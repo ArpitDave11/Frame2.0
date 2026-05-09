@@ -240,11 +240,12 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
       {
         systemPrompt,
         userPrompt: buildSummaryUserMessage(baseCtx),
-        maxTokens: 1500,
+        maxTokens: 128_000,  // No token restrictions — reasoning models share budget between thinking + output
         responseFormat: SUMMARY_SCHEMA,
         reasoningEffort: 'medium' as const,
         verbosity: 'low' as const,
         seed: SEED,
+        isDocIntel: true,
       },
       (p) => validateSummary(p, targets),
     );
@@ -268,11 +269,12 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
           {
             systemPrompt,
             userPrompt: buildInsightsUserMessage(ctxWithSummary),
-            maxTokens: 4000,
+            maxTokens: 128_000,  // No token restrictions — quality over cost
             responseFormat: INSIGHTS_SCHEMA,
             reasoningEffort: 'high' as const,
             verbosity: 'medium' as const,
             seed: SEED,
+            isDocIntel: true,
           },
           (p) => validateInsights(p, targets),
         );
@@ -288,11 +290,12 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
           {
             systemPrompt,
             userPrompt: buildVisualsUserMessage(ctxWithSummary),
-            maxTokens: 2000,
+            maxTokens: 128_000,  // No token restrictions — Mermaid generation needs room for reasoning + output
             responseFormat: VISUALS_SCHEMA,
             reasoningEffort: 'medium' as const,
             verbosity: 'low' as const,
             seed: SEED,
+            isDocIntel: true,
           },
           (p) => validateVisuals(p, targets),
         );
@@ -352,8 +355,8 @@ export async function regenerateSection(sectionId: string): Promise<void> {
     summary: {
       request: {
         systemPrompt, userPrompt: buildSummaryUserMessage(promptCtx),
-        maxTokens: 1500, responseFormat: SUMMARY_SCHEMA,
-        reasoningEffort: 'medium', verbosity: 'low', seed: SEED,
+        maxTokens: 128_000, responseFormat: SUMMARY_SCHEMA,
+        reasoningEffort: 'medium', verbosity: 'low', seed: SEED, isDocIntel: true,
       },
       validate: (p) => validateSummary(p, targets),
       format: formatSummary,
@@ -361,8 +364,8 @@ export async function regenerateSection(sectionId: string): Promise<void> {
     insights: {
       request: {
         systemPrompt, userPrompt: buildInsightsUserMessage(promptCtx),
-        maxTokens: 4000, responseFormat: INSIGHTS_SCHEMA,
-        reasoningEffort: 'high', verbosity: 'medium', seed: SEED,
+        maxTokens: 128_000, responseFormat: INSIGHTS_SCHEMA,
+        reasoningEffort: 'high', verbosity: 'medium', seed: SEED, isDocIntel: true,
       },
       validate: (p) => validateInsights(p, targets),
       format: formatInsights,
@@ -370,8 +373,8 @@ export async function regenerateSection(sectionId: string): Promise<void> {
     explanations: {
       request: {
         systemPrompt, userPrompt: buildInsightsUserMessage(promptCtx),
-        maxTokens: 4000, responseFormat: INSIGHTS_SCHEMA,
-        reasoningEffort: 'high', verbosity: 'medium', seed: SEED,
+        maxTokens: 128_000, responseFormat: INSIGHTS_SCHEMA,
+        reasoningEffort: 'high', verbosity: 'medium', seed: SEED, isDocIntel: true,
       },
       validate: (p) => validateInsights(p, targets),
       format: formatInsights,
@@ -379,8 +382,8 @@ export async function regenerateSection(sectionId: string): Promise<void> {
     visuals: {
       request: {
         systemPrompt, userPrompt: buildVisualsUserMessage(promptCtx),
-        maxTokens: 2000, responseFormat: VISUALS_SCHEMA,
-        reasoningEffort: 'medium', verbosity: 'low', seed: SEED,
+        maxTokens: 128_000, responseFormat: VISUALS_SCHEMA,
+        reasoningEffort: 'medium', verbosity: 'low', seed: SEED, isDocIntel: true,
       },
       validate: (p) => validateVisuals(p, targets),
       format: formatVisuals,

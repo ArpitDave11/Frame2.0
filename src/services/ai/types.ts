@@ -25,6 +25,8 @@ export interface AIRequest {
   verbosity?: 'low' | 'medium' | 'high';
   /** Deterministic seed for reproducible evals — only used by DocIntel. */
   seed?: number;
+  /** Routes to AZURE_DOCEX_DEPLOYMENT instead of default. Only used by DocIntel. */
+  isDocIntel?: boolean;
 }
 
 export interface AIResponse {
