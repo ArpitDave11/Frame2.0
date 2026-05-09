@@ -2,7 +2,7 @@
  * SectionCard — single analysis section with BlockNote editing + regenerate/revert.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ArrowCounterClockwise, ArrowsClockwise, Spinner } from '@phosphor-icons/react';
 import { useCreateBlockNote } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/mantine';
@@ -10,6 +10,7 @@ import '@blocknote/mantine/style.css';
 import { useDocIntelStore } from '@/stores/docIntelStore';
 import type { Section } from '@/stores/docIntelStore';
 import { regenerateSection } from '@/services/docIntel/analyzeAction';
+import { MermaidPreview } from './MermaidPreview';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
@@ -64,6 +65,22 @@ export function SectionCard({ section }: Props) {
     revertSection(section.id);
   }, [section.id, revertSection]);
 
+  // Extract Mermaid diagrams from visuals section for preview rendering
+  const mermaidDiagrams = useMemo(() => {
+    if (section.kind !== 'visuals' || !section.markdown) return [];
+    const diagrams: { title: string; code: string; caption: string }[] = [];
+    const regex = /###\s*(.+?)\n[\s\S]*?```mermaid\n([\s\S]*?)```(?:\n\n_(.+?)_)?/g;
+    let match;
+    while ((match = regex.exec(section.markdown)) !== null) {
+      diagrams.push({
+        title: match[1]?.trim() ?? 'Diagram',
+        code: match[2]?.trim() ?? '',
+        caption: match[3]?.trim() ?? '',
+      });
+    }
+    return diagrams;
+  }, [section.kind, section.markdown]);
+
   const isGenerating = section.status === 'generating';
   const canRevert = section.history.length > 0;
 
@@ -117,6 +134,14 @@ export function SectionCard({ section }: Props) {
         ) : section.status === 'error' ? (
           <div style={{ color: '#991b1b', padding: 12, background: '#fef2f2', borderRadius: 6 }}>
             {section.error ?? 'Analysis failed'}
+          </div>
+        ) : section.kind === 'visuals' && mermaidDiagrams.length > 0 ? (
+          /* Visuals section: render Mermaid diagrams as interactive previews */
+          <div>
+            {mermaidDiagrams.map((d, i) => (
+              <MermaidPreview key={i} code={d.code} title={d.title} caption={d.caption} />
+            ))}
+            <BlockNoteView editor={editor} onChange={handleChange} theme="light" />
           </div>
         ) : (
           <BlockNoteView editor={editor} onChange={handleChange} theme="light" />
