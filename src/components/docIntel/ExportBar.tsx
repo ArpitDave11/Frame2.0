@@ -65,8 +65,8 @@ export function ExportBar() {
   return (
     <>
       <div style={{
-        display: 'flex', gap: 8, padding: '16px 0', flexWrap: 'wrap',
-        borderTop: '1px solid var(--col-border-illustrative)', marginTop: 16,
+        display: 'flex', gap: 8, flexWrap: 'wrap',
+        justifyContent: 'flex-end',
       }}>
         <button onClick={handleDownloadMd} style={BTN_STYLE}>
           <DownloadSimple size={16} /> Markdown
