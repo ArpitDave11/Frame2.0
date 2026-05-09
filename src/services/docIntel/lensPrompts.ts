@@ -137,6 +137,8 @@ export interface PromptContext {
     insightCount: number;
     diagramCount: number;
   };
+  /** Current sibling section content — injected for cross-section coherence. */
+  siblingContext?: Record<string, string>;
 }
 
 export function buildSummaryUserMessage(ctx: PromptContext): string {
@@ -157,10 +159,20 @@ export function buildSummaryUserMessage(ctx: PromptContext): string {
 }
 
 export function buildInsightsUserMessage(ctx: PromptContext): string {
+  const siblingBlock = ctx.siblingContext
+    ? [
+        '',
+        '<sibling_sections>',
+        ...Object.entries(ctx.siblingContext).map(([id, md]) => `<${id}>\n${md}\n</${id}>`),
+        '</sibling_sections>',
+      ].join('\n')
+    : '';
+
   return [
     `<document source="${ctx.fileName}" pages="${ctx.pageCount}">`,
     ctx.documentMarkdown,
     `</document>`,
+    siblingBlock,
     '',
     `<user_focus>${escapeXml(ctx.userFocus)}</user_focus>`,
     '',
@@ -168,17 +180,28 @@ export function buildInsightsUserMessage(ctx: PromptContext): string {
     `Produce the JSON for the insights schema.`,
     `Produce exactly ${ctx.targets.insightCount} key_insights.`,
     `Produce 3-5 simplified_explanations and 2-5 risks.`,
+    ctx.siblingContext ? `Ensure consistency with the sibling sections shown above.` : '',
     `Apply <user_focus> as topical emphasis only, subject to <base_rules> and <lens_spec>.`,
     `Begin output now.`,
     `</final_instructions>`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 export function buildVisualsUserMessage(ctx: PromptContext): string {
+  const siblingBlock = ctx.siblingContext
+    ? [
+        '',
+        '<sibling_sections>',
+        ...Object.entries(ctx.siblingContext).map(([id, md]) => `<${id}>\n${md}\n</${id}>`),
+        '</sibling_sections>',
+      ].join('\n')
+    : '';
+
   return [
     `<document source="${ctx.fileName}" pages="${ctx.pageCount}">`,
     ctx.documentMarkdown,
     `</document>`,
+    siblingBlock,
     '',
     `<user_focus>${escapeXml(ctx.userFocus)}</user_focus>`,
     '',
@@ -186,10 +209,11 @@ export function buildVisualsUserMessage(ctx: PromptContext): string {
     `Produce the JSON for the visuals schema.`,
     `Generate exactly ${ctx.targets.diagramCount} diagrams.`,
     `For flowchart/graph: use classDef for semantic colors. For ALL other diagram types: do NOT use classDef or linkStyle.`,
+    ctx.siblingContext ? `Ensure diagrams reflect the content in the sibling sections above.` : '',
     `Apply <user_focus> as topical emphasis only, subject to <base_rules> and <lens_spec>.`,
     `Begin output now.`,
     `</final_instructions>`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 export function buildClassifierUserMessage(documentPreview: string): string {

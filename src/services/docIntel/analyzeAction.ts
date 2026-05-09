@@ -209,13 +209,16 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
   // Step 2: Nano pre-classifier — get complexity-adaptive targets
   const targets = await classifyDocument(uploadResult.data.markdown, baseCfg);
 
-  // Step 3: Fire 3 parallel gpt-5.5 calls with strict schemas
+  // Step 3: Sequential-then-parallel — Summary first, then Insights + Visuals
+  // Research: Insights and Visuals depend on Summary for coherence.
+  // Running Summary first and injecting it as sibling context produces
+  // more consistent cross-section output.
   store.startAnalysis();
 
   const docIntelCfg = makeDocIntelConfig(baseCfg, DOCINTEL_MODEL);
   const systemPrompt = buildSystemMessage(lens);
 
-  const promptCtx: PromptContext = {
+  const baseCtx: PromptContext = {
     documentMarkdown: uploadResult.data.markdown,
     fileName: uploadResult.data.fileName,
     pageCount: uploadResult.data.pages,
@@ -223,63 +226,78 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
     targets,
   };
 
-  const calls = [
-    {
-      id: 'summary',
-      request: {
+  // Phase A: Summary (sequential — no siblings yet)
+  let summaryMarkdown = '';
+  try {
+    const summaryParsed = await callWithRetry(
+      docIntelCfg,
+      {
         systemPrompt,
-        userPrompt: buildSummaryUserMessage(promptCtx),
+        userPrompt: buildSummaryUserMessage(baseCtx),
         maxTokens: 1500,
         responseFormat: SUMMARY_SCHEMA,
         reasoningEffort: 'medium' as const,
         verbosity: 'low' as const,
         seed: SEED,
       },
-      validate: (p: Record<string, unknown>) => validateSummary(p, targets),
-      format: formatSummary,
-    },
-    {
-      id: 'insights',
-      request: {
-        systemPrompt,
-        userPrompt: buildInsightsUserMessage(promptCtx),
-        maxTokens: 4000,
-        responseFormat: INSIGHTS_SCHEMA,
-        reasoningEffort: 'high' as const,
-        verbosity: 'medium' as const,
-        seed: SEED,
-      },
-      validate: (p: Record<string, unknown>) => validateInsights(p, targets),
-      format: formatInsights,
-    },
-    {
-      id: 'visuals',
-      request: {
-        systemPrompt,
-        userPrompt: buildVisualsUserMessage(promptCtx),
-        maxTokens: 2000,
-        responseFormat: VISUALS_SCHEMA,
-        reasoningEffort: 'medium' as const,
-        verbosity: 'low' as const,
-        seed: SEED,
-      },
-      validate: (p: Record<string, unknown>) => validateVisuals(p, targets),
-      format: formatVisuals,
-    },
-  ];
+      (p) => validateSummary(p, targets),
+    );
+    summaryMarkdown = formatSummary(summaryParsed);
+    useDocIntelStore.getState().updateSection('summary', summaryMarkdown);
+  } catch (e) {
+    useDocIntelStore.getState().failSection('summary', e instanceof Error ? e.message : 'Summary failed');
+  }
 
-  await Promise.allSettled(
-    calls.map(async ({ id, request, validate, format }) => {
+  // Phase B: Insights + Visuals in parallel — with Summary as sibling context
+  const ctxWithSummary: PromptContext = {
+    ...baseCtx,
+    siblingContext: summaryMarkdown ? { summary: summaryMarkdown } : undefined,
+  };
+
+  await Promise.allSettled([
+    (async () => {
       try {
-        const parsed = await callWithRetry(docIntelCfg, request, validate);
-        useDocIntelStore.getState().updateSection(id, format(parsed));
+        const parsed = await callWithRetry(
+          docIntelCfg,
+          {
+            systemPrompt,
+            userPrompt: buildInsightsUserMessage(ctxWithSummary),
+            maxTokens: 4000,
+            responseFormat: INSIGHTS_SCHEMA,
+            reasoningEffort: 'high' as const,
+            verbosity: 'medium' as const,
+            seed: SEED,
+          },
+          (p) => validateInsights(p, targets),
+        );
+        useDocIntelStore.getState().updateSection('insights', formatInsights(parsed));
       } catch (e) {
-        useDocIntelStore.getState().failSection(id, e instanceof Error ? e.message : 'AI call failed');
+        useDocIntelStore.getState().failSection('insights', e instanceof Error ? e.message : 'Insights failed');
       }
-    }),
-  );
+    })(),
+    (async () => {
+      try {
+        const parsed = await callWithRetry(
+          docIntelCfg,
+          {
+            systemPrompt,
+            userPrompt: buildVisualsUserMessage(ctxWithSummary),
+            maxTokens: 2000,
+            responseFormat: VISUALS_SCHEMA,
+            reasoningEffort: 'medium' as const,
+            verbosity: 'low' as const,
+            seed: SEED,
+          },
+          (p) => validateVisuals(p, targets),
+        );
+        useDocIntelStore.getState().updateSection('visuals', formatVisuals(parsed));
+      } catch (e) {
+        useDocIntelStore.getState().failSection('visuals', e instanceof Error ? e.message : 'Visuals failed');
+      }
+    })(),
+  ]);
 
-  // Explanations = subset of insights (already included in insights markdown)
+  // Explanations = extracted from insights (same data, different view)
   const insightsSec = useDocIntelStore.getState().sections.find(s => s.id === 'insights');
   if (insightsSec?.status === 'done') {
     useDocIntelStore.getState().updateSection('explanations', insightsSec.markdown);
@@ -303,12 +321,21 @@ export async function regenerateSection(sectionId: string): Promise<void> {
   // Re-classify for current targets (cheap, ensures consistency)
   const targets = await classifyDocument(docMarkdown, baseCfg);
 
+  // Collect sibling sections' current content for cross-section coherence
+  const siblingContext: Record<string, string> = {};
+  for (const sec of store.sections) {
+    if (sec.id !== sectionId && sec.status === 'done' && sec.markdown) {
+      siblingContext[sec.id] = sec.markdown;
+    }
+  }
+
   const promptCtx: PromptContext = {
     documentMarkdown: docMarkdown,
     fileName: store.fileName ?? 'document',
     pageCount: store.metadata?.pageCount ?? 1,
     userFocus: store.focusContext,
     targets,
+    siblingContext: Object.keys(siblingContext).length > 0 ? siblingContext : undefined,
   };
 
   const configs: Record<string, {
