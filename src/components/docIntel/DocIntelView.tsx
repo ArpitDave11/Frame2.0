@@ -358,14 +358,10 @@ export default function DocIntelView() {
                 </p>
               </div>
 
-              {/* Section cards — 2-column grid for summary/insights, full-width for explanations/visuals */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24 }}>
+              {/* Section cards — single column, proper reading flow */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {sections.map((sec) => (
-                  <div key={sec.id} style={{
-                    gridColumn: (sec.id === 'explanations' || sec.id === 'visuals') ? '1 / -1' : undefined,
-                  }}>
-                    <SectionCard section={sec} />
-                  </div>
+                  <SectionCard key={sec.id} section={sec} />
                 ))}
               </div>
 

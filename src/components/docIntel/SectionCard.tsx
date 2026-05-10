@@ -136,12 +136,11 @@ export function SectionCard({ section }: Props) {
             {section.error ?? 'Analysis failed'}
           </div>
         ) : section.kind === 'visuals' && mermaidDiagrams.length > 0 ? (
-          /* Visuals section: render Mermaid diagrams as interactive previews */
+          /* Visuals section: render ONLY diagrams as interactive previews — no raw source code */
           <div>
             {mermaidDiagrams.map((d, i) => (
               <MermaidPreview key={i} code={d.code} title={d.title} caption={d.caption} />
             ))}
-            <BlockNoteView editor={editor} onChange={handleChange} theme="light" />
           </div>
         ) : (
           <BlockNoteView editor={editor} onChange={handleChange} theme="light" />
