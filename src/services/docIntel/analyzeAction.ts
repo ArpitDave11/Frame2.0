@@ -36,6 +36,7 @@ import {
   type ValidationError,
 } from './validators';
 import type { AIClientConfig, AIRequest } from '@/services/ai/types';
+import type { SectionData } from './dataTypes';
 
 // ─── Model Constants ───────────────────────────────────────
 
@@ -250,7 +251,7 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
       (p) => validateSummary(p, targets),
     );
     summaryMarkdown = formatSummary(summaryParsed);
-    useDocIntelStore.getState().updateSection('summary', summaryMarkdown);
+    useDocIntelStore.getState().updateSection('summary', summaryMarkdown, summaryParsed as unknown as SectionData);
   } catch (e) {
     useDocIntelStore.getState().failSection('summary', e instanceof Error ? e.message : 'Summary failed');
   }
@@ -278,7 +279,7 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
           },
           (p) => validateInsights(p, targets),
         );
-        useDocIntelStore.getState().updateSection('insights', formatInsights(parsed));
+        useDocIntelStore.getState().updateSection('insights', formatInsights(parsed), parsed as unknown as SectionData);
       } catch (e) {
         useDocIntelStore.getState().failSection('insights', e instanceof Error ? e.message : 'Insights failed');
       }
@@ -299,7 +300,7 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
           },
           (p) => validateVisuals(p, targets),
         );
-        useDocIntelStore.getState().updateSection('visuals', formatVisuals(parsed));
+        useDocIntelStore.getState().updateSection('visuals', formatVisuals(parsed), parsed as unknown as SectionData);
       } catch (e) {
         useDocIntelStore.getState().failSection('visuals', e instanceof Error ? e.message : 'Visuals failed');
       }
@@ -309,7 +310,7 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
   // Explanations = extracted from insights (same data, different view)
   const insightsSec = useDocIntelStore.getState().sections.find(s => s.id === 'insights');
   if (insightsSec?.status === 'done') {
-    useDocIntelStore.getState().updateSection('explanations', insightsSec.markdown);
+    useDocIntelStore.getState().updateSection('explanations', insightsSec.markdown, insightsSec.data);
   } else {
     useDocIntelStore.getState().failSection('explanations', 'Insights call failed — explanations unavailable');
   }
@@ -401,7 +402,7 @@ export async function regenerateSection(sectionId: string): Promise<void> {
 
   try {
     const parsed = await callWithRetry(docIntelCfg, entry.request, entry.validate);
-    useDocIntelStore.getState().updateSection(sectionId, entry.format(parsed));
+    useDocIntelStore.getState().updateSection(sectionId, entry.format(parsed), parsed as unknown as SectionData);
   } catch (e) {
     useDocIntelStore.getState().failSection(sectionId, e instanceof Error ? e.message : 'Regeneration failed');
   }

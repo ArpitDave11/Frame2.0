@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { SectionData } from '@/services/docIntel/dataTypes';
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -11,6 +12,7 @@ export interface Section {
   kind: SectionKind;
   label: string;
   markdown: string;
+  data?: SectionData;            // structured AI output for dedicated renderers
   status: 'idle' | 'generating' | 'done' | 'error';
   history: string[];
   error?: string;
@@ -66,7 +68,7 @@ interface DocIntelState {
   setLens: (lens: LensType) => void;
   setFocusContext: (text: string) => void;
   startAnalysis: () => void;
-  updateSection: (id: string, markdown: string) => void;
+  updateSection: (id: string, markdown: string, data?: SectionData) => void;
   failSection: (id: string, error: string) => void;
   revertSection: (id: string) => void;
   reset: () => void;
@@ -109,11 +111,11 @@ export const useDocIntelStore = create<DocIntelState>((set, get) => ({
     })),
   }),
 
-  updateSection: (id, markdown) => {
+  updateSection: (id, markdown, data) => {
     const sections = get().sections.map((sec) => {
       if (sec.id !== id) return sec;
       const history = sec.markdown ? [...sec.history, sec.markdown] : sec.history;
-      return { ...sec, markdown, status: 'done' as const, history, error: undefined };
+      return { ...sec, markdown, data, status: 'done' as const, history, error: undefined };
     });
     const allDone = sections.every((s) => s.status === 'done' || s.status === 'error');
     set({ sections, phase: allDone ? 'ready' : get().phase });
