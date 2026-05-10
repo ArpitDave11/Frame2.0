@@ -23,6 +23,14 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      - id: require-taskmaster-tracking
+        name: H6 — DocIntel commits require taskmaster task tracking
+        entry: scripts/hooks/require-taskmaster-tracking.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:

@@ -61,6 +61,21 @@ invisible bugs — see memory/feedback_always_commit.md).
 - Context7 MCP for library docs
 - Playwright MCP for E2E
 
+## Kit-Runner Discipline (MANDATORY — no exceptions)
+When `/kit-runner <plan-path>` is invoked, you MUST follow the FULL task
+loop. No ad-hoc implementation. No skipping taskmaster. No skipping
+verification-before-completion. Violation = the work is invalid.
+
+Required steps per task (skip ANY = failure):
+1. Write PRD → `.taskmaster/docs/<plan-slug>-prd.txt`
+2. `mcp__task-master__parse_prd` → creates trackable tasks
+3. Per task: `next_task` → `set_task_status: in_progress` → implement
+   → invoke `verification-before-completion` (actual command output)
+   → journal entry → `set_task_status: completed` → commit
+
+If you think "this is simple, I can skip the loop" — STOP. That thought
+caused 15+ commits without tracking in May 2026. Never again.
+
 ## Standing Protocol (DocMining execution)
 Per atomic task: executing-plans → implement → verification-before-completion
 → update .powerstack4/task_plan.md. At A-10 / B-10: wrap-up → deep-review
