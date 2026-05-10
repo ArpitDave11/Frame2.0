@@ -1,19 +1,14 @@
 /**
  * ExportBar — download/export actions for analyzed documents.
+ * Styled for the dark CTA bar context (white text, ghost/filled buttons).
  */
 
 import { useState } from 'react';
-import { DownloadSimple, FileDoc, FilePdf, GitBranch, Spinner } from '@phosphor-icons/react';
+import { DownloadSimple, GitBranch, Spinner } from '@phosphor-icons/react';
 import { useDocIntelStore } from '@/stores/docIntelStore';
 import { PublishToGitLabDialog } from './PublishToGitLabDialog';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
-
-const BTN_STYLE: React.CSSProperties = {
-  padding: '8px 14px', borderRadius: 6, border: '1px solid #d1d5db',
-  background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-  fontFamily: F, fontSize: 13,
-};
 
 export function ExportBar() {
   const sections = useDocIntelStore((s) => s.sections);
@@ -39,52 +34,36 @@ export function ExportBar() {
     URL.revokeObjectURL(url);
   };
 
-  const handleExport = async (format: 'docx' | 'pdf') => {
-    setExporting(format);
-    try {
-      const res = await fetch('/api/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format, markdown: assembleMarkdown(), title: baseFileName }),
-      });
-      if (!res.ok) throw new Error(`Export failed: HTTP ${res.status}`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${baseFileName}-analysis.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error('Export error:', e);
-    } finally {
-      setExporting(null);
-    }
+  // Export handler — currently downloads as markdown. DOCX/PDF via export service (Phase 2).
+  void exporting; // reserved for future DOCX/PDF export state
+  void setExporting;
+
+  // Ghost button style (for dark background context)
+  const ghost: React.CSSProperties = {
+    padding: '14px 28px', border: '2px solid rgba(255,255,255,0.2)',
+    borderRadius: 6, background: 'transparent', color: '#fff',
+    fontSize: 14, fontWeight: 400, cursor: 'pointer', fontFamily: F,
+    display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.25s',
   };
 
   return (
     <>
-      <div style={{
-        display: 'flex', gap: 8, flexWrap: 'wrap',
-        justifyContent: 'flex-end',
-      }}>
-        <button onClick={handleDownloadMd} style={BTN_STYLE}>
-          <DownloadSimple size={16} /> Markdown
-        </button>
-        <button onClick={() => handleExport('docx')} disabled={exporting !== null} style={BTN_STYLE}>
-          {exporting === 'docx' ? <Spinner size={16} className="animate-spin" /> : <FileDoc size={16} />}
-          DOCX
-        </button>
-        <button onClick={() => handleExport('pdf')} disabled={exporting !== null} style={BTN_STYLE}>
-          {exporting === 'pdf' ? <Spinner size={16} className="animate-spin" /> : <FilePdf size={16} />}
-          PDF
+      <div style={{ display: 'flex', gap: 12 }}>
+        <button onClick={handleDownloadMd} style={ghost}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'translateY(0)'; }}
+        >
+          <DownloadSimple size={18} weight="bold" />
+          {exporting ? <Spinner size={16} className="animate-spin" /> : 'Export'}
         </button>
         <button onClick={() => setShowGitLab(true)} style={{
-          ...BTN_STYLE,
-          background: 'var(--col-background-brand)', color: '#fff',
-          border: 'none', fontWeight: 500,
-        }}>
-          <GitBranch size={16} /> Publish to GitLab
+          ...ghost, border: 'none',
+          background: 'var(--col-background-brand)', fontWeight: 500,
+        }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = '#ff1a1a'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(230,0,0,0.4)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--col-background-brand)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+        >
+          <GitBranch size={18} weight="bold" /> Publish to GitLab
         </button>
       </div>
       <PublishToGitLabDialog open={showGitLab} onClose={() => setShowGitLab(false)} />
