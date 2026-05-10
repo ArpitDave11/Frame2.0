@@ -229,6 +229,5 @@ body {
   100% { background-position: calc(200px + 100%) 0; }
 }
 
-/* Spinner animation — used by DocIntel and other components */
-@keyframes spin { to { transform: rotate(360deg); } }
+/* Spinner utility class — used by DocIntel and other components */
 .animate-spin { animation: spin 1s linear infinite; }

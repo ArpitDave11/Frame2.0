@@ -101,7 +101,7 @@ export const INSIGHTS_SCHEMA = {
               heading: { type: 'string', description: 'At most 8 words. Verb-led. Active voice.' },
               body_md: { type: 'string', description: 'At most 60 words. Markdown. One factual claim per sentence.' },
               severity: { type: 'string', enum: ['high', 'medium', 'low'] },
-              evidence_quote: { type: 'string', description: 'At most 12 words verbatim from document, in quotation marks. If no direct quote available, use "Not directly quoted".' },
+              evidence_quote: { type: 'string', description: 'At most 12 words verbatim from document, WITHOUT quotation marks around the text. If no direct quote available, use "Not directly quoted".' },
             },
           },
         },
