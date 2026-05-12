@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitLab-Agent — Interactive Architecture Blueprint</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* RESET */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bp-bg: #0a1628;
+  --bp-bg-deep: #060e1a;
+  --bp-grid: rgba(56, 139, 220, 0.06);
+  --bp-grid-major: rgba(56, 139, 220, 0.12);
+  --bp-line: #1e6cb8;
+  --bp-line-bright: #3da5f5;
+  --bp-line-dim: rgba(30, 108, 184, 0.4);
+  --bp-text: #c8ddf0;
+  --bp-text-bright: #e8f4ff;
+  --bp-text-dim: rgba(200, 221, 240, 0.5);
+  --bp-accent: #f59e0b;
+  --bp-accent-dim: rgba(245, 158, 11, 0.3);
+  --bp-danger: #ef4444;
+  --bp-success: #10b981;
+  --bp-purple: #a78bfa;
+  --bp-cyan: #22d3ee;
+  --bp-orange: #fb923c;
+  --bp-pink: #f472b6;
+  --bp-teal: #2dd4bf;
+  --node-radius: 12px;
+  --transition-speed: 0.4s;
+}
+
+html { font-size: 14px; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bp-bg);
+  color: var(--bp-text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* GRID + GRAIN */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(var(--bp-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bp-grid) 1px, transparent 1px),
+    linear-gradient(var(--bp-grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bp-grid-major) 1px, transparent 1px);
+  background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
+  pointer-events: none;
+  z-index: 0;
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+}
+
+/* TOPBAR */
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 56px;
+  background: rgba(6, 14, 26, 0.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--bp-line-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  z-index: 100;
+}
+.topbar-left { display: flex; align-items: center; gap: 16px; }
+.topbar-logo {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--bp-line-bright);
+}
+.topbar-logo span { color: var(--bp-accent); }
+.topbar-divider {
+  width: 1px; height: 24px;
+  background: var(--bp-line-dim);
+}
+.topbar-subtitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--bp-text-dim);
+  letter-spacing: 1px;
+}
+.topbar-right { display: flex; align-items: center; gap: 18px; }
+.legend-dot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--bp-text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.legend-dot::before {
+  content: '';
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--dot-color);
+}
+
+/* BREADCRUMB */
+.breadcrumb {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(6, 14, 26, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bp-line-dim);
+  border-radius: 24px;
+  padding: 8px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.breadcrumb-item {
+  color: var(--bp-text-dim);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.breadcrumb-item:hover { color: var(--bp-line-bright); }
+.breadcrumb-item.active { color: var(--bp-text-bright); cursor: default; }
+.breadcrumb-sep { color: var(--bp-line-dim); }
+
+/* CANVAS */
+.canvas {
+  position: relative;
+  z-index: 1;
+  padding: 130px 24px 100px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.view-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--bp-accent);
+  margin-bottom: 8px;
+  opacity: 0;
+  animation: fadeSlideIn 0.5s ease 0s forwards;
+}
+.view-heading {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--bp-text-bright);
+  margin-bottom: 6px;
+  opacity: 0;
+  animation: fadeSlideIn 0.5s ease 0.1s forwards;
+  text-align: center;
+}
+.view-desc {
+  font-size: 0.85rem;
+  color: var(--bp-text-dim);
+  margin-bottom: 48px;
+  max-width: 760px;
+  text-align: center;
+  line-height: 1.6;
+  opacity: 0;
+  animation: fadeSlideIn 0.5s ease 0.2s forwards;
+}
+
+/* DIAGRAM */
+.diagram-container {
+  position: relative;
+  width: 100%;
+  max-width: 1320px;
+  opacity: 0;
+  animation: fadeSlideIn 0.6s ease 0.3s forwards;
+}
+.diagram-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* NODES */
+.node-group { cursor: pointer; }
+.node-group.no-drill { cursor: default; }
+
+.node-box {
+  fill: rgba(10, 22, 40, 0.85);
+  stroke: var(--bp-line);
+  stroke-width: 1.5;
+  rx: 10;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+}
+.node-group:not(.no-drill):hover .node-box {
+  stroke: var(--bp-line-bright);
+  stroke-width: 2;
+  fill: rgba(20, 40, 65, 0.95);
+  filter: drop-shadow(0 4px 20px rgba(61, 165, 245, 0.25));
+}
+
+.node-box.external {
+  stroke: var(--bp-accent);
+  stroke-dasharray: 6 3;
+}
+.node-group:not(.no-drill):hover .node-box.external {
+  stroke: var(--bp-accent);
+  filter: drop-shadow(0 4px 20px rgba(245, 158, 11, 0.25));
+}
+
+.node-box.database {
+  stroke: var(--bp-success);
+  rx: 16;
+}
+.node-group:not(.no-drill):hover .node-box.database {
+  filter: drop-shadow(0 4px 20px rgba(16, 185, 129, 0.25));
+}
+
+.node-box.ai { stroke: var(--bp-purple); }
+.node-group:not(.no-drill):hover .node-box.ai {
+  filter: drop-shadow(0 4px 20px rgba(167, 139, 250, 0.25));
+}
+
+.node-box.user-actor { stroke: var(--bp-cyan); }
+
+.node-box.tool { stroke: var(--bp-teal); }
+.node-group:not(.no-drill):hover .node-box.tool {
+  filter: drop-shadow(0 4px 20px rgba(45, 212, 191, 0.25));
+}
+
+.node-box.cache { stroke: var(--bp-orange); rx: 6; }
+.node-group:not(.no-drill):hover .node-box.cache {
+  filter: drop-shadow(0 4px 20px rgba(251, 146, 60, 0.25));
+}
+
+.node-box.skill { stroke: var(--bp-pink); }
+.node-group:not(.no-drill):hover .node-box.skill {
+  filter: drop-shadow(0 4px 20px rgba(244, 114, 182, 0.25));
+}
+
+.node-icon {
+  font-size: 1.6rem;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+.node-label {
+  fill: var(--bp-text-bright);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.node-sublabel {
+  fill: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  text-anchor: middle;
+  pointer-events: none;
+  letter-spacing: 0.4px;
+}
+.node-tech {
+  fill: var(--bp-line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.drill-hint {
+  fill: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  text-anchor: middle;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.node-group:not(.no-drill):hover .drill-hint { opacity: 1; }
+
+/* CONNECTIONS */
+.conn-line {
+  stroke: var(--bp-line-dim);
+  stroke-width: 1.2;
+  fill: none;
+  marker-end: url(#arrowhead);
+}
+.conn-line.bidirectional { marker-start: url(#arrowhead-start); }
+.conn-line.data-flow {
+  stroke: var(--bp-success);
+  stroke-opacity: 0.5;
+  stroke-dasharray: 4 4;
+}
+.conn-line.auth-flow {
+  stroke: var(--bp-accent);
+  stroke-opacity: 0.5;
+  stroke-dasharray: 6 3;
+}
+.conn-line.ai-flow {
+  stroke: var(--bp-purple);
+  stroke-opacity: 0.5;
+}
+.conn-line.tool-flow {
+  stroke: var(--bp-teal);
+  stroke-opacity: 0.55;
+}
+.conn-line.cache-flow {
+  stroke: var(--bp-orange);
+  stroke-opacity: 0.5;
+  stroke-dasharray: 3 3;
+}
+.conn-label {
+  fill: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  text-anchor: middle;
+  letter-spacing: 0.3px;
+}
+
+/* SECTION BORDERS */
+.section-border {
+  fill: rgba(30, 108, 184, 0.03);
+  stroke: var(--bp-line-dim);
+  stroke-width: 1;
+  stroke-dasharray: 8 4;
+  rx: 14;
+  opacity: 0.55;
+}
+.section-label {
+  fill: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+/* BACK BUTTON */
+.back-btn {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: rgba(6, 14, 26, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bp-line-dim);
+  color: var(--bp-text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  padding: 10px 28px;
+  border-radius: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+.back-btn:hover {
+  border-color: var(--bp-line-bright);
+  color: var(--bp-text-bright);
+  box-shadow: 0 0 20px rgba(61, 165, 245, 0.15);
+}
+.back-btn.visible { display: flex; }
+.back-btn svg {
+  width: 14px; height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+/* HOME BUTTON */
+.home-btn {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  z-index: 100;
+  background: rgba(6, 14, 26, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bp-line-dim);
+  color: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  padding: 10px 18px;
+  border-radius: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: none;
+}
+.home-btn:hover {
+  border-color: var(--bp-line-bright);
+  color: var(--bp-text-bright);
+}
+.home-btn.visible { display: inline-flex; }
+
+/* TOOLTIP */
+.tooltip {
+  position: fixed;
+  z-index: 200;
+  background: rgba(6, 14, 26, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bp-line);
+  border-radius: 10px;
+  padding: 14px 18px;
+  max-width: 360px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.tooltip-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--bp-text-bright);
+  margin-bottom: 6px;
+}
+.tooltip-desc {
+  font-size: 12.5px;
+  color: var(--bp-text);
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+.tooltip-tech {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  color: var(--bp-line-bright);
+  letter-spacing: 0.4px;
+  border-top: 1px solid var(--bp-line-dim);
+  padding-top: 8px;
+}
+.tooltip-port {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--bp-accent);
+  font-weight: 600;
+}
+
+/* ANIMATIONS */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dashFlow {
+  to { stroke-dashoffset: -16; }
+}
+.conn-line.data-flow, .conn-line.auth-flow, .conn-line.cache-flow {
+  animation: dashFlow 1.4s linear infinite;
+}
+
+.node-group {
+  opacity: 0;
+  animation: fadeSlideIn 0.5s ease forwards;
+}
+.conn-line {
+  opacity: 0;
+  animation: fadeSlideIn 0.6s ease forwards;
+}
+
+/* HINT BAR (intro) */
+.hint-bar {
+  position: fixed;
+  bottom: 32px;
+  left: 32px;
+  z-index: 100;
+  background: rgba(6, 14, 26, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bp-accent-dim);
+  color: var(--bp-text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  padding: 10px 18px;
+  border-radius: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hint-bar::before {
+  content: '';
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--bp-accent);
+  box-shadow: 0 0 8px var(--bp-accent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">GITLAB<span>-AGENT</span></div>
+    <div class="topbar-divider"></div>
+    <div class="topbar-subtitle">v1.1.5 · Codex GPT-5.2 · MCP HTTP · GitLab CI Component</div>
+  </div>
+  <div class="topbar-right">
+    <div class="legend-dot" style="--dot-color: var(--bp-line-bright)">Service</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-purple)">Agent / LLM</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-teal)">MCP tool</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-orange)">Cache / FS</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-pink)">Skill</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-accent)">External</div>
+    <div class="legend-dot" style="--dot-color: var(--bp-cyan)">Actor</div>
+  </div>
+</header>
+
+<nav class="breadcrumb" id="breadcrumb">
+  <span class="breadcrumb-item active" data-level="system">Pipeline Context</span>
+</nav>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tooltip-title"></div>
+  <div class="tooltip-desc" id="tooltip-desc"></div>
+  <div class="tooltip-tech" id="tooltip-tech"></div>
+</div>
+
+<button class="back-btn" id="back-btn" onclick="goBack()">
+  <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  Back
+</button>
+
+<button class="home-btn" id="home-btn" onclick="goHome()">↑ Pipeline Context</button>
+
+<div class="hint-bar" id="hint-bar">Hover any node for details · Click highlighted nodes to drill down</div>
+
+<main class="canvas" id="canvas"></main>
+
+<script>
+// ============================================================
+// DATA MODEL — every level of the architecture
+// ============================================================
+
+const DATA = {
+
+  // ─────────────────────────────────────────────────────────
+  // LEVEL 1 — Pipeline Context
+  // ─────────────────────────────────────────────────────────
+  system: {
+    title: 'LEVEL 1 — SYSTEM CONTEXT',
+    heading: 'Pipeline Context',
+    desc: 'How gitlab-agent fits into the GitLab CI ecosystem at UBS. Triggered on every merge_request_event, runs as a Kubernetes job, and posts inline review comments + UI test reports back to the MR. Click the gitlab-agent container to descend into the architecture.',
+    nodes: [
+      // Actors row
+      { id: 'developer', x: 60, y: 60, w: 200, h: 80, icon: '👤', label: 'Developer', sub: 'Opens / updates MR',
+        type: 'user-actor',
+        tooltip: { title: 'Developer', desc: 'Engineer on the project. Every push to a MR branch fires a merge_request_event pipeline. The developer receives inline AI review comments and a UI test results summary back on the MR.', tech: 'No setup needed — fully transparent' } },
+
+      { id: 'gitlab-ci', x: 540, y: 60, w: 240, h: 80, icon: '🦊', label: 'GitLab CI Runner', sub: 'Kubernetes executor',
+        type: 'user-actor',
+        tooltip: { title: 'GitLab CI Runner', desc: 'devcloud-kubernetes runner. Pulls the gitlab-agent Docker image and runs the mr-review.yml or ai-ui-testing.yml job. Allow_failure: true and interruptible: true — never blocks the merge.', tech: 'tags: kubernetes, devcloud-kubernetes' } },
+
+      { id: 'mr-author', x: 1060, y: 60, w: 200, h: 80, icon: '📬', label: 'MR Discussions', sub: 'Inline comments + notes',
+        type: 'user-actor',
+        tooltip: { title: 'MR Discussions UI', desc: 'Where the agent\'s output lands. Inline review comments anchored to specific diff lines, plus a markdown summary note with the UI test results table and Allure report link.', tech: 'GitLab Discussions API · markdown' } },
+
+      // The system box (center, large, drillable)
+      { id: 'gitlab-agent', x: 380, y: 240, w: 560, h: 150, icon: '⚙️', label: 'gitlab-agent',
+        sub: 'Agentic MR reviewer + UI tester',
+        tech: 'Docker image 1.1.4 · Codex CLI · MCP HTTP server · 2 Skills · cache FS',
+        type: 'default', drillTo: 'container',
+        tooltip: { title: 'gitlab-agent — The System', desc: 'A GitLab CI Component published as a Docker image. Two CI templates (mr-review.yml, ai-ui-testing.yml) both invoke the same image. Inside: Codex agent driven by Azure GPT-5.2-codex, a local MCP HTTP server providing GitLab + cache tools, and two skills (mr-reviewer, playwright-cli) that orchestrate the work. Self-contained — only outbound calls are to Azure OpenAI and GitLab.', tech: 'image: gitlab-agent:1.1.4 · component: 1.1.5' } },
+
+      // External services row
+      { id: 'azure-openai', x: 60, y: 480, w: 240, h: 80, icon: '🧠', label: 'Azure OpenAI', sub: 'gpt-5.2-codex',
+        type: 'external',
+        tooltip: { title: 'Azure OpenAI Service', desc: 'The brain of the agent. Default deployment is gpt-5.2-codex with reasoning_effort=high. The base URL and API key are passed in as CI variables; OPENAI_API_KEY and OPENAI_ORG_ID are explicitly unset so they do not leak into the agent\'s env.', tech: 'AZURE_OPENAI_API_KEY · MODEL_PROVIDER_BASE_URL · AZURE_DEPLOYMENT_ID' } },
+
+      { id: 'gitlab-api', x: 360, y: 480, w: 220, h: 80, icon: '🐙', label: 'GitLab REST API', sub: 'devcloud.ubs.net /api/v4',
+        type: 'external', drillTo: 'gitlab-api',
+        tooltip: { title: 'GitLab REST API', desc: 'The source of MR truth and the destination for review output. Authenticated with a personal access token (scopes: api, read_repository). Custom CA cert path is honored via GITLAB_CA_CERT_PATH.', tech: 'CI_API_V4_URL · PRIVATE-TOKEN · GITLAB_CA_CERT_PATH' } },
+
+      { id: 'ext-reqs', x: 640, y: 480, w: 240, h: 80, icon: '📚', label: 'External Reqs Repo', sub: 'Optional org-wide standards',
+        type: 'external',
+        tooltip: { title: 'External Requirements Repository', desc: 'Optional Git repo containing organization-wide architecture and requirements docs. When EXTERNAL_REQUIREMENTS_REPO_URL is set, the MCP server clones it into docs/external/ during init. The agent loads these as additional review context. Local AGENTS.md still takes precedence on conflicts.', tech: 'EXTERNAL_REQUIREMENTS_REPO_URL · docs/external/' } },
+
+      { id: 'gitlab-pages', x: 940, y: 480, w: 220, h: 80, icon: '📊', label: 'GitLab Pages', sub: 'Allure HTML reports',
+        type: 'external',
+        tooltip: { title: 'GitLab Pages — per-MR Allure reports', desc: 'Allure JSON results from the UI test job are converted to a browsable HTML site and published at {CI_PAGES_URL}/{MR_IID}/. Uses pages.path_prefix so each MR gets its own report without overwriting the others. Requires GitLab 16.9+.', tech: 'pages.path_prefix: $CI_MERGE_REQUEST_IID' } },
+
+      { id: 'telemetry', x: 1200, y: 280, w: 110, h: 70, icon: '📡', label: 'Telemetry', sub: 'cicd-cli',
+        type: 'external',
+        tooltip: { title: 'Telemetry sink', desc: 'after_script hook calls `cicd-cli push-telemetry --component-name gitlab-agent:mr-review`. Failure is non-fatal — the script always proceeds.', tech: 'cicd-cli push-telemetry' } },
+    ],
+    connections: [
+      { from: 'developer', to: 'gitlab-ci', label: 'git push', type: '' },
+      { from: 'gitlab-ci', to: 'gitlab-agent', label: 'docker run', type: '' },
+      { from: 'gitlab-agent', to: 'azure-openai', label: 'LLM calls', type: 'ai-flow' },
+      { from: 'gitlab-agent', to: 'gitlab-api', label: 'REST', type: 'data-flow' },
+      { from: 'gitlab-agent', to: 'ext-reqs', label: 'clone (optional)', type: 'data-flow' },
+      { from: 'gitlab-agent', to: 'gitlab-pages', label: 'allure artifacts', type: 'data-flow' },
+      { from: 'gitlab-agent', to: 'telemetry', label: 'after_script', type: '' },
+      { from: 'gitlab-api', to: 'mr-author', label: 'discussions + notes', type: 'data-flow' },
+    ]
+  },
+
+  // ─────────────────────────────────────────────────────────
+  // LEVEL 2 — GitLab-Agent container internals
+  // ─────────────────────────────────────────────────────────
+  container: {
+    title: 'LEVEL 2 — CONTAINER DIAGRAM',
+    heading: 'Inside gitlab-agent',
+    desc: 'The Docker image runs exec-codex.sh on entry. It starts the MCP HTTP server in the background, builds the Codex config, runs an early-exit label check, then launches `codex exec "$skill prompt"`. The agent loads a skill, calls MCP tools, and writes results to a cache filesystem. Click any colored node to drill into its internals.',
+    nodes: [
+      // Entry shell
+      { id: 'exec-codex', x: 480, y: 30, w: 360, h: 75, icon: '🚀', label: 'exec-codex.sh', sub: '/opt/codex/exec-codex.sh',
+        tech: 'sh entry · validates env · starts MCP · launches codex',
+        type: 'default',
+        tooltip: { title: 'exec-codex.sh — container entrypoint', desc: 'The CI script calls `exec-codex "$mr-reviewer for Project X and MR Y"`. The shell forks the MCP server in the background (so it warms up while config is built), validates that AZURE_OPENAI_API_KEY, MODEL_PROVIDER_BASE_URL, AZURE_DEPLOYMENT_ID, GITLAB_PERSONAL_ACCESS_TOKEN, CI_API_V4_URL and CI_PROJECT_ROOT are all set, calls build-config.sh, runs an early-exit /labels/check (fail-open), and finally `exec codex exec "$@"`.', tech: 'set -eu · trap kill on EXIT · fail-open label check' } },
+
+      { id: 'build-config', x: 1000, y: 30, w: 200, h: 75, icon: '🔧', label: 'build-config.sh', sub: 'Generates config.toml',
+        tech: '/root/.codex/config.toml',
+        type: 'default',
+        tooltip: { title: 'build-config.sh', desc: 'Generates /root/.codex/config.toml with the Azure OpenAI model provider, MCP server URL (http://127.0.0.1:3333/mcp), and reasoning_effort. Also wires up the GitLab CA cert into /usr/local/share/ca-certificates.', tech: 'Writes ~/.codex/config.toml + ca-certificates' } },
+
+      // Codex agent + MCP server (main pair)
+      { id: 'codex-agent', x: 120, y: 200, w: 320, h: 110, icon: '🤖', label: 'Codex CLI Agent',
+        sub: 'codex exec "$skill prompt"',
+        tech: 'GPT-5.2-codex · reasoning_effort=high · full-auto',
+        type: 'ai', drillTo: 'agent',
+        tooltip: { title: 'Codex CLI Agent', desc: 'The brain. Codex CLI in exec mode — non-interactive, reads the prompt from argv, runs the full agent loop autonomously, and exits. Uses the config.toml that build-config wrote. The "$skill" prefix in the prompt tells Codex to load that skill\'s SKILL.md as the orchestrating instruction.', tech: 'codex exec · no human approval · stops when skill says so' } },
+
+      { id: 'mcp-server', x: 870, y: 200, w: 320, h: 110, icon: '🔌', label: 'MCP HTTP Server',
+        sub: '127.0.0.1:3333 · mcp-lite',
+        tech: 'Node.js · StreamableHttpTransport · Zod tools',
+        type: 'default', drillTo: 'mcp',
+        tooltip: { title: 'MCP HTTP Server', desc: 'Forked in the background by exec-codex.sh before the agent starts. Listens on 127.0.0.1:3333 with three HTTP routes: GET / (health), GET /labels/check (fast early-exit), POST /mcp (full MCP Streamable HTTP transport). Exposes 7 Zod-typed tools. PID is trapped — killed when the agent exits.', tech: 'mcp-lite · zod-to-json-schema · port 3333', port: '3333' } },
+
+      // Skills + Cache (the two passive resources)
+      { id: 'skills', x: 120, y: 380, w: 320, h: 110, icon: '📖', label: 'Skills Directory',
+        sub: 'mr-reviewer · playwright-cli',
+        tech: '/opt/codex/skills/{name}/SKILL.md + references/',
+        type: 'skill', drillTo: 'skills',
+        tooltip: { title: 'Skills Directory', desc: 'Two skills, each a folder with a SKILL.md (frontmatter + orchestration workflow) and a references/ subfolder (review-protocol.md, review-schema.md, test-execution-protocol.md). Codex resolves "$mr-reviewer" or "$playwright-cli" in the prompt by loading that skill\'s SKILL.md.', tech: 'YAML frontmatter · markdown · referenced lazily' } },
+
+      { id: 'cache-fs', x: 870, y: 380, w: 320, h: 110, icon: '💾', label: 'Cache Filesystem',
+        sub: 'JSON state · review log · test log',
+        tech: '$MR_REVIEW_CACHE_DIR (default: resolved per call)',
+        type: 'cache', drillTo: 'cache',
+        tooltip: { title: 'Cache Filesystem', desc: 'A directory under MR_REVIEW_CACHE_DIR (or a default resolved by core/paths.ts) holding all stateful artifacts: cached MR metadata, two flavors of diffs (local + remote), discussions, notes, the rolling review-comments log, test executions log, JUnit XML, Allure JSON, plus a docs/external/ clone when configured.', tech: '13+ artifact files · written by MCP tools · read by agent' } },
+
+      // Outbound rails
+      { id: 'http-azure', x: 510, y: 230, w: 300, h: 55, icon: '🔐', label: 'HTTPS → Azure OpenAI',
+        sub: 'Model calls · streamed responses',
+        type: 'default',
+        tooltip: { title: 'Outbound to Azure OpenAI', desc: 'The agent\'s LLM calls. Every step of the agent loop — every "think" — is one or more streamed completions to MODEL_PROVIDER_BASE_URL. Auth via AZURE_OPENAI_API_KEY. OPENAI_API_KEY and OPENAI_ORG_ID are explicitly unset before launch.', tech: 'HTTPS · Azure-style auth' } },
+
+      { id: 'http-gitlab', x: 510, y: 410, w: 300, h: 55, icon: '🔐', label: 'HTTPS → GitLab API',
+        sub: 'Outbound only · PRIVATE-TOKEN',
+        type: 'default',
+        tooltip: { title: 'Outbound to GitLab REST API', desc: 'Only the MCP server makes GitLab calls — the agent never talks to GitLab directly. Uses CI_API_V4_URL with PRIVATE-TOKEN auth and respects GITLAB_CA_CERT_PATH for self-signed certs in the UBS environment.', tech: 'core/gitlab-client.ts · python-gitlab style' } },
+    ],
+    connections: [
+      { from: 'exec-codex', to: 'build-config', label: '1. generate config', type: '' },
+      { from: 'exec-codex', to: 'mcp-server', label: '2. fork &', type: '' },
+      { from: 'exec-codex', to: 'codex-agent', label: '3. exec codex', type: '' },
+
+      { from: 'codex-agent', to: 'mcp-server', label: 'POST /mcp · tool calls', type: 'tool-flow' },
+      { from: 'mcp-server', to: 'codex-agent', label: 'structured JSON', type: 'tool-flow' },
+
+      { from: 'codex-agent', to: 'skills', label: 'load $skill SKILL.md', type: 'ai-flow' },
+      { from: 'mcp-server', to: 'cache-fs', label: 'read & write', type: 'cache-flow' },
+      { from: 'codex-agent', to: 'cache-fs', label: 'read cached state', type: 'cache-flow' },
+
+      { from: 'codex-agent', to: 'http-azure', label: '', type: 'ai-flow' },
+      { from: 'mcp-server', to: 'http-gitlab', label: '', type: 'data-flow' },
+    ]
+  },
+
+};
+// (DATA continues in the next script block — split for readability)
+</script>
+
+<script>
+// ─────────────────────────────────────────────────────────
+// LEVEL 3 — MCP server internals
+// ─────────────────────────────────────────────────────────
+DATA['mcp'] = {
+  title: 'LEVEL 3 — MCP SERVER INTERNALS',
+  heading: 'MCP HTTP Server',
+  desc: 'Built on mcp-lite with StreamableHttpTransport. Three HTTP routes, seven Zod-typed MCP tools, and a stack of core modules that wrap GitLab REST, local git, the cache stores, and reporting (JUnit + Allure). Hover any tool for inputs/outputs.',
+  nodes: [
+    // HTTP transport layer
+    { id: 'http-server', x: 470, y: 20, w: 360, h: 70, icon: '🌐', label: 'createServer (node:http)',
+      sub: 'Listens on 127.0.0.1:3333',
+      tech: 'StreamableHttpTransport.bind(mcp)',
+      type: 'default',
+      tooltip: { title: 'HTTP Server', desc: 'Vanilla node:http server. Strips request body into a Buffer, wraps it as a fetch Request, passes it to the MCP transport handler, then writes the Response back. Listens only on loopback — never exposed outside the container.', tech: 'node:http · loopback-only', port: '3333' } },
+
+    // 3 routes
+    { id: 'route-health', x: 60, y: 130, w: 200, h: 70, icon: '💚', label: 'GET /', sub: 'Health probe',
+      type: 'default',
+      tooltip: { title: 'GET /', desc: 'Returns "mr-reviewer mcp server" with status 200. Used as a smoke test — nothing else.', tech: 'plain text response' } },
+
+    { id: 'route-labels', x: 290, y: 130, w: 280, h: 70, icon: '🏷️', label: 'GET /labels/check',
+      sub: 'Fast early-exit probe',
+      tech: '?project=X&mr=Y&name=AI:Reviewed',
+      type: 'default',
+      tooltip: { title: 'GET /labels/check', desc: 'A non-MCP fast path. exec-codex.sh curls this BEFORE launching the agent — if the MR already has the review label, we exit 0 without ever spending tokens. Fails open: if the call errors, we still proceed. Returns {project_id, merge_request_iid, label, has_label}.', tech: 'JSON response · core/gitlab-merge-requests.hasLabel' } },
+
+    { id: 'route-mcp', x: 600, y: 130, w: 280, h: 70, icon: '🔌', label: 'POST /mcp',
+      sub: 'MCP Streamable HTTP',
+      tech: 'mcp-lite transport',
+      type: 'default',
+      tooltip: { title: 'POST /mcp', desc: 'The actual MCP protocol endpoint. Everything the agent does goes through here: tools/list, tools/call, etc. Body is buffered, converted to a fetch Request, handled by the transport, response is streamed back.', tech: 'Streamable HTTP transport (single-request mode)' } },
+
+    { id: 'route-404', x: 910, y: 130, w: 200, h: 70, icon: '🚫', label: 'fallback 404', sub: 'Anything else',
+      type: 'default',
+      tooltip: { title: 'Fallback 404', desc: 'All other paths return 404. No CORS, no auth headers — the loopback bind is the security boundary.', tech: 'res.statusCode = 404' } },
+
+    // Zod schema adapter
+    { id: 'zod-adapter', x: 60, y: 250, w: 320, h: 65, icon: '🛡️', label: 'Zod → JSON Schema adapter',
+      sub: 'schemaAdapter: zodToJsonSchema',
+      type: 'default',
+      tooltip: { title: 'Zod → JSON Schema adapter', desc: 'When mcp-lite advertises the tool list to the agent, every Zod input/output schema is converted to JSON Schema via zod-to-json-schema. The agent\'s LLM sees fully-typed function signatures and validates its tool calls against them before they even hit the handler.', tech: 'zod-to-json-schema · ZodTypeAny' } },
+
+    { id: 'tool-registry', x: 420, y: 250, w: 320, h: 65, icon: '📋', label: 'MCP tool registry',
+      sub: 'McpServer · 7 tools registered',
+      type: 'default',
+      tooltip: { title: 'mcp.tool registry', desc: 'Each tool is registered with name, description, inputSchema, outputSchema, and a handler. Handlers return {content: [{type: text, ...}], structuredContent: {...}}. The structuredContent is the typed payload the agent actually parses.', tech: 'name: mr-reviewer-local · version: 1.0.0' } },
+
+    { id: 'core-schemas', x: 780, y: 250, w: 280, h: 65, icon: '📐', label: 'core/schemas.ts',
+      sub: '20+ Zod schemas',
+      type: 'default',
+      tooltip: { title: 'core/schemas.ts', desc: 'Single source of truth for every tool input/output and every GitLab type the server handles: InitInputSchema, ConversationsAndNotesOutputSchema, ReviewCommentSchema, DiffsChecklistOutputSchema, GitLabMergeRequestSchema, GitLabDiscussionListSchema, GitLabNoteListSchema, plus the test report schemas.', tech: 'z.object · z.infer · runtime-parsed everywhere' } },
+
+    // 7 MCP tools
+    { id: 'tool-init', x: 60, y: 360, w: 200, h: 80, icon: '🚦', label: 'init',
+      sub: 'Bootstrap the run',
+      type: 'tool',
+      tooltip: { title: 'init', desc: 'Bootstrap: resolves cache_dir, computes local git diffs (getLocalDiffs), fetches MR discussions + notes + versions + remote changes, merges local fallback diffs into remote changes, writes everything to cache, clones EXTERNAL_REQUIREMENTS_REPO_URL if set, and checks both labels. Returns paths to all artifacts and the already_reviewed / already_ui_tested flags.', tech: 'inputs: project_id, merge_request_iid, source_branch? · outputs: 18 fields including SHAs and label state' } },
+
+    { id: 'tool-convs', x: 280, y: 360, w: 200, h: 80, icon: '💬', label: 'get_conversations\n_and_notes',
+      sub: 'Read cached MR context',
+      type: 'tool',
+      tooltip: { title: 'get_conversations_and_notes', desc: 'Reads the MR metadata, discussions, and notes from cache (no network call). Also builds existing_review_comment_anchors — a list of (file_path, line, discussion_id, body_hash) — that the agent uses to dedupe before storing new comments. Called exactly once per run.', tech: 'reads merge-request.json + discussions.json + notes.json' } },
+
+    { id: 'tool-diffs', x: 500, y: 360, w: 200, h: 80, icon: '📑', label: 'get_diffs\n_checklist',
+      sub: 'File-by-file checklist',
+      type: 'tool',
+      tooltip: { title: 'get_diffs_checklist', desc: 'Returns the diffs sorted alphabetically by path as a checklist: {index, file_path, change_type (added/modified/deleted/renamed), reviewed:false, diff}. Prefers merge-request-remote-diffs.json (GitLab API) and falls back to diffs.json (local git) if the remote version is missing.', tech: 'reads remote-diffs.json with local-diffs.json fallback' } },
+
+    { id: 'tool-store', x: 720, y: 360, w: 200, h: 80, icon: '✍️', label: 'store_review\n_comment',
+      sub: 'Append to log',
+      type: 'tool',
+      tooltip: { title: 'store_review_comment', desc: 'Validates the comment\'s anchor line exists in the diff line index for that file (so we never post inline comments at lines that don\'t exist in the version), then appends to review-comments.json. Must have exactly one of new_line or old_line. Schema: severity 1-5, category in {security, correctness, reliability, performance, maintainability, api-consistency, requirements, testing}.', tech: 'buildDiffLineIndex · ReviewStore.appendComment' } },
+
+    { id: 'tool-send', x: 940, y: 360, w: 200, h: 80, icon: '📤', label: 'send_all\n_comments',
+      sub: 'Post to GitLab discussions',
+      type: 'tool',
+      tooltip: { title: 'send_all_comments', desc: 'Refetches the latest MR versions + remote changes (in case the MR moved during review), dedupes every stored comment against existing discussions/notes via findDuplicateReviewComment (anchor match + body hash), POSTs each surviving comment as an inline discussion with full position (base_sha/start_sha/head_sha + path + line), and on any activity adds the AI:Reviewed label. Returns {posted, skipped, label_added}.', tech: 'createMergeRequestDiscussion · hashReviewBody · tryAddLabel' } },
+
+    { id: 'tool-save-test', x: 60, y: 470, w: 200, h: 80, icon: '🧪', label: 'save_test_case\n_execution',
+      sub: 'Append test result',
+      type: 'tool',
+      tooltip: { title: 'save_test_case_execution', desc: 'Stores one test result with test_case_id, status ("PASSED"|"FAILED"), and optional description + screenshot path for failures. Includes a server-generated executed_at timestamp. Called immediately after each test case finishes so the run is durable.', tech: 'TestReportStore.appendExecution · ISO timestamp' } },
+
+    { id: 'tool-send-test', x: 280, y: 470, w: 200, h: 80, icon: '📋', label: 'send_all_test\n_reports',
+      sub: 'JUnit + Allure + MR note',
+      type: 'tool',
+      tooltip: { title: 'send_all_test_reports', desc: 'Generates junit-test-report.xml (generateJunitXml) AND Allure JSON results (generateAllureResults + environment.properties + executor.json). Builds a markdown summary table with pass/fail counts and the predicted Allure report URL ({CI_PAGES_URL}/{CI_MERGE_REQUEST_IID}/), posts it as a single MR note via createMergeRequestNote, and adds the AI:UI-Tested label.', tech: 'JUnit XML + Allure JSON + markdown table note' } },
+
+    // Core modules cluster
+    { id: 'core-gitlab', x: 520, y: 470, w: 230, h: 80, icon: '🐙', label: 'core/gitlab-client.ts',
+      sub: 'REST wrapper',
+      type: 'default',
+      tooltip: { title: 'core/gitlab-client.ts', desc: 'Constructs a per-call GitLab REST client. Reads CI_API_V4_URL, GITLAB_PERSONAL_ACCESS_TOKEN, and GITLAB_CA_CERT_PATH. Every MCP tool that needs GitLab access calls createGitLabClient() — no global state, no shared connection pool.', tech: 'createGitLabClient() · CA-aware HTTPS' } },
+
+    { id: 'core-mrs', x: 770, y: 470, w: 240, h: 80, icon: '🔗', label: 'core/gitlab-merge\n-requests.ts',
+      sub: 'MR REST helpers',
+      type: 'default',
+      tooltip: { title: 'core/gitlab-merge-requests.ts', desc: 'High-level helpers: listMergeRequestDiscussions, listMergeRequestNotes, listMergeRequestVersions, getMergeRequestChanges, resolveLatestVersion, resolveVersionShas, createMergeRequestDiscussion (inline, with position), createMergeRequestNote, hasLabel, addLabel, plus buildDiffLineIndex for anchor validation and getReviewLabelName / getUITestLabelName for label resolution from env.', tech: '14+ exported helpers' } },
+
+    { id: 'core-review', x: 1030, y: 470, w: 220, h: 80, icon: '🧹', label: 'core/review-dedupe.ts',
+      sub: 'Anchor + body-hash dedupe',
+      type: 'default',
+      tooltip: { title: 'core/review-dedupe.ts', desc: 'buildExistingReviewCommentAnchors scans existing discussions + notes for previously-posted review comments and emits a list of (file_path, anchor_line, discussion_id, body_hash). findDuplicateReviewComment then matches new comments against those anchors. hashReviewBody produces a stable SHA so identical bodies are caught even if posted via a different anchor.', tech: 'pure functions · no I/O' } },
+
+    { id: 'core-stores', x: 770, y: 590, w: 240, h: 75, icon: '🗄️', label: 'ReviewStore + TestReportStore',
+      sub: 'JSON file persistence',
+      type: 'default',
+      tooltip: { title: 'core/reviewStore.ts + core/testReportStore.ts', desc: 'Two thin wrappers over the cache filesystem. ReviewStore manages MR metadata, diffs (local + remote), discussions, notes, versions, shas.env, and the review-comments.json log. TestReportStore manages test-executions.json, junit-test-report.xml, and the allure-results/ directory.', tech: 'append-only logs · atomic writes' } },
+
+    { id: 'core-reports', x: 60, y: 590, w: 280, h: 75, icon: '📈', label: 'junit-xml + allure-results',
+      sub: 'Report generators',
+      type: 'default',
+      tooltip: { title: 'core/junit-xml.ts + core/allure-results.ts', desc: 'Pure generators. junit-xml takes the execution log and emits standard <testsuite>/<testcase> XML. allure-results emits one JSON per test case, plus environment.properties (CI vars) and executor.json (pipeline info) so Allure can render the report.', tech: 'No I/O coupling — take executions in, return strings' } },
+
+    { id: 'core-ext-reqs', x: 360, y: 590, w: 240, h: 75, icon: '📚', label: 'external-requirements.ts',
+      sub: 'Clone EXTERNAL_REQUIREMENTS_REPO_URL',
+      type: 'default',
+      tooltip: { title: 'core/external-requirements.ts', desc: 'fetchExternalRequirements(repoRoot) clones EXTERNAL_REQUIREMENTS_REPO_URL into docs/external/ during init. Returns {fetched, error, path}. The skill checks external_requirements_status in the init output to decide whether to load org-wide standards.', tech: 'fetched | skipped | error' } },
+  ],
+  connections: [
+    { from: 'http-server', to: 'route-health', label: '', type: '' },
+    { from: 'http-server', to: 'route-labels', label: 'fast path', type: '' },
+    { from: 'http-server', to: 'route-mcp', label: 'main', type: 'tool-flow' },
+    { from: 'http-server', to: 'route-404', label: '', type: '' },
+
+    { from: 'route-mcp', to: 'zod-adapter', label: 'validate', type: 'tool-flow' },
+    { from: 'zod-adapter', to: 'tool-registry', label: '', type: '' },
+    { from: 'tool-registry', to: 'core-schemas', label: 'schemas', type: '' },
+
+    { from: 'tool-registry', to: 'tool-init', label: '', type: 'tool-flow' },
+    { from: 'tool-init', to: 'core-gitlab', label: '', type: '' },
+    { from: 'tool-init', to: 'core-ext-reqs', label: '', type: '' },
+    { from: 'tool-convs', to: 'core-stores', label: '', type: 'cache-flow' },
+    { from: 'tool-diffs', to: 'core-stores', label: '', type: 'cache-flow' },
+    { from: 'tool-store', to: 'core-stores', label: 'append', type: 'cache-flow' },
+    { from: 'tool-send', to: 'core-mrs', label: 'POST', type: 'data-flow' },
+    { from: 'tool-send', to: 'core-review', label: 'dedupe', type: '' },
+    { from: 'tool-send-test', to: 'core-reports', label: 'generate', type: '' },
+    { from: 'tool-save-test', to: 'core-stores', label: 'append', type: 'cache-flow' },
+  ]
+};
+
+// ─────────────────────────────────────────────────────────
+// LEVEL 3 — Codex agent internals
+// ─────────────────────────────────────────────────────────
+DATA['agent'] = {
+  title: 'LEVEL 3 — CODEX AGENT INTERNALS',
+  heading: 'Codex CLI Agent',
+  desc: 'The agent loop. Codex CLI runs in non-interactive `exec` mode — it reads the user prompt from argv, resolves the leading $skill_name to a SKILL.md, then enters a think → tool → observe loop powered by Azure GPT-5.2-codex until the skill\'s stopping condition is reached.',
+  nodes: [
+    // Bootstrap
+    { id: 'codex-cmd', x: 70, y: 30, w: 380, h: 75, icon: '⚡', label: 'codex exec "$mr-reviewer for ..."',
+      sub: 'Non-interactive entry',
+      tech: 'argv[0] = prompt · no stdin',
+      type: 'default',
+      tooltip: { title: 'codex exec', desc: 'Non-interactive mode — the CLI reads the prompt from argv, runs the agent loop to completion, and exits. No REPL, no human approvals, no interactive elicitation. Failure to terminate cleanly is an error.', tech: 'codex exec "$skill_prompt"' } },
+
+    { id: 'config-toml', x: 490, y: 30, w: 280, h: 75, icon: '⚙️', label: '/root/.codex/config.toml',
+      sub: 'Model + MCP wiring',
+      tech: 'Written by build-config.sh',
+      type: 'default',
+      tooltip: { title: 'config.toml', desc: 'Tells Codex everything it needs at startup: the model provider (Azure-style API base URL + key), the deployment ID (gpt-5.2-codex), the reasoning_effort (high by default), and the MCP server endpoint (http://127.0.0.1:3333/mcp). Without this file the agent would not know to talk to the local MCP server.', tech: 'model_provider · mcp_servers · reasoning_effort' } },
+
+    { id: 'env-vars', x: 810, y: 30, w: 280, h: 75, icon: '🔑', label: 'Process env',
+      sub: 'Drives every tool',
+      tech: 'CI_* · AZURE_* · GITLAB_*',
+      type: 'default',
+      tooltip: { title: 'Process env', desc: 'Every MCP tool reads the GitLab CI variables directly: CI_PROJECT_ID, CI_MERGE_REQUEST_IID, CI_PROJECT_DIR, CI_API_V4_URL, GITLAB_PERSONAL_ACCESS_TOKEN, plus AI_REVIEW_LABEL and AI_UI_TEST_LABEL for label resolution.', tech: '~12 required env vars' } },
+
+    // Skill loading
+    { id: 'skill-resolver', x: 200, y: 170, w: 350, h: 70, icon: '🔖', label: '$skill_name resolver',
+      sub: 'Maps $mr-reviewer → SKILL.md',
+      type: 'default',
+      tooltip: { title: '$skill_name resolver', desc: 'The "$mr-reviewer for Project X and MR Y" prompt convention. Codex recognizes the leading $name as a skill reference, locates skills/$name/SKILL.md, parses its YAML frontmatter (name, description), and loads the markdown body as the orchestrating instruction set. The rest of the prompt becomes the runtime parameters.', tech: 'Convention-based · resolves at prompt-parse time' } },
+
+    { id: 'system-prompt', x: 600, y: 170, w: 300, h: 70, icon: '📜', label: 'System prompt = SKILL.md',
+      sub: 'Orchestration steps',
+      type: 'default',
+      tooltip: { title: 'System prompt', desc: 'The loaded SKILL.md becomes the system prompt for every model call in the loop. It tells the agent the exact ordered workflow (e.g. "1. Resolve repo root, 2. Load AGENTS.md, 3. Call init, ..."), the dedup rules, the comment quality bar, and the stopping condition.', tech: '~80 lines of imperative orchestration' } },
+
+    // Agent loop
+    { id: 'loop-think', x: 80, y: 300, w: 200, h: 90, icon: '🧠', label: 'Think',
+      sub: 'Streamed completion',
+      tech: 'gpt-5.2-codex · reasoning=high',
+      type: 'ai',
+      tooltip: { title: 'Think (LLM call)', desc: 'A streamed Chat Completion against Azure OpenAI with the conversation so far. The model emits either (a) a tool_call for one of the MCP tools or shell builtins, or (b) a final assistant message saying the work is done.', tech: 'reasoning_effort=high · streamed' } },
+
+    { id: 'loop-tool', x: 310, y: 300, w: 200, h: 90, icon: '🔧', label: 'Tool call',
+      sub: 'MCP or shell',
+      tech: 'POST /mcp · bash · file ops',
+      type: 'ai',
+      tooltip: { title: 'Tool call', desc: 'The model picks one tool per step. Choices: (a) any of the 7 MCP tools (init / get_conversations_and_notes / get_diffs_checklist / store_review_comment / send_all_comments / save_test_case_execution / send_all_test_reports), or (b) Codex builtins (shell, file read, ripgrep search).', tech: '~9 tool options visible to the model' } },
+
+    { id: 'loop-observe', x: 540, y: 300, w: 200, h: 90, icon: '👁️', label: 'Observe',
+      sub: 'structuredContent JSON',
+      type: 'ai',
+      tooltip: { title: 'Observe', desc: 'The MCP tool result lands back in the conversation as a tool message. The structuredContent field is the typed JSON the agent actually reads — the content[0].text field is just a human-readable label like "comments sent".', tech: 'Validated against outputSchema' } },
+
+    { id: 'loop-stop', x: 770, y: 300, w: 200, h: 90, icon: '🛑', label: 'Stop?',
+      sub: 'Per skill protocol',
+      type: 'ai',
+      tooltip: { title: 'Stopping condition', desc: 'Defined by the skill. mr-reviewer stops immediately after send_all_comments (or if init returned already_reviewed=true, or if no issues were found). playwright-cli stops immediately after send_all_test_reports. The skill explicitly forbids epilogue summaries.', tech: 'Skill-defined termination' } },
+
+    // Tool surface
+    { id: 'tools-mcp', x: 80, y: 460, w: 280, h: 70, icon: '🔌', label: 'MCP tools (7)',
+      sub: 'init · get_* · store_* · send_*',
+      type: 'tool',
+      tooltip: { title: 'MCP tools visible to the agent', desc: 'init, get_conversations_and_notes, get_diffs_checklist, store_review_comment, send_all_comments, save_test_case_execution, send_all_test_reports. Each one has a typed input/output schema the model uses to construct valid calls.', tech: '7 tools · all Zod-typed · advertised on connect' } },
+
+    { id: 'tools-bash', x: 380, y: 460, w: 220, h: 70, icon: '⌨️', label: 'Bash (sandboxed)',
+      sub: 'rg · cat · ls · grep · git',
+      type: 'default',
+      tooltip: { title: 'Bash builtin', desc: 'Linux shell. The skills use `rg` heavily for similarity / DRY checks during reviews and for finding component implementations during UI testing. CI_PROJECT_DIR is the repo root.', tech: 'Linux only · CI_PROJECT_DIR rooted' } },
+
+    { id: 'tools-files', x: 620, y: 460, w: 220, h: 70, icon: '📄', label: 'File read',
+      sub: 'AGENTS.md · docs/* · diffs',
+      type: 'default',
+      tooltip: { title: 'File read builtin', desc: 'Used to load AGENTS.md (mandatory), any docs/ it points to, docs/external/ when fetched, the full source of every changed file (for hunk-level context), and the cached diff/discussion files when the agent wants the full text instead of the summary.', tech: 'Plain file reads under CI_PROJECT_DIR' } },
+
+    { id: 'tools-playwright', x: 860, y: 460, w: 230, h: 70, icon: '🎭', label: 'playwright-cli',
+      sub: 'open / click / snapshot / fill',
+      type: 'default',
+      tooltip: { title: 'playwright-cli (UI test only)', desc: 'External CLI binary baked into the Docker image. The playwright-cli skill drives it: open <url>, snapshot, click <ref>, fill <ref> "x", select, check, screenshot, run-code "async page => {...}", close.', tech: '@playwright/cli · element refs from snapshot' } },
+
+    // Termination outcomes
+    { id: 'outcome-comments', x: 100, y: 590, w: 280, h: 65, icon: '✅', label: 'Inline review comments',
+      sub: 'Posted to MR discussions',
+      type: 'tool',
+      tooltip: { title: 'mr-reviewer outcome', desc: 'On success: N inline discussions on the MR, each anchored to a specific line, each rendered with severity + category + suggested fix as a GitLab suggestion block. The AI:Reviewed label is added so the next pipeline skips review.', tech: 'send_all_comments outcome' } },
+
+    { id: 'outcome-no-issues', x: 400, y: 590, w: 260, h: 65, icon: '🎉', label: 'No issues note',
+      sub: 'Label NOT added',
+      type: 'default',
+      tooltip: { title: 'mr-reviewer no-issues path', desc: 'If the agent reviews every file and finds nothing actionable, it explicitly does NOT call send_all_comments. The AI:Reviewed label is deliberately withheld so the next pipeline (with newer diffs) gets a fresh shot.', tech: 'Skill rule: no comments → no label' } },
+
+    { id: 'outcome-tests', x: 680, y: 590, w: 280, h: 65, icon: '📊', label: 'JUnit + Allure + MR note',
+      sub: 'AI:UI-Tested label added',
+      type: 'tool',
+      tooltip: { title: 'playwright-cli outcome', desc: 'JUnit XML for the pipeline reports tab, Allure JSON for the GitLab Pages HTML report, plus a single MR note with a pass/fail table and a link to the Allure report at {CI_PAGES_URL}/{MR_IID}/.', tech: 'send_all_test_reports outcome' } },
+  ],
+  connections: [
+    { from: 'codex-cmd', to: 'config-toml', label: 'reads', type: '' },
+    { from: 'codex-cmd', to: 'env-vars', label: 'reads', type: '' },
+    { from: 'codex-cmd', to: 'skill-resolver', label: 'parse $name', type: 'ai-flow' },
+    { from: 'skill-resolver', to: 'system-prompt', label: '', type: 'ai-flow' },
+
+    { from: 'system-prompt', to: 'loop-think', label: 'instruction set', type: 'ai-flow' },
+    { from: 'loop-think', to: 'loop-tool', label: 'choose tool', type: 'ai-flow' },
+    { from: 'loop-tool', to: 'loop-observe', label: 'result', type: 'tool-flow' },
+    { from: 'loop-observe', to: 'loop-stop', label: '', type: '' },
+    { from: 'loop-stop', to: 'loop-think', label: 'continue', type: 'ai-flow' },
+
+    { from: 'loop-tool', to: 'tools-mcp', label: '', type: 'tool-flow' },
+    { from: 'loop-tool', to: 'tools-bash', label: '', type: '' },
+    { from: 'loop-tool', to: 'tools-files', label: '', type: '' },
+    { from: 'loop-tool', to: 'tools-playwright', label: '', type: '' },
+
+    { from: 'loop-stop', to: 'outcome-comments', label: 'mr-reviewer', type: 'data-flow' },
+    { from: 'loop-stop', to: 'outcome-no-issues', label: 'mr-reviewer (clean)', type: '' },
+    { from: 'loop-stop', to: 'outcome-tests', label: 'playwright-cli', type: 'data-flow' },
+  ]
+};
+
+// ─────────────────────────────────────────────────────────
+// LEVEL 3 — Skills directory
+// ─────────────────────────────────────────────────────────
+DATA['skills'] = {
+  title: 'LEVEL 3 — SKILLS DIRECTORY',
+  heading: 'Skills · Anatomy & Workflows',
+  desc: 'Two skills, each is a folder with a SKILL.md (YAML frontmatter + orchestration workflow) and a references/ subfolder. The skills are pure markdown — they describe what tools to call in what order, the dedup rules, and the stopping condition. No code.',
+  nodes: [
+    // mr-reviewer column
+    { id: 'mr-skill', x: 60, y: 30, w: 580, h: 100, icon: '🔍', label: 'mr-reviewer/SKILL.md',
+      sub: 'name + description frontmatter + orchestration body',
+      tech: 'Triggered by "$mr-reviewer for Project X and MR Y"',
+      type: 'skill',
+      tooltip: { title: 'mr-reviewer/SKILL.md', desc: 'YAML frontmatter: name=mr-reviewer, description="Review GitLab MR diffs using AGENTS.md rules; audit MR changes, generate inline discussions, assess correctness/security/performance/maintainability/api-consistency risks using MCP GitLab tools." Body: 10-step orchestration workflow, environment rules (Linux only, CI_PROJECT_DIR for repo root), determinism guardrails (don\'t re-run init steps), external requirements handling, review label semantics, dedup rules.', tech: 'frontmatter · orchestration · guardrails' } },
+
+    { id: 'mr-workflow', x: 60, y: 160, w: 580, h: 220, icon: '📋', label: 'Orchestration · 10 steps',
+      sub: 'Init → loop diffs → store → send → stop',
+      type: 'default',
+      tooltip: { title: 'mr-reviewer · 10-step orchestration', desc: 'Step 1: resolve CI_PROJECT_DIR. Step 2: load AGENTS.md and linked docs. Step 3: init MCP. Step 4: if already_reviewed=true, STOP immediately. Step 5: if external_requirements_status=fetched, load docs/external/. Step 6: get_conversations_and_notes (exactly once). Step 7: get_diffs_checklist (exactly once). Step 8: per hunk, load file + apply review-protocol.md. Step 9: dedupe against existing_review_comment_anchors, then store_review_comment. Step 10: send_all_comments if ≥1 stored; else emit no-issues message; STOP — no epilogue.', tech: '10 numbered steps · strict order' } },
+
+    { id: 'mr-protocol', x: 60, y: 410, w: 280, h: 90, icon: '🧪', label: 'references/review-protocol.md',
+      sub: '7-stage review sequence',
+      type: 'skill',
+      tooltip: { title: 'review-protocol.md — 7-stage sequence', desc: 'Stage 1: Intent & Scope (behavior change vs refactor vs build-only). Stage 2: Hunk-level analysis (control flow, error handling, nullability, boundary conditions). Stage 3: File-level context. Stage 4: Call graph + dependencies. Stage 5: Requirements alignment (with external standards). Stage 6: Architecture alignment (layering, dependency direction). Stage 7: Risk-focused checks (security · correctness · reliability · performance · maintainability · API consistency). Plus a separate Maintainability block on SOLID and DRY (suggests `rg` for similarity).', tech: 'Role: Senior Lead Engineer · 8 categories' } },
+
+    { id: 'mr-schema', x: 360, y: 410, w: 280, h: 90, icon: '📐', label: 'references/review-schema.md',
+      sub: 'store_review_comment payload',
+      type: 'skill',
+      tooltip: { title: 'review-schema.md', desc: 'Required fields per comment: file_path · exactly one of new_line/old_line · severity 1-5 · category (one of security, correctness, reliability, performance, maintainability, api-consistency, requirements, testing) · line_context (exact diff line) · optional deleted_line_context · explanation · suggested_fix (required, code-only — maps to GitLab suggestion block). Internal reasoning schema (Logic Check / Severity / Category / Line Context / Suggested Fix) must be filled out before storing.', tech: 'severity 1-5 · 8 categories · suggestion-block fix' } },
+
+    // playwright-cli column
+    { id: 'pw-skill', x: 700, y: 30, w: 580, h: 100, icon: '🎭', label: 'playwright-cli/SKILL.md',
+      sub: 'Browser-based UI test executor',
+      tech: 'Triggered by "$playwright-cli ... test_cases_folder X base_ui_url Y"',
+      type: 'skill',
+      tooltip: { title: 'playwright-cli/SKILL.md', desc: 'YAML frontmatter: name=playwright-cli. Body: 11-step orchestration, MCP tool reference (init/save_test_case_execution/send_all_test_reports — note: only 3 of the 7 MCP tools are used by this skill), exhaustive Playwright CLI command catalog (navigation, page inspection, interaction, keyboard, dialogs, tabs, viewport, wait strategies), constraints (no request mocking, no localStorage hacks, sequential execution, test_cases_folder only).', tech: 'description includes "use when asked to run UI tests"' } },
+
+    { id: 'pw-workflow', x: 700, y: 160, w: 580, h: 220, icon: '📋', label: 'Orchestration · 11 steps',
+      sub: 'Init → discover → prioritize → loop → close → send',
+      type: 'default',
+      tooltip: { title: 'playwright-cli · 11-step orchestration', desc: 'Step 1: init. Step 2: if already_ui_tested=true STOP. Step 3: load requirements. Step 4: discover all TC-XXX-NNN across the folder (each file is a group of many test cases). Step 5: prioritize — high priority = test cases whose parent file mentions a changed file. Step 6: verify playwright-cli is available. Step 7: open base_ui_url (on failure: save FAIL for first test case + send_all_test_reports + STOP). Step 8: execute EVERY test case sequentially (snapshot → action → verify → save_test_case_execution PASSED/FAILED). Step 9: playwright-cli close. Step 10: send_all_test_reports. Step 11: STOP — no epilogue.', tech: 'Exhaustive · never sample · sequential · resilient' } },
+
+    { id: 'pw-protocol', x: 700, y: 410, w: 580, h: 90, icon: '⚙️', label: 'references/test-execution-protocol.md',
+      sub: 'Parsing · action mapping · pass/fail · errors',
+      type: 'skill',
+      tooltip: { title: 'test-execution-protocol.md', desc: 'Test case parsing (group-level Prerequisites + Pre-steps; per-test ID + Preconditions + Action sequence + Expected result + optional Requirement references). Action mapping table (Click button → snapshot + click ref; Fill field → snapshot + fill; Select dropdown → snapshot + select; etc.). Result validation (snapshot + URL + element state + element content via eval). Pass/fail criteria. Error handling: browser open failure → save FAIL + send + STOP; browser crash → close + FAIL + send + STOP; element not found → re-snapshot + retry; page timeout → wait + screenshot + FAIL; unexpected dialog → note + accept/dismiss; navigation to wrong page → screenshot + FAIL.', tech: 'Snapshot-first · element refs · resilient error handling' } },
+  ],
+  connections: [
+    { from: 'mr-skill', to: 'mr-workflow', label: '', type: '' },
+    { from: 'mr-workflow', to: 'mr-protocol', label: 'per hunk', type: '' },
+    { from: 'mr-workflow', to: 'mr-schema', label: 'before store', type: '' },
+    { from: 'pw-skill', to: 'pw-workflow', label: '', type: '' },
+    { from: 'pw-workflow', to: 'pw-protocol', label: 'per test case', type: '' },
+  ]
+};
+
+// ─────────────────────────────────────────────────────────
+// LEVEL 3 — Cache filesystem
+// ─────────────────────────────────────────────────────────
+DATA['cache'] = {
+  title: 'LEVEL 3 — CACHE FILESYSTEM',
+  heading: 'Cache · State on Disk',
+  desc: 'Every MCP tool reads from and writes to the cache directory. The cache is the single source of state — the agent\'s "memory" between tool calls. Resolved by core/paths.ts (resolveCacheDir) — defaults work, but the UI testing template overrides it via MR_REVIEW_CACHE_DIR to capture reports as job artifacts.',
+  nodes: [
+    // MR state cluster
+    { id: 'mr-meta', x: 60, y: 50, w: 240, h: 70, icon: '📋', label: 'merge-request.json',
+      sub: 'iid · project_id · branches · SHAs',
+      type: 'cache',
+      tooltip: { title: 'merge-request.json', desc: 'Snapshot of MR identity at init time. Fields: iid, project_id, title, description, state, created_at, updated_at, target_branch, source_branch, web_url, diff_refs={base_sha, head_sha, start_sha}. Sourced from CI_MERGE_REQUEST_* env vars + the resolved versions/diff_refs from the GitLab API.', tech: 'GitLabMergeRequestSchema · written once by init' } },
+
+    { id: 'shas-env', x: 320, y: 50, w: 200, h: 70, icon: '🔢', label: 'shas.env',
+      sub: 'base · start · head',
+      type: 'cache',
+      tooltip: { title: 'shas.env', desc: 'The three SHAs in a shell-source-able format. Used by send_all_comments to construct the position object for inline discussions: {base_sha, start_sha, head_sha, old_path, new_path, position_type:"text", new_line|old_line}.', tech: 'KEY=value shell format' } },
+
+    { id: 'versions', x: 540, y: 50, w: 240, h: 70, icon: '🕰️', label: 'versions.json',
+      sub: 'MR version history',
+      type: 'cache',
+      tooltip: { title: 'versions.json', desc: 'Result of GET /merge_requests/:iid/versions. resolveLatestVersion picks the most recent one to anchor inline comments to. If versions exist, resolveVersionShas overrides the locally-computed shas for accuracy.', tech: 'Latest version drives anchor SHAs' } },
+
+    { id: 'diffs-remote', x: 60, y: 160, w: 280, h: 75, icon: '📦', label: 'merge-request-remote-diffs.json',
+      sub: 'Preferred · from GitLab API',
+      type: 'cache',
+      tooltip: { title: 'merge-request-remote-diffs.json', desc: 'The output of GET /merge_requests/:iid/changes (after mergeDiffsWithFallback fills in any missing diff content from the local git fallback). This is the canonical diff source — store_review_comment and get_diffs_checklist read from here first.', tech: 'Preferred over local diffs' } },
+
+    { id: 'diffs-local', x: 360, y: 160, w: 220, h: 75, icon: '📦', label: 'diffs.json',
+      sub: 'Local git fallback',
+      type: 'cache',
+      tooltip: { title: 'diffs.json', desc: 'Locally-computed diffs via git, for the same range as the remote diffs. Used as fallback when the GitLab API does not return diff content (which can happen for large or generated files). mergeDiffsWithFallback combines remote metadata with local content.', tech: 'Computed from working tree' } },
+
+    { id: 'discussions', x: 600, y: 160, w: 200, h: 75, icon: '💬', label: 'discussions.json',
+      sub: 'Threaded MR comments',
+      type: 'cache',
+      tooltip: { title: 'discussions.json', desc: 'GET /merge_requests/:iid/discussions snapshot. Each discussion is a thread of notes, with positional metadata (file path + line) for inline ones. buildExistingReviewCommentAnchors walks these to dedupe before posting.', tech: 'GitLabDiscussionListSchema' } },
+
+    { id: 'notes', x: 820, y: 160, w: 200, h: 75, icon: '📝', label: 'notes.json',
+      sub: 'Non-threaded MR comments',
+      type: 'cache',
+      tooltip: { title: 'notes.json', desc: 'GET /merge_requests/:iid/notes — the flat MR notes (not part of inline discussions). Also walked by the dedupe builder. The UI test results note is posted into this collection.', tech: 'GitLabNoteListSchema' } },
+
+    // Derived artifacts
+    { id: 'diff-txt', x: 60, y: 280, w: 160, h: 65, icon: '📄', label: 'diff.txt',
+      sub: 'Combined diff',
+      type: 'cache',
+      tooltip: { title: 'diff.txt', desc: 'Plain text concatenation of every changed-file diff in path order. Written by initArtifacts. Convenient for the agent when it wants to grep the entire diff at once.', tech: 'Plain text' } },
+
+    { id: 'changed-txt', x: 240, y: 280, w: 200, h: 65, icon: '📄', label: 'changed-files.txt',
+      sub: 'One path per line',
+      type: 'cache',
+      tooltip: { title: 'changed-files.txt', desc: 'List of changed file paths, one per line. The playwright-cli skill uses this to compare against test_cases_folder content for test case prioritization (high priority = file content references a changed file).', tech: 'One path per line' } },
+
+    { id: 'stat-txt', x: 460, y: 280, w: 160, h: 65, icon: '📄', label: 'stat.txt',
+      sub: 'git diff --stat',
+      type: 'cache',
+      tooltip: { title: 'stat.txt', desc: 'Output of git diff --stat for the MR range. Quick at-a-glance view of which files changed and by how much.', tech: 'git diff --stat' } },
+
+    { id: 'numstat-txt', x: 640, y: 280, w: 200, h: 65, icon: '📄', label: 'numstat.txt',
+      sub: 'Adds/dels per file',
+      type: 'cache',
+      tooltip: { title: 'numstat.txt', desc: 'Output of git diff --numstat. Machine-readable adds/dels/path triplets — useful for programmatic prioritization.', tech: 'git diff --numstat' } },
+
+    // Output logs
+    { id: 'review-log', x: 60, y: 400, w: 280, h: 80, icon: '✍️', label: 'review-comments.json',
+      sub: 'Rolling review log',
+      tech: 'Append-only · 1 entry per store_review_comment',
+      type: 'cache',
+      tooltip: { title: 'review-comments.json', desc: 'The output of store_review_comment — every issue the agent records during the review. Append-only. Each entry: file_path · new_line OR old_line · severity 1-5 · category · line_context · optional deleted_line_context · explanation · suggested_fix. send_all_comments reads this, dedupes, sorts via sortReviewComments, and posts each surviving entry.', tech: 'Append-only log' } },
+
+    { id: 'test-execs', x: 360, y: 400, w: 240, h: 80, icon: '🧪', label: 'test-executions.json',
+      sub: 'UI test execution log',
+      tech: 'Append-only · 1 per save_test_case_execution',
+      type: 'cache',
+      tooltip: { title: 'test-executions.json', desc: 'Output of save_test_case_execution. Each entry: test_case_id, status (PASSED|FAILED), description (when FAILED), screenshot (when FAILED), executed_at (server timestamp). send_all_test_reports reads this to generate JUnit + Allure + the MR summary note.', tech: 'Append-only · ISO timestamps' } },
+
+    { id: 'junit-xml', x: 620, y: 400, w: 200, h: 80, icon: '📊', label: 'junit-test-report.xml',
+      sub: 'GitLab pipeline reports',
+      type: 'cache',
+      tooltip: { title: 'junit-test-report.xml', desc: 'Standard JUnit XML — testsuite > testcase * N. Picked up by the artifacts:reports:junit declaration in ai-ui-testing.yml so GitLab can render it in the pipeline reports tab.', tech: 'JUnit XML format' } },
+
+    { id: 'allure', x: 840, y: 400, w: 200, h: 80, icon: '📈', label: 'allure-results/',
+      sub: 'JSON for Pages HTML',
+      type: 'cache',
+      tooltip: { title: 'allure-results/', desc: 'Directory: one $uuid-result.json per test case + environment.properties (the CI variables) + executor.json (pipeline info). Consumed by the {job_name}_pages job which runs `allure generate` to produce HTML, then deploys it to GitLab Pages at {CI_PAGES_URL}/{MR_IID}/.', tech: '@allure/cli compatible' } },
+
+    // External requirements
+    { id: 'ext-docs', x: 60, y: 530, w: 360, h: 80, icon: '📚', label: 'docs/external/',
+      sub: 'Cloned EXTERNAL_REQUIREMENTS_REPO_URL',
+      tech: 'Optional · cloned at init time only when env is set',
+      type: 'cache',
+      tooltip: { title: 'docs/external/', desc: 'External requirements repo cloned by core/external-requirements.ts during init. Contains org-wide architecture and requirements markdown. The skill loads files matching patterns like docs/external/requirements/*.md and docs/external/architecture/*.md as additional review context. Local AGENTS.md takes precedence on conflicts.', tech: 'git clone → docs/external/' } },
+
+    { id: 'agents-md', x: 460, y: 530, w: 360, h: 80, icon: '🧭', label: 'AGENTS.md (in repo)',
+      sub: 'Local project rules · not in cache',
+      tech: 'Read by skill from CI_PROJECT_DIR',
+      type: 'default',
+      tooltip: { title: 'AGENTS.md', desc: 'NOT in the cache — this file lives in the customer repo. The skill reads it from CI_PROJECT_DIR at orchestration step 2. It often points to docs/requirements.md, docs/architecture.md, etc. — those get loaded too. Local AGENTS.md takes precedence over docs/external/ on conflicts.', tech: 'Project-local · mandatory · drives review rules' } },
+  ],
+  connections: [
+    { from: 'mr-meta', to: 'shas-env', label: '', type: '' },
+    { from: 'mr-meta', to: 'versions', label: '', type: '' },
+    { from: 'diffs-remote', to: 'diffs-local', label: 'fallback', type: 'cache-flow' },
+    { from: 'review-log', to: 'discussions', label: 'dedupe vs', type: 'cache-flow' },
+    { from: 'review-log', to: 'notes', label: 'dedupe vs', type: 'cache-flow' },
+    { from: 'test-execs', to: 'junit-xml', label: 'generate', type: '' },
+    { from: 'test-execs', to: 'allure', label: 'generate', type: '' },
+  ]
+};
+
+// ─────────────────────────────────────────────────────────
+// LEVEL 3 — GitLab API surface
+// ─────────────────────────────────────────────────────────
+DATA['gitlab-api'] = {
+  title: 'LEVEL 3 — GITLAB REST API SURFACE',
+  heading: 'GitLab REST · Endpoints Used',
+  desc: 'Every GitLab call goes through core/gitlab-client.ts with PRIVATE-TOKEN auth. The server respects GITLAB_CA_CERT_PATH for self-signed UBS certs. Reads happen during init and send_all_comments; writes happen only during send_all_comments and send_all_test_reports.',
+  nodes: [
+    // Auth
+    { id: 'auth', x: 360, y: 30, w: 380, h: 75, icon: '🔑', label: 'PRIVATE-TOKEN header',
+      sub: 'scopes: api, read_repository',
+      tech: 'GITLAB_PERSONAL_ACCESS_TOKEN env',
+      type: 'default',
+      tooltip: { title: 'Auth', desc: 'Personal access token in the PRIVATE-TOKEN header on every request. Base URL comes from CI_API_V4_URL (provided by GitLab CI). The token must have api and read_repository scopes — anything less and label/discussion writes will 403.', tech: 'header: PRIVATE-TOKEN: <pat>' } },
+
+    // Reads
+    { id: 'get-mr', x: 60, y: 160, w: 270, h: 70, icon: '📥', label: 'GET /merge_requests/:iid',
+      sub: 'MR metadata',
+      type: 'default',
+      tooltip: { title: 'Read MR metadata', desc: 'Used implicitly via the changes/discussions/notes/versions endpoints. The MR identity (iid, project_id, branches, title) is also reconstructed from CI_MERGE_REQUEST_* env vars to avoid an extra call.', tech: 'iid + project_id' } },
+
+    { id: 'get-changes', x: 350, y: 160, w: 280, h: 70, icon: '📥', label: 'GET /...:iid/changes',
+      sub: 'File diffs',
+      type: 'default',
+      tooltip: { title: 'GET MR changes', desc: 'Returns the array of {old_path, new_path, diff, new_file, deleted_file, renamed_file} per changed file. getMergeRequestChanges reads this; mergeDiffsWithFallback patches any missing diff bodies with locally-computed diffs.', tech: 'core/gitlab-merge-requests.getMergeRequestChanges' } },
+
+    { id: 'get-disc', x: 650, y: 160, w: 270, h: 70, icon: '📥', label: 'GET /...:iid/discussions',
+      sub: 'Threaded comments',
+      type: 'default',
+      tooltip: { title: 'GET MR discussions', desc: 'Used for dedup. listMergeRequestDiscussions paginated under the hood. Result drives buildExistingReviewCommentAnchors so the agent doesn\'t post duplicates.', tech: 'core/gitlab-merge-requests.listMergeRequestDiscussions' } },
+
+    { id: 'get-notes', x: 940, y: 160, w: 240, h: 70, icon: '📥', label: 'GET /...:iid/notes',
+      sub: 'Flat notes',
+      type: 'default',
+      tooltip: { title: 'GET MR notes', desc: 'The flat notes collection (separate from threaded discussions). Used for both dedup and to find prior UI test summary notes.', tech: 'core/gitlab-merge-requests.listMergeRequestNotes' } },
+
+    { id: 'get-versions', x: 60, y: 280, w: 280, h: 70, icon: '📥', label: 'GET /...:iid/versions',
+      sub: 'Version SHAs for anchoring',
+      type: 'default',
+      tooltip: { title: 'GET MR versions', desc: 'Returns the list of MR versions. The latest version\'s diff_refs (base_sha, start_sha, head_sha) become the position anchors when posting inline discussions — without these the comment cannot be precisely anchored.', tech: 'resolveLatestVersion + resolveVersionShas' } },
+
+    { id: 'get-labels', x: 370, y: 280, w: 280, h: 70, icon: '📥', label: 'GET /...:iid (labels field)',
+      sub: 'For hasLabel check',
+      type: 'default',
+      tooltip: { title: 'Label check', desc: 'hasLabel(client, locator, name) reads the MR\'s labels array and returns whether the named label is present. Used twice in init (already_reviewed, already_ui_tested) and once at the top of exec-codex.sh as the fast early-exit.', tech: 'core/gitlab-merge-requests.hasLabel' } },
+
+    // Writes
+    { id: 'post-disc', x: 60, y: 400, w: 350, h: 85, icon: '✏️', label: 'POST /...:iid/discussions',
+      sub: 'Inline review comment',
+      tech: '+ position{ base_sha, start_sha, head_sha, paths, line }',
+      type: 'default',
+      tooltip: { title: 'POST inline discussion', desc: 'The main output of send_all_comments. Body is the rendered review comment (markdown with severity, category, explanation, GitLab suggestion block). Position is the precise anchor — without correct SHAs and line index this 400s.', tech: 'createMergeRequestDiscussion · position_type:"text"' } },
+
+    { id: 'post-note', x: 440, y: 400, w: 320, h: 85, icon: '✏️', label: 'POST /...:iid/notes',
+      sub: 'UI test summary note',
+      tech: 'Markdown table + Allure URL',
+      type: 'default',
+      tooltip: { title: 'POST MR note', desc: 'Used once by send_all_test_reports to post a single summary note with: total/passed/failed counts, a per-test status table (✅ PASSED · ❌ FAILED with description), the predicted Allure report URL (after pipeline completes), and a "JUnit report available in job artifacts" line. Falls through silently if the call fails — the test reports themselves still land as artifacts.', tech: 'createMergeRequestNote' } },
+
+    { id: 'put-label', x: 790, y: 400, w: 320, h: 85, icon: '✏️', label: 'PUT /...:iid (add label)',
+      sub: 'AI:Reviewed · AI:UI-Tested',
+      tech: 'addLabel · idempotent',
+      type: 'default',
+      tooltip: { title: 'Add label', desc: 'After successful comment posting, send_all_comments adds the AI:Reviewed label (configurable via AI_REVIEW_LABEL). send_all_test_reports adds AI:UI-Tested (AI_UI_TEST_LABEL). These labels are how the system avoids re-doing work on the next pipeline run.', tech: 'tryAddLabel · errors logged, never fatal' } },
+  ],
+  connections: [
+    { from: 'auth', to: 'get-mr', label: '', type: 'auth-flow' },
+    { from: 'auth', to: 'get-changes', label: '', type: 'auth-flow' },
+    { from: 'auth', to: 'get-disc', label: '', type: 'auth-flow' },
+    { from: 'auth', to: 'get-notes', label: '', type: 'auth-flow' },
+    { from: 'auth', to: 'get-versions', label: '', type: 'auth-flow' },
+    { from: 'auth', to: 'get-labels', label: '', type: 'auth-flow' },
+    { from: 'auth', to: 'post-disc', label: '', type: 'auth-flow' },
+    { from: 'auth', to: 'post-note', label: '', type: 'auth-flow' },
+    { from: 'auth', to: 'put-label', label: '', type: 'auth-flow' },
+  ]
+};
+
+// ─────────────────────────────────────────────────────────
+// LEVEL 3 — Review flow (sequence)
+// ─────────────────────────────────────────────────────────
+DATA['review-flow'] = {
+  title: 'LEVEL 3 — SEQUENCE',
+  heading: 'mr-review · Full Run Flow',
+  desc: 'End-to-end sequence of a successful mr-review pipeline run, top to bottom. Every arrow is one tool call, network request, or LLM completion. The fast /labels/check exit at the top lets us avoid spending tokens on already-reviewed MRs.',
+  nodes: [
+    { id: 'rf-1', x: 60, y: 30, w: 280, h: 70, icon: '🏁', label: '1. Pipeline triggered',
+      sub: '$CI_PIPELINE_SOURCE == merge_request_event',
+      type: 'default',
+      tooltip: { title: 'Pipeline trigger', desc: 'The mr-review.yml job\'s rules clause matches CI_PIPELINE_SOURCE == "merge_request_event". The job pulls the gitlab-agent image and runs on a kubernetes/devcloud-kubernetes runner.', tech: 'allow_failure: true · interruptible: true' } },
+
+    { id: 'rf-2', x: 380, y: 30, w: 280, h: 70, icon: '🔌', label: '2. exec-codex.sh starts MCP',
+      sub: 'node dist/server.js &',
+      type: 'default',
+      tooltip: { title: 'MCP server starts in background', desc: 'Forked before validation so it warms while env checks run. PID is trapped — killed when the agent exits. Logs go to /tmp/mr-reviewer-mcp.log.', tech: 'Forked early for parallelism' } },
+
+    { id: 'rf-3', x: 700, y: 30, w: 280, h: 70, icon: '🏷️', label: '3. GET /labels/check',
+      sub: 'Fast early-exit probe',
+      type: 'default',
+      tooltip: { title: 'Early-exit label check', desc: 'curl GET http://127.0.0.1:3333/labels/check?project=X&mr=Y&name=AI:Reviewed. If has_label=true → exit 0 immediately. Fails open: any error → proceed anyway.', tech: 'Saves $$$ on already-reviewed MRs' } },
+
+    { id: 'rf-4', x: 60, y: 140, w: 280, h: 70, icon: '⚡', label: '4. codex exec "$mr-reviewer ..."',
+      sub: 'Skill loaded as system prompt',
+      type: 'ai',
+      tooltip: { title: 'Codex agent launches', desc: 'The "$mr-reviewer" prefix resolves to skills/mr-reviewer/SKILL.md. That markdown becomes the system prompt. The rest of the prompt ("for Project X and MR Y") becomes the runtime parameters.', tech: 'Skill-as-system-prompt' } },
+
+    { id: 'rf-5', x: 380, y: 140, w: 280, h: 70, icon: '🚦', label: '5. MCP tool · init',
+      sub: 'Local diffs + remote diffs + disc/notes',
+      type: 'tool',
+      tooltip: { title: 'init', desc: 'Computes local git diffs, fetches MR discussions/notes/versions/changes, writes 9+ cache files, clones external requirements if configured, checks labels. Returns status:ready with paths and the already_reviewed flag.', tech: 'Largest MCP call · 8+ GitLab requests' } },
+
+    { id: 'rf-6', x: 700, y: 140, w: 280, h: 70, icon: '🛑', label: '6. already_reviewed?',
+      sub: 'Second-line dedupe gate',
+      type: 'default',
+      tooltip: { title: 'Skill-level dedupe gate', desc: 'Even though step 3 already did a label check, init re-checks at the MCP level (in case the label was added by a sibling pipeline between step 3 and step 5). If true, the skill stops immediately without storing any comments.', tech: 'Defense in depth' } },
+
+    { id: 'rf-7', x: 60, y: 250, w: 280, h: 70, icon: '📚', label: '7. Load AGENTS.md + docs',
+      sub: 'Local + docs/external/ if fetched',
+      type: 'default',
+      tooltip: { title: 'Context loading', desc: 'File reads only — no LLM call. AGENTS.md from CI_PROJECT_DIR, then any docs it points to, then docs/external/* if external_requirements_status=="fetched".', tech: 'Plain file reads' } },
+
+    { id: 'rf-8', x: 380, y: 250, w: 280, h: 70, icon: '💬', label: '8. get_conversations_and_notes',
+      sub: 'Build dedupe anchors',
+      type: 'tool',
+      tooltip: { title: 'get_conversations_and_notes', desc: 'Returns the MR + discussions + notes + existing_review_comment_anchors (precomputed). Called exactly once. Cached in the agent\'s context for the rest of the run.', tech: 'Skill rule: exactly once' } },
+
+    { id: 'rf-9', x: 700, y: 250, w: 280, h: 70, icon: '📑', label: '9. get_diffs_checklist',
+      sub: 'Sorted by path',
+      type: 'tool',
+      tooltip: { title: 'get_diffs_checklist', desc: 'Returns {index, file_path, change_type, reviewed:false, diff} for every changed file, alphabetically sorted. Called exactly once. The agent iterates through this list deterministically.', tech: 'Skill rule: exactly once · deterministic order' } },
+
+    { id: 'rf-10', x: 60, y: 360, w: 280, h: 70, icon: '🔁', label: '10. Loop over files + hunks',
+      sub: 'Apply review-protocol.md',
+      type: 'ai',
+      tooltip: { title: 'Review loop', desc: 'For each file: load the full source, apply the 7-stage review protocol (Intent → Hunk → File → Call graph → Requirements → Architecture → Risk-focused). The agent often shells out with `rg` to find similar utilities (DRY check).', tech: 'Many LLM turns · many bash calls' } },
+
+    { id: 'rf-11', x: 380, y: 360, w: 280, h: 70, icon: '🧹', label: '11. Dedupe vs anchors',
+      sub: 'file_path + line + body_hash',
+      type: 'default',
+      tooltip: { title: 'Per-issue dedup', desc: 'Before storing, the agent checks the issue against existing_review_comment_anchors. Match on (file_path, anchor_line) + identical body_hash → skip. Same anchor but different finding → still post (regression or different angle).', tech: 'Done in-prompt + re-verified server-side' } },
+
+    { id: 'rf-12', x: 700, y: 360, w: 280, h: 70, icon: '✍️', label: '12. store_review_comment ×N',
+      sub: 'Validated against diff line index',
+      type: 'tool',
+      tooltip: { title: 'store_review_comment', desc: 'Each issue is recorded. Server validates the anchor line exists in the diff line index — anchoring on a non-existent line errors out, so the model self-corrects.', tech: 'N append calls' } },
+
+    { id: 'rf-13', x: 60, y: 470, w: 280, h: 70, icon: '❓', label: '13. Any comments stored?',
+      sub: 'Decides whether to send',
+      type: 'default',
+      tooltip: { title: 'Send-decision', desc: 'Skill rule: only call send_all_comments if at least one issue was stored. If zero, emit a brief no-issues message and STOP — explicitly do NOT add the AI:Reviewed label, so future pipelines can re-review.', tech: 'No comments → no label' } },
+
+    { id: 'rf-14', x: 380, y: 470, w: 280, h: 70, icon: '📤', label: '14. send_all_comments',
+      sub: 'Re-fetch versions · post · label',
+      type: 'tool',
+      tooltip: { title: 'send_all_comments', desc: 'Re-fetches the latest MR versions (in case the MR moved). For each stored comment: dedupe vs existing, post as inline discussion with full position. Adds AI:Reviewed on any activity. Returns {posted, skipped, label_added}.', tech: '1 GitLab POST per surviving comment' } },
+
+    { id: 'rf-15', x: 700, y: 470, w: 280, h: 70, icon: '🏁', label: '15. STOP',
+      sub: 'No epilogue allowed',
+      type: 'default',
+      tooltip: { title: 'Termination', desc: 'Skill rule: stop immediately after send_all_comments. No summaries, no recap. The trap in exec-codex.sh kills the MCP server PID. after_script pushes telemetry. Job exits 0.', tech: 'Telemetry · MCP server killed' } },
+  ],
+  connections: [
+    { from: 'rf-1', to: 'rf-2', label: '', type: '' },
+    { from: 'rf-2', to: 'rf-3', label: '', type: '' },
+    { from: 'rf-3', to: 'rf-4', label: 'has_label=false', type: '' },
+    { from: 'rf-4', to: 'rf-5', label: '', type: 'tool-flow' },
+    { from: 'rf-5', to: 'rf-6', label: '', type: '' },
+    { from: 'rf-6', to: 'rf-7', label: 'false', type: '' },
+    { from: 'rf-7', to: 'rf-8', label: '', type: 'tool-flow' },
+    { from: 'rf-8', to: 'rf-9', label: '', type: 'tool-flow' },
+    { from: 'rf-9', to: 'rf-10', label: '', type: 'ai-flow' },
+    { from: 'rf-10', to: 'rf-11', label: '', type: '' },
+    { from: 'rf-11', to: 'rf-12', label: 'not dup', type: 'tool-flow' },
+    { from: 'rf-12', to: 'rf-13', label: '', type: '' },
+    { from: 'rf-13', to: 'rf-14', label: '≥ 1', type: 'tool-flow' },
+    { from: 'rf-14', to: 'rf-15', label: '', type: '' },
+  ]
+};
+
+// ─────────────────────────────────────────────────────────
+// LEVEL 3 — UI test flow (sequence)
+// ─────────────────────────────────────────────────────────
+DATA['test-flow'] = {
+  title: 'LEVEL 3 — SEQUENCE',
+  heading: 'ai-ui-testing · Full Run Flow',
+  desc: 'End-to-end sequence of a Playwright-driven UI test run. Two parallel CI jobs: the test job produces JUnit + Allure artifacts; the _pages sibling job converts Allure JSON to HTML and deploys to GitLab Pages at {CI_PAGES_URL}/{MR_IID}/.',
+  nodes: [
+    { id: 'tf-1', x: 60, y: 30, w: 280, h: 70, icon: '🏁', label: '1. Job: ai-ui-testing',
+      sub: 'Skipped if test_cases_folder missing',
+      type: 'default',
+      tooltip: { title: 'Job trigger', desc: 'Template ai-ui-testing.yml. If the test_cases_folder doesn\'t exist, the job exits 0 with a "no test cases available" message — no failure, no agent invocation.', tech: 'allow_failure: true · pre-check on folder' } },
+
+    { id: 'tf-2', x: 380, y: 30, w: 280, h: 70, icon: '⚡', label: '2. codex exec "$playwright-cli..."',
+      sub: '+ test_cases_folder + base_ui_url',
+      type: 'ai',
+      tooltip: { title: 'Skill loaded', desc: 'The $playwright-cli skill is loaded as system prompt. Two extra runtime params: test_cases_folder (where to find test cases) and base_ui_url (the app under test).', tech: 'Same exec-codex.sh entry, different skill' } },
+
+    { id: 'tf-3', x: 700, y: 30, w: 280, h: 70, icon: '🚦', label: '3. init',
+      sub: 'Same as mr-review',
+      type: 'tool',
+      tooltip: { title: 'init', desc: 'Identical init call. Returns already_ui_tested instead of already_reviewed. If true, STOP.', tech: 'Shared infrastructure' } },
+
+    { id: 'tf-4', x: 60, y: 140, w: 280, h: 70, icon: '🔍', label: '4. Discover test cases',
+      sub: 'Flat list of TC-XXX-NNN',
+      type: 'default',
+      tooltip: { title: 'Test case discovery', desc: 'List every file in test_cases_folder. Parse each as a GROUP that contains multiple TC-XXX-NNN test cases (identified by heading). Build a flat list of all individual test case IDs across all files. Each file may have group-level Prerequisites + Pre-steps.', tech: 'Folder is authoritative — search nowhere else' } },
+
+    { id: 'tf-5', x: 380, y: 140, w: 280, h: 70, icon: '⬆️', label: '5. Prioritize',
+      sub: 'High = touches changed files',
+      type: 'default',
+      tooltip: { title: 'Prioritization', desc: 'High priority = parent file content references a file in the MR changed-files list. Low priority = the rest. High priority runs first. Within each tier, file/order is deterministic.', tech: 'Diff-aware test selection' } },
+
+    { id: 'tf-6', x: 700, y: 140, w: 280, h: 70, icon: '🎭', label: '6. playwright-cli --version',
+      sub: 'Hard-fail if missing',
+      type: 'default',
+      tooltip: { title: 'CLI availability check', desc: 'If playwright-cli is not on PATH, STOP immediately with a clear error. The skill explicitly forbids installation workarounds.', tech: 'Pre-flight check' } },
+
+    { id: 'tf-7', x: 60, y: 250, w: 280, h: 70, icon: '🌐', label: '7. playwright-cli open <url>',
+      sub: 'On failure: save FAIL + send + STOP',
+      type: 'default',
+      tooltip: { title: 'Open browser', desc: 'Opens a browser at base_ui_url. On ANY failure (DNS, TLS, connection refused, timeout): the skill saves a FAILED execution for the FIRST test case with the error in the description, calls send_all_test_reports, and stops. No retry.', tech: 'Strict no-retry policy' } },
+
+    { id: 'tf-8', x: 380, y: 250, w: 280, h: 70, icon: '🔁', label: '8. For each test case',
+      sub: 'EVERY one · never sample',
+      type: 'ai',
+      tooltip: { title: 'Sequential execution', desc: 'Sequential — no concurrent browser sessions. Pre-step (group-level) once per group on entry. For each TC: snapshot → execute actions (snapshot before each interaction) → wait for stabilization → verify expected result → save PASSED or FAILED.', tech: 'Snapshot-first · element refs from live page' } },
+
+    { id: 'tf-9', x: 700, y: 250, w: 280, h: 70, icon: '🧪', label: '9. save_test_case_execution',
+      sub: 'PASS or FAIL · per test',
+      type: 'tool',
+      tooltip: { title: 'save_test_case_execution', desc: 'PASSED: just test_case_id + status. FAILED: also description (what was done, where it failed, observed vs expected) + screenshot path (from playwright-cli screenshot --filename=<id>-failure.png).', tech: 'Immediate · one call per test' } },
+
+    { id: 'tf-10', x: 60, y: 360, w: 280, h: 70, icon: '🚪', label: '10. playwright-cli close',
+      sub: 'Always · even on errors',
+      type: 'default',
+      tooltip: { title: 'Close browser', desc: 'Always runs before sending the report, even if test execution had errors. On browser crash mid-run: close is best-effort, then save FAIL for the current test, send reports, STOP.', tech: 'Cleanup obligation' } },
+
+    { id: 'tf-11', x: 380, y: 360, w: 280, h: 70, icon: '📋', label: '11. send_all_test_reports',
+      sub: 'JUnit + Allure + MR note + label',
+      type: 'tool',
+      tooltip: { title: 'send_all_test_reports', desc: 'Generates junit-test-report.xml (artifacts:reports:junit), Allure JSON results (for the _pages job), and posts a single MR note with the pass/fail table + predicted Allure URL. Adds AI:UI-Tested label.', tech: '5 artifacts produced + 1 MR note + 1 label' } },
+
+    { id: 'tf-12', x: 700, y: 360, w: 280, h: 70, icon: '🏁', label: '12. Test job STOP',
+      sub: 'Artifacts captured',
+      type: 'default',
+      tooltip: { title: 'Test job done', desc: 'after_script pushes telemetry. The artifacts:paths declaration captures the entire test_reports_dir for 7 days. The _pages job (separate but in the same stage) takes over.', tech: 'Artifacts expire_in: 7 days' } },
+
+    { id: 'tf-13', x: 60, y: 470, w: 280, h: 70, icon: '🌐', label: '13. _pages job (sibling)',
+      sub: 'Needs the artifacts',
+      type: 'default',
+      tooltip: { title: 'Pages job', desc: 'A second job with needs: ai-ui-testing (optional:true). Image: fit-allure-cli. Verifies allure-results/ is non-empty (else exits 1 cleanly). Runs `allure generate test_reports_dir/allure-results -o public --clean`.', tech: 'fit-allure-cli:0.0.1-SNAPSHOT · allure generate' } },
+
+    { id: 'tf-14', x: 380, y: 470, w: 280, h: 70, icon: '📤', label: '14. Deploy to Pages',
+      sub: 'pages.path_prefix: $CI_MR_IID',
+      type: 'default',
+      tooltip: { title: 'Pages deploy', desc: 'publish: public + pages.path_prefix: $CI_MERGE_REQUEST_IID. Each MR gets its own URL slot, so concurrent MRs don\'t overwrite each other. Requires GitLab 16.9+. expire_in: 30 days.', tech: 'Per-MR URL · GitLab 16.9+ feature' } },
+
+    { id: 'tf-15', x: 700, y: 470, w: 280, h: 70, icon: '🔗', label: '15. {CI_PAGES_URL}/{MR_IID}/',
+      sub: 'Browsable HTML report',
+      type: 'default',
+      tooltip: { title: 'Allure report URL', desc: 'The URL is predicted at send_all_test_reports time and embedded in the MR note ("available after pipeline completes"). Once the _pages job finishes, the link goes live.', tech: 'Predictive URL — note posted before deploy completes' } },
+  ],
+  connections: [
+    { from: 'tf-1', to: 'tf-2', label: '', type: '' },
+    { from: 'tf-2', to: 'tf-3', label: '', type: 'tool-flow' },
+    { from: 'tf-3', to: 'tf-4', label: '', type: '' },
+    { from: 'tf-4', to: 'tf-5', label: '', type: '' },
+    { from: 'tf-5', to: 'tf-6', label: '', type: '' },
+    { from: 'tf-6', to: 'tf-7', label: 'ok', type: '' },
+    { from: 'tf-7', to: 'tf-8', label: 'open ok', type: 'ai-flow' },
+    { from: 'tf-8', to: 'tf-9', label: 'per test', type: 'tool-flow' },
+    { from: 'tf-9', to: 'tf-8', label: 'next', type: '' },
+    { from: 'tf-8', to: 'tf-10', label: 'all done', type: '' },
+    { from: 'tf-10', to: 'tf-11', label: '', type: 'tool-flow' },
+    { from: 'tf-11', to: 'tf-12', label: '', type: '' },
+    { from: 'tf-12', to: 'tf-13', label: 'artifacts', type: 'data-flow' },
+    { from: 'tf-13', to: 'tf-14', label: '', type: '' },
+    { from: 'tf-14', to: 'tf-15', label: '', type: 'data-flow' },
+  ]
+};
+</script>
+
+<script>
+// ============================================================
+// RENDER ENGINE — adapted from FRAME3 blueprint pattern
+// ============================================================
+
+let currentLevel = 'system';
+let history = [];
+
+const canvas = document.getElementById('canvas');
+const backBtn = document.getElementById('back-btn');
+const homeBtn = document.getElementById('home-btn');
+const breadcrumb = document.getElementById('breadcrumb');
+const tooltip = document.getElementById('tooltip');
+const tooltipTitle = document.getElementById('tooltip-title');
+const tooltipDesc = document.getElementById('tooltip-desc');
+const tooltipTech = document.getElementById('tooltip-tech');
+const hintBar = document.getElementById('hint-bar');
+
+const LEVEL_LABELS = {
+  'system': 'Pipeline Context',
+  'container': 'Container Diagram',
+  'mcp': 'MCP Server',
+  'agent': 'Codex Agent',
+  'skills': 'Skills',
+  'cache': 'Cache FS',
+  'gitlab-api': 'GitLab API',
+  'review-flow': 'Review Flow',
+  'test-flow': 'UI Test Flow',
+};
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderView(levelId, pushHistory = true) {
+  const data = DATA[levelId];
+  if (!data) return;
+
+  if (pushHistory && currentLevel !== levelId) {
+    history.push(currentLevel);
+  }
+  currentLevel = levelId;
+
+  updateBreadcrumb();
+  backBtn.classList.toggle('visible', history.length > 0);
+  homeBtn.classList.toggle('visible', currentLevel !== 'system');
+  hintBar.style.display = currentLevel === 'system' ? '' : 'none';
+
+  // SVG bounds
+  let maxX = 0, maxY = 0;
+  data.nodes.forEach(n => {
+    maxX = Math.max(maxX, n.x + n.w + 40);
+    maxY = Math.max(maxY, n.y + n.h + 60);
+  });
+  const svgW = Math.max(maxX, 1100);
+  const svgH = maxY + 20;
+
+  let svg = `<svg class="diagram-svg" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Defs — arrow markers
+  svg += `<defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="rgba(30,108,184,0.55)"/>
+    </marker>
+    <marker id="arrowhead-start" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto-start-reverse">
+      <polygon points="8 0, 0 3, 8 6" fill="rgba(30,108,184,0.55)"/>
+    </marker>
+  </defs>`;
+
+  // Connections first (so they're behind nodes)
+  data.connections.forEach((conn, i) => {
+    const fromNode = data.nodes.find(n => n.id === conn.from);
+    const toNode = data.nodes.find(n => n.id === conn.to);
+    if (!fromNode || !toNode) return;
+
+    const { sx, sy, ex, ey } = getEdgePoints(fromNode, toNode);
+    const midX = (sx + ex) / 2;
+    const midY = (sy + ey) / 2;
+    const dx = ex - sx;
+    const dy = ey - sy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const curve = Math.min(dist * 0.12, 32);
+    const cx1 = midX - dy * 0.08;
+    const cy1 = midY + dx * 0.08;
+
+    const cls = conn.type ? `conn-line ${conn.type}` : 'conn-line';
+    svg += `<path d="M${sx},${sy} Q${cx1},${cy1} ${ex},${ey}" class="${cls}" style="animation-delay: ${0.4 + i * 0.04}s"/>`;
+
+    if (conn.label) {
+      const lx = midX * 0.5 + cx1 * 0.5;
+      const ly = midY * 0.5 + cy1 * 0.5 - 6;
+      svg += `<text x="${lx}" y="${ly}" class="conn-label">${escHtml(conn.label)}</text>`;
+    }
+  });
+
+  // Nodes
+  data.nodes.forEach((node, i) => {
+    const hasDrill = !!node.drillTo;
+    const groupClass = hasDrill ? 'node-group' : 'node-group no-drill';
+    const delay = 0.3 + i * 0.05;
+
+    svg += `<g class="${groupClass}" data-id="${node.id}" data-drill="${node.drillTo || ''}" style="animation-delay: ${delay}s"`;
+    if (node.tooltip) {
+      svg += ` data-tooltip-title="${escHtml(node.tooltip.title)}" data-tooltip-desc="${escHtml(node.tooltip.desc)}" data-tooltip-tech="${escHtml(node.tooltip.tech || '')}"`;
+      if (node.tooltip.port) svg += ` data-tooltip-port="${escHtml(node.tooltip.port)}"`;
+    }
+    svg += `>`;
+
+    // Box class by type
+    const boxClass = node.type === 'external' ? 'node-box external' :
+                     node.type === 'database' ? 'node-box database' :
+                     node.type === 'ai' ? 'node-box ai' :
+                     node.type === 'user-actor' ? 'node-box user-actor' :
+                     node.type === 'tool' ? 'node-box tool' :
+                     node.type === 'cache' ? 'node-box cache' :
+                     node.type === 'skill' ? 'node-box skill' : 'node-box';
+    svg += `<rect x="${node.x}" y="${node.y}" width="${node.w}" height="${node.h}" class="${boxClass}"/>`;
+
+    // Icon
+    const iconY = node.tech ? node.y + node.h * 0.28 : node.y + node.h * 0.33;
+    svg += `<text x="${node.x + node.w/2}" y="${iconY}" class="node-icon">${node.icon || ''}</text>`;
+
+    // Label — supports newline (split via \n in source)
+    const labelLines = (node.label || '').split('\n');
+    const labelY = node.tech ? node.y + node.h * 0.56 : node.y + node.h * 0.6;
+    labelLines.forEach((line, idx) => {
+      svg += `<text x="${node.x + node.w/2}" y="${labelY + idx * 14}" class="node-label">${escHtml(line)}</text>`;
+    });
+
+    // Sublabel
+    if (node.sub) {
+      const subY = node.tech ? node.y + node.h * 0.76 : node.y + node.h * 0.82;
+      svg += `<text x="${node.x + node.w/2}" y="${subY + (labelLines.length - 1) * 8}" class="node-sublabel">${escHtml(node.sub)}</text>`;
+    }
+
+    // Tech (smallest line)
+    if (node.tech) {
+      svg += `<text x="${node.x + node.w/2}" y="${node.y + node.h * 0.92}" class="node-tech">${escHtml(node.tech)}</text>`;
+    }
+
+    // Drill hint
+    if (hasDrill) {
+      svg += `<text x="${node.x + node.w/2}" y="${node.y + node.h + 14}" class="drill-hint">▼ CLICK TO DRILL DOWN</text>`;
+    }
+
+    svg += `</g>`;
+  });
+
+  svg += `</svg>`;
+
+  // Render — plus quick-jump pills at the bottom of L2
+  let extra = '';
+  if (levelId === 'container') {
+    extra = `
+      <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:28px; justify-content:center; opacity:0; animation: fadeSlideIn 0.5s ease 0.7s forwards;">
+        ${[
+          ['Review run flow', 'review-flow'],
+          ['UI test run flow', 'test-flow'],
+          ['GitLab REST API', 'gitlab-api'],
+        ].map(([label, id]) =>
+          `<button onclick="navigateTo('${id}')" style="background:rgba(6,14,26,0.75); border:1px solid var(--bp-line-dim); color:var(--bp-text-dim); font-family:'JetBrains Mono',monospace; font-size:.7rem; letter-spacing:1px; padding:8px 18px; border-radius:18px; cursor:pointer; text-transform:uppercase;" onmouseover="this.style.borderColor='var(--bp-line-bright)';this.style.color='var(--bp-text-bright)'" onmouseout="this.style.borderColor='var(--bp-line-dim)';this.style.color='var(--bp-text-dim)'">${label} →</button>`
+        ).join('')}
+      </div>`;
+  }
+
+  canvas.innerHTML = `
+    <div class="view-title">${escHtml(data.title)}</div>
+    <h1 class="view-heading">${escHtml(data.heading)}</h1>
+    <p class="view-desc">${escHtml(data.desc)}</p>
+    <div class="diagram-container">${svg}</div>
+    ${extra}
+  `;
+
+  bindNodeEvents();
+}
+
+function getEdgePoints(from, to) {
+  const fcx = from.x + from.w / 2, fcy = from.y + from.h / 2;
+  const tcx = to.x + to.w / 2, tcy = to.y + to.h / 2;
+  const dx = tcx - fcx, dy = tcy - fcy;
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+
+  let sx, sy, ex, ey;
+  // Decide on which edge each endpoint lives — pick the dominant axis
+  if (adx > ady) {
+    // horizontal-dominant: exit/enter via left or right edge
+    sx = dx > 0 ? from.x + from.w : from.x;
+    sy = fcy;
+    ex = dx > 0 ? to.x : to.x + to.w;
+    ey = tcy;
+  } else {
+    // vertical-dominant: exit/enter via top or bottom edge
+    sx = fcx;
+    sy = dy > 0 ? from.y + from.h : from.y;
+    ex = tcx;
+    ey = dy > 0 ? to.y : to.y + to.h;
+  }
+  return { sx, sy, ex, ey };
+}
+
+function bindNodeEvents() {
+  document.querySelectorAll('.node-group').forEach(group => {
+    const drillTo = group.dataset.drill;
+    if (drillTo) {
+      group.addEventListener('click', () => navigateTo(drillTo));
+    }
+    // Tooltip
+    if (group.dataset.tooltipTitle) {
+      group.addEventListener('mouseenter', e => showTooltip(group, e));
+      group.addEventListener('mousemove', e => moveTooltip(e));
+      group.addEventListener('mouseleave', hideTooltip);
+    }
+  });
+}
+
+function showTooltip(group, e) {
+  tooltipTitle.textContent = group.dataset.tooltipTitle || '';
+  tooltipDesc.textContent = group.dataset.tooltipDesc || '';
+  const tech = group.dataset.tooltipTech || '';
+  const port = group.dataset.tooltipPort;
+  if (tech || port) {
+    tooltipTech.innerHTML = escHtml(tech) + (port ? `<span class="tooltip-port">:${escHtml(port)}</span>` : '');
+    tooltipTech.style.display = '';
+  } else {
+    tooltipTech.style.display = 'none';
+  }
+  tooltip.classList.add('visible');
+  moveTooltip(e);
+}
+
+function moveTooltip(e) {
+  const x = e.clientX + 18;
+  const y = e.clientY + 18;
+  // Keep within viewport
+  const rect = tooltip.getBoundingClientRect();
+  const adjX = (x + rect.width > window.innerWidth - 16) ? window.innerWidth - rect.width - 16 : x;
+  const adjY = (y + rect.height > window.innerHeight - 16) ? e.clientY - rect.height - 18 : y;
+  tooltip.style.left = adjX + 'px';
+  tooltip.style.top = adjY + 'px';
+}
+
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+}
+
+function navigateTo(levelId) {
+  renderView(levelId, true);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goBack() {
+  if (history.length === 0) return;
+  const prev = history.pop();
+  renderView(prev, false);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goHome() {
+  history = [];
+  renderView('system', false);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateBreadcrumb() {
+  // Build crumbs from history + current
+  const crumbs = [...history, currentLevel];
+  let html = '';
+  crumbs.forEach((id, i) => {
+    if (i > 0) html += `<span class="breadcrumb-sep">▸</span>`;
+    const label = LEVEL_LABELS[id] || id;
+    if (i === crumbs.length - 1) {
+      html += `<span class="breadcrumb-item active">${escHtml(label)}</span>`;
+    } else {
+      html += `<span class="breadcrumb-item" data-jump="${i}">${escHtml(label)}</span>`;
+    }
+  });
+  breadcrumb.innerHTML = html;
+  // Wire up jump-back via breadcrumb
+  breadcrumb.querySelectorAll('.breadcrumb-item[data-jump]').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.jump);
+      const target = history[idx];
+      // Truncate history to that point
+      history = history.slice(0, idx);
+      renderView(target, false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+}
+
+// Initial render
+renderView('system', false);
+</script>
+
+</body>
+</html>
