@@ -1,0 +1,279 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Preflight checks and feature branch setup",
+        "description": "Verify Azure OpenAI strict json_schema support, create feature branch, validate tooling readiness",
+        "details": "1. Test strict json_schema parameter on current Azure OpenAI deployment (gpt-4.1) via a minimal aiClient call\n2. Create feature branch: feature/issue-refinery from main\n3. Verify dev dependencies: diff library candidates (react-diff-viewer-continued ~15KB or diff ~10KB)\n4. Validate existing aiClient.ts supports response_format with json_schema strict mode\n5. Document findings in .powerstack4/task_plan.md\n\nPseudo-code:\n```typescript\n// Test in Node REPL or temporary test file\nimport { aiClient } from './src/services/ai/aiClient';\nconst testSchema = { type: 'object', properties: { test: { type: 'string' } }, required: ['test'], additionalProperties: false };\nawait aiClient.chat({ messages: [{ role: 'user', content: 'Reply with {\"test\": \"hello\"}' }], response_format: { type: 'json_schema', json_schema: { name: 'test', schema: testSchema, strict: true } } });\n```",
+        "testStrategy": "Manual verification: strict json_schema call succeeds without error. Branch created. Git status clean except new branch.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-05-18T13:39:20.517Z"
+      },
+      {
+        "id": "2",
+        "title": "Add UpdateIssuePayload type and updateIssue method to gitlabClient",
+        "description": "Extend GitLab client with PUT /projects/:id/issues/:iid capability",
+        "details": "Location: src/services/gitlab/\n\n1. In types.ts, add:\n```typescript\nexport interface UpdateIssuePayload {\n  description?: string;\n  title?: string;\n  labels?: string[];\n  // Only fields we'll use in v1\n}\n```\n\n2. In gitlabClient.ts, add method:\n```typescript\nasync updateIssue(\n  projectId: number,\n  issueIid: number,\n  payload: UpdateIssuePayload\n): Promise<GitLabIssue> {\n  const url = `${this.baseURL}/projects/${projectId}/issues/${issueIid}`;\n  const response = await fetch(url, {\n    method: 'PUT',\n    headers: {\n      'Authorization': `Bearer ${this.token}`,\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify(payload)\n  });\n  if (!response.ok) {\n    throw new Error(`GitLab updateIssue failed: ${response.status} ${response.statusText}`);\n  }\n  return response.json();\n}\n```\n\n3. Handle rate limiting (respect existing retry logic pattern)\n4. Preserve GitLab quick actions in description (/label, @user, #ref)",
+        "testStrategy": "Add 3 tests to gitlabClient.test.ts:\n1. Success case: mock 200 response, verify PUT called with correct payload\n2. Error case: mock 404, verify throws with message\n3. Quick action preservation: verify /label @user preserved in description field",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "3",
+        "title": "Create issueRefineryStore with Zustand v5",
+        "description": "Implement state store for Issue Refinery tab: epic context, selected issue, pipeline phase, stage outputs",
+        "details": "Location: src/stores/issueRefineryStore.ts\n\nState shape:\n```typescript\ninterface IssueRefineryState {\n  // Epic context\n  epic: GitLabEpic | null;\n  childIssues: GitLabIssue[];\n  \n  // Selection\n  selectedIssueIid: number | null;\n  originalBody: string;\n  \n  // Pipeline execution\n  phase: 'idle' | 'comprehending' | 'refining' | 'validating' | 'ready' | 'publishing' | 'error';\n  \n  // Stage outputs\n  comprehensionResult: ComprehensionOutput | null;\n  refinedDraft: string;\n  validationResult: ValidationOutput | null;\n  \n  // Metadata\n  userEditedDraft: boolean;\n  lastError: Error | null;\n  \n  // Prompt cache telemetry (dev only)\n  cachedTokensLog: Array<{ stage: string; cachedTokens: number }>;\n  \n  // Actions\n  loadEpic: (epic: GitLabEpic, children: GitLabIssue[]) => void;\n  selectIssue: (iid: number) => void;\n  setPhase: (phase: IssueRefineryState['phase']) => void;\n  setComprehension: (result: ComprehensionOutput, cachedTokens: number) => void;\n  setRefinement: (body: string, cachedTokens: number) => void;\n  setValidation: (result: ValidationOutput, cachedTokens: number) => void;\n  editDraft: (newBody: string) => void;\n  reset: () => void;\n}\n```\n\nUse Zustand v5 pattern (create + immer middleware).",
+        "testStrategy": "8 tests:\n1. Initial state is idle with nulls\n2. loadEpic populates epic + childIssues\n3. selectIssue sets iid + finds original body from childIssues\n4. setPhase transitions correctly\n5. setComprehension stores result + logs cached tokens\n6. setRefinement stores body + logs cached tokens\n7. editDraft sets userEditedDraft=true\n8. reset clears all state",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "4",
+        "title": "Define Zod schemas for 3 pipeline stages",
+        "description": "Create type-safe schemas for Comprehension, Refinement, Validation outputs with strict json_schema compatibility",
+        "details": "Location: src/pipeline/issue/schemas.ts\n\n```typescript\nimport { z } from 'zod';\n\n// Comprehension stage\nexport const comprehensionSchema = z.object({\n  epicIntent: z.string().describe('1-2 sentence summary of epic intent'),\n  issueIntent: z.string().describe('1-2 sentence summary of issue intent'),\n  gaps: z.array(z.string()).describe('Missing info or unclear aspects'),\n  ambiguities: z.array(z.string()).describe('Vague language to tighten'),\n  alignmentNotes: z.array(z.string()).describe('How issue aligns/misaligns with epic')\n}).strict();\n\nexport type ComprehensionOutput = z.infer<typeof comprehensionSchema>;\n\n// Refinement stage\nexport const refinementSchema = z.object({\n  refinedBody: z.string().describe('Markdown with sections: Summary, Context, Acceptance Criteria, Technical Notes. No H1-H6 elements.')\n}).strict();\n\nexport type RefinementOutput = z.infer<typeof refinementSchema>;\n\n// Validation stage\nexport const validationSchema = z.object({\n  score: z.number().int().min(0).max(100).describe('Quality score 0-100'),\n  findings: z.array(z.string()).describe('Each finding prefixed with [critical], [important], or [nit]')\n}).strict();\n\nexport type ValidationOutput = z.infer<typeof validationSchema>;\n\n// Convert Zod to JSON Schema for Azure OpenAI strict mode\nexport function toStrictJsonSchema(zodSchema: z.ZodType): object {\n  // Use zodToJsonSchema library or manual mapping\n  // Return shape compatible with response_format.json_schema.schema\n}\n```",
+        "testStrategy": "Parse tests:\n1. Valid comprehension object parses successfully\n2. Invalid comprehension (missing field) throws\n3. Valid refinement object parses\n4. Valid validation object with score bounds\n5. toStrictJsonSchema produces valid JSON Schema Draft 2020-12",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "5",
+        "title": "Build promptAssembly module with byte-equality guarantee",
+        "description": "Create shared static prefix assembly to maximize prompt cache hits across all 3 stages",
+        "details": "Location: src/pipeline/issue/promptAssembly.ts\n\nKey requirement: byte-identical static prefix for stages 2 and 3.\n\n```typescript\nimport type { GitLabEpic, GitLabIssue } from '../../services/gitlab/types';\n\ninterface StaticPrefix {\n  systemRules: string;\n  epicXML: string;\n  issueXML: string;\n}\n\n/**\n * Returns byte-identical static prefix used by all 3 stages.\n * Format:\n * <system>...</system>\n * <epic>...</epic>\n * <issue>...</issue>\n */\nexport function buildStaticPrefix(epic: GitLabEpic, issue: GitLabIssue): StaticPrefix {\n  const systemRules = `You are refining a GitLab issue grounded in its parent epic.\n\nRules:\n1. Preserve GitLab quick actions (/label, @user, #ref)\n2. Do NOT emit H1-H6 markdown headers (##, ###, etc) in refined body\n3. Structure refined body with sections: Summary, Context, Acceptance Criteria, Technical Notes\n4. Base all analysis on the epic's intent and the issue's original content`;\n\n  const epicXML = `<epic>\n<title>${epic.title}</title>\n<description>${epic.description || ''}</description>\n</epic>`;\n\n  const issueXML = `<issue>\n<iid>${issue.iid}</iid>\n<title>${issue.title}</title>\n<description>${issue.description || ''}</description>\n</issue>`;\n\n  return { systemRules, epicXML, issueXML };\n}\n\nexport function assembleMessages(prefix: StaticPrefix, stagePrompt: string) {\n  return [\n    { role: 'system' as const, content: prefix.systemRules },\n    { role: 'user' as const, content: `${prefix.epicXML}\\n${prefix.issueXML}\\n\\n${stagePrompt}` }\n  ];\n}\n```",
+        "testStrategy": "Byte-equality test:\n1. Call buildStaticPrefix twice with same epic/issue, assert deep equality\n2. Verify no Date.now() or random values injected\n3. Assert systemRules string has no dynamic interpolation\n4. Hash prefix from stage 1 and 2 calls, assert SHA256 match",
+        "priority": "high",
+        "dependencies": [
+          "4"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "6",
+        "title": "Implement Comprehension stage runner",
+        "description": "Build runComprehension with strict json_schema, temperature 0.2, reasoning_effort minimal",
+        "details": "Locations:\n- src/pipeline/issue/comprehension/prompt.ts\n- src/pipeline/issue/comprehension/runComprehension.ts\n\nprompt.ts:\n```typescript\nexport const comprehensionPrompt = `Analyze the issue in the context of its parent epic.\n\nIdentify:\n1. Epic intent (1-2 sentences)\n2. Issue intent (1-2 sentences)\n3. Gaps: missing information or unclear aspects\n4. Ambiguities: vague language that needs tightening\n5. Alignment notes: how the issue aligns or misaligns with epic intent\n\nRespond in JSON matching the schema.`;\n```\n\nrunComprehension.ts:\n```typescript\nimport { aiClient } from '../../../services/ai/aiClient';\nimport { comprehensionSchema, toStrictJsonSchema } from '../schemas';\nimport { buildStaticPrefix, assembleMessages } from '../promptAssembly';\nimport { comprehensionPrompt } from './prompt';\n\nexport async function runComprehension(\n  epic: GitLabEpic,\n  issue: GitLabIssue\n): Promise<{ result: ComprehensionOutput; cachedTokens: number }> {\n  const prefix = buildStaticPrefix(epic, issue);\n  const messages = assembleMessages(prefix, comprehensionPrompt);\n  \n  const response = await aiClient.chat({\n    messages,\n    temperature: 0.2,\n    reasoning_effort: 'minimal',\n    response_format: {\n      type: 'json_schema',\n      json_schema: {\n        name: 'comprehension',\n        schema: toStrictJsonSchema(comprehensionSchema),\n        strict: true\n      }\n    }\n  });\n  \n  const parsed = comprehensionSchema.parse(JSON.parse(response.content));\n  const cachedTokens = response.usage?.prompt_tokens_details?.cached_tokens || 0;\n  \n  return { result: parsed, cachedTokens };\n}\n```\n\nSingle retry on parse failure using Instructor pattern.",
+        "testStrategy": "4 tests:\n1. Success case: mock valid JSON response, verify parse succeeds\n2. Schema validation: mock response missing 'gaps', verify throws\n3. Retry on failure: mock malformed JSON first call, valid second call, verify retry\n4. Cached tokens: mock response with cached_tokens=1234, verify returned",
+        "priority": "high",
+        "dependencies": [
+          "5"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "7",
+        "title": "Implement Refinement stage runner",
+        "description": "Build runRefinement consuming Comprehension output, temperature 0.4, strict json_schema",
+        "details": "Locations:\n- src/pipeline/issue/refinement/prompt.ts\n- src/pipeline/issue/refinement/runRefinement.ts\n\nprompt.ts:\n```typescript\nimport type { ComprehensionOutput } from '../schemas';\n\nexport function buildRefinementPrompt(comprehension: ComprehensionOutput): string {\n  return `Based on the comprehension analysis:\n\nEpic intent: ${comprehension.epicIntent}\nIssue intent: ${comprehension.issueIntent}\nGaps identified: ${comprehension.gaps.join('; ')}\nAmbiguities: ${comprehension.ambiguities.join('; ')}\nAlignment: ${comprehension.alignmentNotes.join('; ')}\n\nRefine the issue description into a clear, structured Markdown body with these sections:\n\n**Summary** - 2-3 sentence overview\n**Context** - Why this issue matters in the epic\n**Acceptance Criteria** - Explicit, testable conditions\n**Technical Notes** - Implementation hints, constraints\n\nRules:\n- Do NOT use H1-H6 headers (##, ###, etc). Use **bold** for section titles.\n- Preserve any GitLab quick actions (/label, @user, #ref)\n- Address gaps and ambiguities identified in comprehension\n- Align tightly with epic intent\n\nRespond with JSON: { \"refinedBody\": \"...\" }`;\n}\n```\n\nrunRefinement.ts:\n```typescript\nexport async function runRefinement(\n  epic: GitLabEpic,\n  issue: GitLabIssue,\n  comprehension: ComprehensionOutput\n): Promise<{ result: RefinementOutput; cachedTokens: number }> {\n  const prefix = buildStaticPrefix(epic, issue); // Same prefix!\n  const stagePrompt = buildRefinementPrompt(comprehension);\n  const messages = assembleMessages(prefix, stagePrompt);\n  \n  const response = await aiClient.chat({\n    messages,\n    temperature: 0.4, // Higher for creative refinement\n    response_format: {\n      type: 'json_schema',\n      json_schema: {\n        name: 'refinement',\n        schema: toStrictJsonSchema(refinementSchema),\n        strict: true\n      }\n    }\n  });\n  \n  const parsed = refinementSchema.parse(JSON.parse(response.content));\n  const cachedTokens = response.usage?.prompt_tokens_details?.cached_tokens || 0;\n  \n  return { result: parsed, cachedTokens };\n}\n```",
+        "testStrategy": "4 tests:\n1. Success case: verify refinedBody contains required sections (Summary, Context, AC, Technical Notes)\n2. H1-H6 stripping: if LLM emits ##, verify disallowedElements will strip at render (defer to component test)\n3. Quick action preservation: mock issue with /label, verify refinedBody preserves it\n4. Cached tokens > 0: verify prompt cache hit (requires static prefix equality)",
+        "priority": "high",
+        "dependencies": [
+          "6"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "8",
+        "title": "Implement Validation stage runner",
+        "description": "Build runValidation scoring refined body, temperature 0.2, strict json_schema",
+        "details": "Locations:\n- src/pipeline/issue/validation/prompt.ts\n- src/pipeline/issue/validation/runValidation.ts\n\nprompt.ts:\n```typescript\nexport function buildValidationPrompt(refinedBody: string): string {\n  return `Validate the refined issue description:\n\n<refined>\n${refinedBody}\n</refined>\n\nScore 0-100 based on:\n- Clarity (25 pts): unambiguous language\n- Completeness (25 pts): all sections present, AC testable\n- Alignment (25 pts): matches epic intent\n- Structure (25 pts): well-organized, no H1-H6 headers\n\nProvide findings array. Prefix each finding:\n- [critical] - blocks merge\n- [important] - should fix before publish\n- [nit] - minor polish\n\nRespond with JSON: { \"score\": 0-100, \"findings\": [\"[nit] ...\", ...] }`;\n}\n```\n\nrunValidation.ts:\n```typescript\nexport async function runValidation(\n  epic: GitLabEpic,\n  issue: GitLabIssue,\n  refinedBody: string\n): Promise<{ result: ValidationOutput; cachedTokens: number }> {\n  const prefix = buildStaticPrefix(epic, issue); // Same prefix again!\n  const stagePrompt = buildValidationPrompt(refinedBody);\n  const messages = assembleMessages(prefix, stagePrompt);\n  \n  const response = await aiClient.chat({\n    messages,\n    temperature: 0.2,\n    reasoning_effort: 'minimal',\n    response_format: {\n      type: 'json_schema',\n      json_schema: {\n        name: 'validation',\n        schema: toStrictJsonSchema(validationSchema),\n        strict: true\n      }\n    }\n  });\n  \n  const parsed = validationSchema.parse(JSON.parse(response.content));\n  const cachedTokens = response.usage?.prompt_tokens_details?.cached_tokens || 0;\n  \n  return { result: parsed, cachedTokens };\n}\n```",
+        "testStrategy": "4 tests:\n1. Success case: mock score=85, findings=[\"[nit] ...\"], verify parse\n2. Score bounds: verify schema rejects score=101\n3. Findings prefix: verify all findings match /^\\[(critical|important|nit)\\]/\n4. Cached tokens > 0: verify prompt cache hit",
+        "priority": "high",
+        "dependencies": [
+          "7"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "9",
+        "title": "Implement runIssuePipeline orchestrator",
+        "description": "Build pure orchestrator calling 3 stages sequentially, no store access, returns aggregate result",
+        "details": "Location: src/pipeline/issue/runIssuePipeline.ts\n\n```typescript\nimport { runComprehension } from './comprehension/runComprehension';\nimport { runRefinement } from './refinement/runRefinement';\nimport { runValidation } from './validation/runValidation';\nimport type { GitLabEpic, GitLabIssue } from '../../services/gitlab/types';\n\nexport interface IssuePipelineResult {\n  comprehension: ComprehensionOutput;\n  refinedBody: string;\n  validation: ValidationOutput;\n  cachedTokens: { comprehension: number; refinement: number; validation: number };\n}\n\n/**\n * Pure orchestrator: runs 3 stages sequentially.\n * No store access. Caller handles state management.\n */\nexport async function runIssuePipeline(\n  epic: GitLabEpic,\n  issue: GitLabIssue\n): Promise<IssuePipelineResult> {\n  // Stage 1: Comprehension\n  const { result: comprehension, cachedTokens: ct1 } = await runComprehension(epic, issue);\n  \n  // Stage 2: Refinement (consumes comprehension)\n  const { result: refinement, cachedTokens: ct2 } = await runRefinement(epic, issue, comprehension);\n  \n  // Stage 3: Validation (consumes refined body)\n  const { result: validation, cachedTokens: ct3 } = await runValidation(epic, issue, refinement.refinedBody);\n  \n  return {\n    comprehension,\n    refinedBody: refinement.refinedBody,\n    validation,\n    cachedTokens: {\n      comprehension: ct1,\n      refinement: ct2,\n      validation: ct3\n    }\n  };\n}\n```\n\nNo retry logic here; retries handled per stage.",
+        "testStrategy": "5 tests:\n1. Success path: mock all 3 stages, verify result shape\n2. Stage 1 failure: mock runComprehension throw, verify propagates\n3. Stage 2 failure: mock runRefinement throw, verify propagates\n4. Cached tokens aggregation: verify all 3 counts returned\n5. Sequential execution: verify runRefinement not called until runComprehension resolves",
+        "priority": "high",
+        "dependencies": [
+          "8"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "10",
+        "title": "Implement refineIssueAction with refine + publish flows",
+        "description": "Build action layer bridging issueRefineryStore and runIssuePipeline, plus publish to GitLab",
+        "details": "Location: src/actions/refineIssueAction.ts\n\n```typescript\nimport { runIssuePipeline } from '../pipeline/issue/runIssuePipeline';\nimport { gitlabClient } from '../services/gitlab/gitlabClient';\nimport { useIssueRefineryStore } from '../stores/issueRefineryStore';\n\n/**\n * Refine the currently selected issue.\n * Updates store phase through: comprehending -> refining -> validating -> ready.\n */\nexport async function refineIssueAction(): Promise<void> {\n  const { epic, selectedIssueIid, childIssues, setPhase, setComprehension, setRefinement, setValidation } = useIssueRefineryStore.getState();\n  \n  if (!epic || !selectedIssueIid) {\n    throw new Error('No epic or issue selected');\n  }\n  \n  const issue = childIssues.find(i => i.iid === selectedIssueIid);\n  if (!issue) throw new Error('Issue not found in childIssues');\n  \n  try {\n    setPhase('comprehending');\n    const result = await runIssuePipeline(epic, issue);\n    \n    // Update store stage-by-stage for UI feedback\n    setComprehension(result.comprehension, result.cachedTokens.comprehension);\n    setPhase('refining');\n    \n    setRefinement(result.refinedBody, result.cachedTokens.refinement);\n    setPhase('validating');\n    \n    setValidation(result.validation, result.cachedTokens.validation);\n    setPhase('ready');\n  } catch (error) {\n    setPhase('error');\n    useIssueRefineryStore.setState({ lastError: error as Error });\n    throw error;\n  }\n}\n\n/**\n * Publish refined draft to GitLab via PUT.\n * Transitions phase: ready -> publishing -> idle (success) or error (failure).\n */\nexport async function publishRefinedIssueAction(): Promise<void> {\n  const { epic, selectedIssueIid, refinedDraft, setPhase } = useIssueRefineryStore.getState();\n  \n  if (!epic || !selectedIssueIid || !refinedDraft) {\n    throw new Error('Cannot publish: missing epic, issue, or draft');\n  }\n  \n  try {\n    setPhase('publishing');\n    await gitlabClient.updateIssue(epic.project_id, selectedIssueIid, { description: refinedDraft });\n    setPhase('idle');\n    // On next selectIssue, the published body will be the new original\n  } catch (error) {\n    setPhase('error');\n    useIssueRefineryStore.setState({ lastError: error as Error });\n    throw error;\n  }\n}\n```",
+        "testStrategy": "8 tests:\n1. refineIssueAction success: verify phase transitions idle->comprehending->refining->validating->ready\n2. refineIssueAction no epic: verify throws\n3. refineIssueAction pipeline failure: verify phase='error', lastError set\n4. publishRefinedIssueAction success: verify gitlabClient.updateIssue called, phase=idle\n5. publishRefinedIssueAction no draft: verify throws\n6. publishRefinedIssueAction GitLab 404: verify phase='error'\n7. Cached tokens logged: verify setComprehension/setRefinement/setValidation called with cachedTokens\n8. User edited draft: verify confirmDialog shown before re-refine (component test, defer)",
+        "priority": "high",
+        "dependencies": [
+          "9",
+          "3",
+          "2"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "11",
+        "title": "Build ChildIssueList component",
+        "description": "Left-pane list of direct child issues with pagination support (per_page=100, Link headers)",
+        "details": "Location: src/components/issueRefinery/ChildIssueList.tsx\n\n```typescript\nimport { useIssueRefineryStore } from '../../stores/issueRefineryStore';\nimport { gitlabClient } from '../../services/gitlab/gitlabClient';\nimport { useEffect, useState } from 'react';\n\ninterface ChildIssueListProps {\n  // Passed from parent after LoadEpicModal\n}\n\nexport function ChildIssueList() {\n  const { epic, childIssues, selectedIssueIid, selectIssue, loadEpic } = useIssueRefineryStore();\n  const [loading, setLoading] = useState(false);\n  \n  // Fetch all child issues with pagination\n  useEffect(() => {\n    if (!epic) return;\n    \n    async function fetchChildren() {\n      setLoading(true);\n      try {\n        let allIssues: GitLabIssue[] = [];\n        let page = 1;\n        let hasMore = true;\n        \n        while (hasMore) {\n          const response = await fetch(\n            `${gitlabClient.baseURL}/groups/${epic.group_id}/issues?per_page=100&page=${page}&epic_id=${epic.id}`,\n            { headers: { 'Authorization': `Bearer ${gitlabClient.token}` } }\n          );\n          const issues = await response.json();\n          allIssues = allIssues.concat(issues);\n          \n          // Check Link header for next page\n          const linkHeader = response.headers.get('Link');\n          hasMore = linkHeader?.includes('rel=\"next\"') || false;\n          page++;\n        }\n        \n        loadEpic(epic, allIssues);\n      } finally {\n        setLoading(false);\n      }\n    }\n    \n    fetchChildren();\n  }, [epic?.id]);\n  \n  if (!epic) return <div>No epic loaded</div>;\n  if (loading) return <div>Loading child issues...</div>;\n  \n  return (\n    <div className=\"space-y-2\">\n      {childIssues.map(issue => (\n        <button\n          key={issue.iid}\n          onClick={() => selectIssue(issue.iid)}\n          className={selectedIssueIid === issue.iid ? 'bg-blue-100' : ''}\n          aria-pressed={selectedIssueIid === issue.iid}\n        >\n          #{issue.iid} {issue.title}\n        </button>\n      ))}\n    </div>\n  );\n}\n```\n\nHandle edge case: epic with >100 children.",
+        "testStrategy": "Tests:\n1. Renders empty state when epic=null\n2. Fetches children on epic load, follows Link pagination\n3. Selecting issue calls selectIssue(iid)\n4. Selected issue highlighted with aria-pressed=true\n5. Pagination test: mock 250 issues across 3 pages, verify all loaded",
+        "priority": "medium",
+        "dependencies": [
+          "10"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "12",
+        "title": "Build ComprehensionCard and ValidationCard components",
+        "description": "Render comprehension gaps/ambiguities and validation score/findings with color-coding",
+        "details": "Locations:\n- src/components/issueRefinery/ComprehensionCard.tsx\n- src/components/issueRefinery/ValidationCard.tsx\n\nComprehensionCard:\n```typescript\nimport { useIssueRefineryStore } from '../../stores/issueRefineryStore';\n\nexport function ComprehensionCard() {\n  const { comprehensionResult } = useIssueRefineryStore();\n  if (!comprehensionResult) return null;\n  \n  return (\n    <div className=\"border rounded p-4\">\n      <h2>Comprehension Analysis</h2>\n      \n      <section>\n        <h3>Epic Intent</h3>\n        <p>{comprehensionResult.epicIntent}</p>\n      </section>\n      \n      <section>\n        <h3>Issue Intent</h3>\n        <p>{comprehensionResult.issueIntent}</p>\n      </section>\n      \n      {comprehensionResult.gaps.length > 0 && (\n        <section>\n          <h3>Gaps</h3>\n          <ul>{comprehensionResult.gaps.map((g, i) => <li key={i}>{g}</li>)}</ul>\n        </section>\n      )}\n      \n      {comprehensionResult.ambiguities.length > 0 && (\n        <section>\n          <h3>Ambiguities</h3>\n          <ul>{comprehensionResult.ambiguities.map((a, i) => <li key={i}>{a}</li>)}</ul>\n        </section>\n      )}\n      \n      {comprehensionResult.alignmentNotes.length > 0 && (\n        <section>\n          <h3>Alignment</h3>\n          <ul>{comprehensionResult.alignmentNotes.map((n, i) => <li key={i}>{n}</li>)}</ul>\n        </section>\n      )}\n    </div>\n  );\n}\n```\n\nValidationCard:\n```typescript\nexport function ValidationCard() {\n  const { validationResult } = useIssueRefineryStore();\n  if (!validationResult) return null;\n  \n  const scoreColor = validationResult.score >= 80 ? 'text-green-600' : validationResult.score >= 60 ? 'text-amber-600' : 'text-red-600';\n  \n  return (\n    <div className=\"border rounded p-4\">\n      <h2>Validation</h2>\n      <div className={`text-2xl font-bold ${scoreColor}`} aria-label={`Quality score: ${validationResult.score} out of 100`}>\n        {validationResult.score}/100\n      </div>\n      \n      {validationResult.findings.length > 0 && (\n        <ul className=\"mt-4 space-y-1\">\n          {validationResult.findings.map((f, i) => {\n            const color = f.startsWith('[critical]') ? 'text-red-600' : f.startsWith('[important]') ? 'text-amber-600' : 'text-gray-500';\n            return <li key={i} className={color}>{f}</li>;\n          })}\n        </ul>\n      )}\n    </div>\n  );\n}\n```",
+        "testStrategy": "Tests (per component):\n1. ComprehensionCard: renders all sections when result present\n2. ComprehensionCard: hides sections when arrays empty\n3. ValidationCard: score >=80 renders green\n4. ValidationCard: score 60-79 renders amber\n5. ValidationCard: score <60 renders red\n6. ValidationCard: [critical] findings render red, [nit] gray",
+        "priority": "medium",
+        "dependencies": [
+          "10"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "13",
+        "title": "Build RefinedIssueCard with diff view and inline edit",
+        "description": "Side-by-side diff (original vs refined), toggle to unified, Edit button for inline editing",
+        "details": "Location: src/components/issueRefinery/RefinedIssueCard.tsx\n\nInstall diff library: npm install diff (10KB gzipped) or react-diff-viewer-continued (15KB).\n\n```typescript\nimport { useIssueRefineryStore } from '../../stores/issueRefineryStore';\nimport { diffLines, Change } from 'diff';\nimport { useState } from 'react';\nimport ReactMarkdown from 'react-markdown';\n\nexport function RefinedIssueCard() {\n  const { originalBody, refinedDraft, editDraft } = useIssueRefineryStore();\n  const [view, setView] = useState<'side-by-side' | 'unified'>('side-by-side');\n  const [editing, setEditing] = useState(false);\n  const [editBuffer, setEditBuffer] = useState(refinedDraft);\n  \n  if (!refinedDraft) return null;\n  \n  const diff = diffLines(originalBody, refinedDraft);\n  \n  function handleSave() {\n    editDraft(editBuffer);\n    setEditing(false);\n  }\n  \n  return (\n    <div className=\"border rounded p-4\">\n      <div className=\"flex justify-between items-center mb-4\">\n        <h2>Refined Issue</h2>\n        <div className=\"space-x-2\">\n          <button onClick={() => setView(view === 'side-by-side' ? 'unified' : 'side-by-side')}>\n            Toggle View\n          </button>\n          <button onClick={() => setEditing(true)}>Edit</button>\n        </div>\n      </div>\n      \n      {editing ? (\n        <div>\n          <textarea\n            value={editBuffer}\n            onChange={e => setEditBuffer(e.target.value)}\n            className=\"w-full h-96 font-mono\"\n          />\n          <button onClick={handleSave}>Save</button>\n          <button onClick={() => setEditing(false)}>Cancel</button>\n        </div>\n      ) : view === 'side-by-side' ? (\n        <div className=\"grid grid-cols-2 gap-4\">\n          <div>\n            <h3>Original</h3>\n            <ReactMarkdown disallowedElements={['h1','h2','h3','h4','h5','h6']}>\n              {originalBody}\n            </ReactMarkdown>\n          </div>\n          <div>\n            <h3>Refined</h3>\n            <ReactMarkdown disallowedElements={['h1','h2','h3','h4','h5','h6']}>\n              {refinedDraft}\n            </ReactMarkdown>\n          </div>\n        </div>\n      ) : (\n        <div className=\"font-mono text-sm\">\n          {diff.map((part: Change, i: number) => (\n            <div\n              key={i}\n              className={part.added ? 'bg-green-100' : part.removed ? 'bg-red-100' : ''}\n            >\n              {part.value}\n            </div>\n          ))}\n        </div>\n      )}\n    </div>\n  );\n}\n```",
+        "testStrategy": "Tests:\n1. Renders side-by-side by default\n2. Toggle switches to unified diff\n3. Edit button opens textarea with refinedDraft\n4. Save calls editDraft(newValue), sets userEditedDraft=true\n5. Cancel discards changes\n6. disallowedElements strips H1-H6 from markdown render",
+        "priority": "medium",
+        "dependencies": [
+          "10"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "14",
+        "title": "Build PublishButton and PromptCacheHUD components",
+        "description": "Publish button (enabled when phase='ready'), confirm dialog on edited draft; dev HUD for cached tokens",
+        "details": "Locations:\n- src/components/issueRefinery/PublishButton.tsx\n- src/components/issueRefinery/PromptCacheHUD.tsx\n\nPublishButton:\n```typescript\nimport { useIssueRefineryStore } from '../../stores/issueRefineryStore';\nimport { publishRefinedIssueAction } from '../../actions/refineIssueAction';\nimport { useState } from 'react';\n\nexport function PublishButton() {\n  const { phase, refinedDraft, userEditedDraft } = useIssueRefineryStore();\n  const [showConfirm, setShowConfirm] = useState(false);\n  \n  const canPublish = phase === 'ready' && refinedDraft;\n  \n  async function handlePublish() {\n    if (userEditedDraft) {\n      setShowConfirm(true);\n    } else {\n      await publishRefinedIssueAction();\n    }\n  }\n  \n  async function confirmPublish() {\n    setShowConfirm(false);\n    await publishRefinedIssueAction();\n  }\n  \n  return (\n    <>\n      <button\n        onClick={handlePublish}\n        disabled={!canPublish}\n        aria-disabled={!canPublish}\n      >\n        {phase === 'publishing' ? 'Publishing...' : 'Publish to GitLab'}\n      </button>\n      \n      {showConfirm && (\n        <dialog open>\n          <p>You've edited the draft. Publish your changes?</p>\n          <button onClick={confirmPublish}>Yes, Publish</button>\n          <button onClick={() => setShowConfirm(false)}>Cancel</button>\n        </dialog>\n      )}\n    </>\n  );\n}\n```\n\nPromptCacheHUD (dev only):\n```typescript\nexport function PromptCacheHUD() {\n  const { cachedTokensLog } = useIssueRefineryStore();\n  \n  if (import.meta.env.PROD) return null;\n  \n  const recent = cachedTokensLog.slice(-3);\n  \n  return (\n    <div className=\"fixed bottom-4 right-4 bg-gray-800 text-white p-2 text-xs font-mono rounded\">\n      <div>Prompt Cache (last 3 calls):</div>\n      {recent.map((entry, i) => (\n        <div key={i}>\n          {entry.stage}: {entry.cachedTokens} cached tokens\n        </div>\n      ))}\n    </div>\n  );\n}\n```",
+        "testStrategy": "Tests:\n1. PublishButton disabled when phase != 'ready'\n2. PublishButton enabled when phase='ready' and refinedDraft exists\n3. Clicking publish with userEditedDraft=true shows confirm dialog\n4. Clicking publish with userEditedDraft=false calls publishRefinedIssueAction immediately\n5. PromptCacheHUD renders null in production (import.meta.env.PROD=true)\n6. PromptCacheHUD shows last 3 log entries in dev mode",
+        "priority": "medium",
+        "dependencies": [
+          "10"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "15",
+        "title": "Compose IssueRefineryView root component",
+        "description": "Top-level view combining LoadEpicModal, ChildIssueList, stage cards, Refine button, PublishButton",
+        "details": "Location: src/components/issueRefinery/IssueRefineryView.tsx\n\n```typescript\nimport { useState } from 'react';\nimport { useIssueRefineryStore } from '../../stores/issueRefineryStore';\nimport { refineIssueAction } from '../../actions/refineIssueAction';\nimport { LoadEpicModal } from '../shared/LoadEpicModal';\nimport { ChildIssueList } from './ChildIssueList';\nimport { ComprehensionCard } from './ComprehensionCard';\nimport { RefinedIssueCard } from './RefinedIssueCard';\nimport { ValidationCard } from './ValidationCard';\nimport { PublishButton } from './PublishButton';\nimport { PromptCacheHUD } from './PromptCacheHUD';\n\nexport function IssueRefineryView() {\n  const { epic, selectedIssueIid, phase, originalBody } = useIssueRefineryStore();\n  const [showLoadModal, setShowLoadModal] = useState(false);\n  \n  async function handleRefine() {\n    await refineIssueAction();\n  }\n  \n  return (\n    <div className=\"flex h-screen\">\n      {/* Left pane: epic loader + child list */}\n      <aside className=\"w-1/4 border-r p-4 overflow-y-auto\">\n        {!epic ? (\n          <button onClick={() => setShowLoadModal(true)}>Load Epic</button>\n        ) : (\n          <>\n            <div className=\"mb-4\">\n              <h2>Epic: {epic.title}</h2>\n              <button onClick={() => setShowLoadModal(true)}>Change Epic</button>\n            </div>\n            <ChildIssueList />\n          </>\n        )}\n      </aside>\n      \n      {/* Right pane: selected issue + refinement UI */}\n      <main className=\"flex-1 p-4 overflow-y-auto\">\n        {!selectedIssueIid ? (\n          <div>Select an issue to refine</div>\n        ) : (\n          <>\n            <div className=\"mb-4\">\n              <h1>Issue #{selectedIssueIid}</h1>\n              <button\n                onClick={handleRefine}\n                disabled={phase !== 'idle' && phase !== 'ready' && phase !== 'error'}\n              >\n                {phase === 'idle' || phase === 'ready' || phase === 'error' ? 'Refine' : 'Refining...'}\n              </button>\n            </div>\n            \n            {phase === 'idle' && (\n              <div>\n                <h2>Original Issue</h2>\n                <ReactMarkdown>{originalBody}</ReactMarkdown>\n              </div>\n            )}\n            \n            <ComprehensionCard />\n            <RefinedIssueCard />\n            <ValidationCard />\n            \n            {phase === 'ready' && <PublishButton />}\n          </>\n        )}\n      </main>\n      \n      <PromptCacheHUD />\n      \n      {showLoadModal && (\n        <LoadEpicModal\n          onClose={() => setShowLoadModal(false)}\n          onEpicLoaded={(epic) => {\n            // epic and children loaded via store in ChildIssueList\n            setShowLoadModal(false);\n          }}\n        />\n      )}\n    </div>\n  );\n}\n```",
+        "testStrategy": "Smoke test:\n1. Renders empty state with Load Epic button when epic=null\n2. After loading epic, renders ChildIssueList\n3. Selecting issue populates right pane\n4. Refine button disabled during refinement\n5. Cards appear as phase progresses\n6. PublishButton appears when phase='ready'",
+        "priority": "medium",
+        "dependencies": [
+          "11",
+          "12",
+          "13",
+          "14"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "16",
+        "title": "Register issueRefinery tab in uiStore, ViewRouter, WorkspaceSidebar",
+        "description": "Wire new tab into navigation system (additive changes only)",
+        "details": "Touched files:\n\n1. src/stores/uiStore.ts\n```typescript\nexport type TabId = 'home' | 'requirementDesign' | 'issues' | 'issueRefinery' | ...\n```\n\n2. src/components/layout/ViewRouter.tsx\n```typescript\nimport { IssueRefineryView } from '../issueRefinery/IssueRefineryView';\n\n// In switch statement:\ncase 'issueRefinery':\n  return <IssueRefineryView />;\n```\n\n3. src/components/layout/WorkspaceSidebar.tsx\n```typescript\n<button\n  onClick={() => uiStore.setActiveTab('issueRefinery')}\n  aria-current={activeTab === 'issueRefinery' ? 'page' : undefined}\n>\n  Issue Refinery\n</button>\n```\n\nNo changes to existing tab logic.",
+        "testStrategy": "Tests:\n1. Clicking Issue Refinery in sidebar sets activeTab='issueRefinery'\n2. ViewRouter renders IssueRefineryView when activeTab='issueRefinery'\n3. Switching to other tabs preserves issueRefinery state in store\n4. Existing tabs (home, requirementDesign, issues) unaffected",
+        "priority": "medium",
+        "dependencies": [
+          "15"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "17",
+        "title": "Integration test: full Issue Refinery flow with mocked fetch",
+        "description": "E2E test covering load epic -> select issue -> refine -> publish",
+        "details": "Location: src/test/integration/issueRefineryFlow.test.tsx\n\n```typescript\nimport { render, screen, waitFor } from '@testing-library/react';\nimport userEvent from '@testing-library/user-event';\nimport { IssueRefineryView } from '../../components/issueRefinery/IssueRefineryView';\nimport { vi } from 'vitest';\n\n// Mock fetch globally\nglobal.fetch = vi.fn();\n\ndescribe('Issue Refinery integration', () => {\n  beforeEach(() => {\n    vi.clearAllMocks();\n  });\n  \n  it('full flow: load epic -> select issue -> refine -> publish', async () => {\n    const user = userEvent.setup();\n    \n    // Mock GitLab API responses\n    (global.fetch as any)\n      .mockResolvedValueOnce({ // GET epic\n        ok: true,\n        json: async () => ({ id: 1, title: 'Test Epic', description: 'Epic desc', project_id: 123, group_id: 456 })\n      })\n      .mockResolvedValueOnce({ // GET child issues\n        ok: true,\n        json: async () => [{ iid: 10, title: 'Child Issue', description: 'Vague issue body' }],\n        headers: new Headers() // No Link header = no pagination\n      })\n      .mockResolvedValueOnce({ // POST Comprehension\n        ok: true,\n        json: async () => ({\n          content: JSON.stringify({\n            epicIntent: 'Build X',\n            issueIntent: 'Do Y',\n            gaps: ['Missing AC'],\n            ambiguities: ['Unclear scope'],\n            alignmentNotes: ['Aligns well']\n          }),\n          usage: { prompt_tokens_details: { cached_tokens: 0 } }\n        })\n      })\n      .mockResolvedValueOnce({ // POST Refinement\n        ok: true,\n        json: async () => ({\n          content: JSON.stringify({ refinedBody: '**Summary**\\nClear issue body' }),\n          usage: { prompt_tokens_details: { cached_tokens: 1234 } }\n        })\n      })\n      .mockResolvedValueOnce({ // POST Validation\n        ok: true,\n        json: async () => ({\n          content: JSON.stringify({ score: 85, findings: ['[nit] Minor polish needed'] }),\n          usage: { prompt_tokens_details: { cached_tokens: 1234 } }\n        })\n      })\n      .mockResolvedValueOnce({ // PUT update issue\n        ok: true,\n        json: async () => ({ iid: 10, description: '**Summary**\\nClear issue body' })\n      });\n    \n    render(<IssueRefineryView />);\n    \n    // Step 1: Load epic\n    await user.click(screen.getByText('Load Epic'));\n    // (assume LoadEpicModal flow tested separately)\n    \n    // Step 2: Select child issue\n    await waitFor(() => screen.getByText('#10 Child Issue'));\n    await user.click(screen.getByText('#10 Child Issue'));\n    \n    // Step 3: Refine\n    await user.click(screen.getByText('Refine'));\n    \n    // Step 4: Verify cards appear\n    await waitFor(() => screen.getByText('Comprehension Analysis'));\n    await waitFor(() => screen.getByText('Refined Issue'));\n    await waitFor(() => screen.getByText('85/100'));\n    \n    // Step 5: Publish\n    await user.click(screen.getByText('Publish to GitLab'));\n    \n    await waitFor(() => {\n      expect(global.fetch).toHaveBeenLastCalledWith(\n        expect.stringContaining('/projects/123/issues/10'),\n        expect.objectContaining({ method: 'PUT' })\n      );\n    });\n  });\n});\n```",
+        "testStrategy": "Single comprehensive test:\n1. Mocks all fetch calls (epic, children, 3 AI stages, publish)\n2. Verifies UI transitions through phases\n3. Asserts all cards render with correct data\n4. Verifies PUT called with refinedBody\n5. Edge case: test pagination with 150 child issues",
+        "priority": "high",
+        "dependencies": [
+          "16"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "18",
+        "title": "Write knowledge-base documentation for all new components and pipeline stages",
+        "description": "Per-component .md files in docs/knowledge/components/issueRefinery/ and docs/knowledge/pipeline/issue/",
+        "details": "Required docs (mirroring existing docs/knowledge/ structure):\n\n1. docs/knowledge/components/issueRefinery/IssueRefineryView.md\n2. docs/knowledge/components/issueRefinery/ChildIssueList.md\n3. docs/knowledge/components/issueRefinery/ComprehensionCard.md\n4. docs/knowledge/components/issueRefinery/RefinedIssueCard.md\n5. docs/knowledge/components/issueRefinery/ValidationCard.md\n6. docs/knowledge/components/issueRefinery/PublishButton.md\n7. docs/knowledge/components/issueRefinery/PromptCacheHUD.md\n8. docs/knowledge/pipeline/issue/runIssuePipeline.md\n9. docs/knowledge/pipeline/issue/comprehension.md\n10. docs/knowledge/pipeline/issue/refinement.md\n11. docs/knowledge/pipeline/issue/validation.md\n12. docs/knowledge/actions/refineIssueAction.md\n13. docs/knowledge/stores/issueRefineryStore.md\n\nEach doc follows template:\n- **Purpose**: one-sentence summary\n- **Location**: file path\n- **Key Responsibilities**: bullets\n- **State/Props**: shape\n- **Dependencies**: what it imports\n- **Testing**: coverage summary\n- **Related Files**: cross-links\n\nUpdate cross-links:\n- docs/knowledge/README.md (add Issue Refinery section)\n- docs/knowledge/SYSTEM.md (add flow diagram link)",
+        "testStrategy": "Manual verification:\n1. All 13 docs exist and follow template\n2. Cross-links resolve (no 404s)\n3. Code examples are accurate\n4. No outdated references to old architecture",
+        "priority": "low",
+        "dependencies": [
+          "17"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "19",
+        "title": "Write devlog entry and ADR for isolation decision",
+        "description": "Document why Issue Refinery is isolated from epic pipeline, capturing design rationale",
+        "details": "1. docs/devlog/2026-05-18-issue-refinery.md\nSections:\n- Feature summary (3 sentences)\n- Scope (what shipped, what deferred)\n- Architecture highlights (isolation, prompt cache, 3-stage design)\n- Verification results (test coverage %, bundle size delta, P50 latency)\n- Risks encountered and mitigations applied\n- Next steps (v2 iteration loop, concurrency check)\n\n2. docs/adr/0002-issue-refinery-isolation.md\nTitle: Isolate Issue Refinery pipeline from epic pipeline\nStatus: Accepted\nContext: FRAME has a 6-stage epic pipeline; Issue Refinery needs 3 stages.\nDecision: Build separate src/pipeline/issue/ tree instead of reusing src/pipeline/stages/.\nConsequences:\n  - Pro: Zero risk to existing epic pipeline\n  - Pro: Independent evolution (can add iteration loop to Issue Refinery without affecting epic flow)\n  - Pro: Simpler testing (no shared orchestrator state)\n  - Con: Some prompt logic duplication (mitigated by promptAssembly module)\n  - Con: ~5KB bundle duplication (acceptable given isolation benefits)\nAlternatives considered: Unified orchestrator with mode flag (rejected: too coupled)\n\n3. Checkpoint review docs:\n- docs/reviews/2026-05-18-issue-refinery-phase-A-review.md (post-R-9)\n- docs/reviews/2026-05-18-issue-refinery-phase-B-review.md (post-R-16)\nTemplate: 5-agent review findings (Architecture, Code Quality, Testing, Security, Performance)",
+        "testStrategy": "Manual verification:\n1. Devlog entry matches actual shipped scope\n2. ADR includes date, author, status\n3. Review docs contain findings from actual deep-review checkpoints (if run)\n4. All docs use Conventional Markdown (proper headings, links)",
+        "priority": "low",
+        "dependencies": [
+          "18"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "20",
+        "title": "Final verification, commit, and create pull request",
+        "description": "Run full test suite, typecheck, build, deep-review checkpoints, commit with Co-Authored-By, create PR",
+        "details": "Verification checklist (invoke superpowers:verification-before-completion):\n1. npm run test:run -- all tests green\n2. tsc -b --noEmit -- zero errors\n3. npm run build -- succeeds, no warnings\n4. Pre-commit hooks pass (no --no-verify)\n5. Bundle size delta <= 30 KB gzipped (check dist/ before/after)\n6. Scope guards: verify no edits to:\n   - src/components/welcome/**\n   - src/pipeline/orchestrator*\n   - src/pipeline/stages/**\n   - any existing test file (only new test files allowed)\n7. Deep-review checkpoint 1 (post-R-9): 5-agent review, zero critical findings\n8. Deep-review checkpoint 2 (post-R-16): 5-agent review, zero critical findings\n\nCommit:\n```bash\ngit add .\ngit commit -m \"$(cat <<'EOF'\nfeat(issueRefinery): add Issue Refinery tab with 3-stage AI pipeline\n\nImplements PRD: docs/plans/2026-05-18-issue-refinery-implementation-plan.md\n\n- New tab \"Issue Refinery\" for refining individual GitLab issues\n- 3-stage pipeline: Comprehension -> Refinement -> Validation\n- Grounded in parent epic context via byte-identical static prefix (prompt cache optimization)\n- Side-by-side diff view with inline editing\n- Publish to GitLab via PUT /projects/:id/issues/:iid\n- Dev-only PromptCacheHUD for telemetry\n- Zero edits to scope-guarded paths (epic pipeline, WelcomeScreen)\n- 17 new components/modules, 85%+ test coverage, bundle +28KB gzipped\n\nCheckpoints:\n- R-9 (headless): 5-agent review, 0 critical findings\n- R-16 (UI): 5-agent review, 0 critical findings\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\"\n```\n\nPR:\n```bash\ngh pr create --title \"feat(issueRefinery): Issue Refinery tab with 3-stage AI pipeline\" --body \"$(cat <<'EOF'\n## Summary\nAdds a new \"Issue Refinery\" tab to FRAME for refining individual GitLab issues using a focused 3-stage AI pipeline grounded in the parent epic.\n\n## Changes\n- 17 new files (components, pipeline stages, store, action)\n- 4 touched files (gitlabClient, uiStore, ViewRouter, WorkspaceSidebar)\n- Additive only, zero edits to scope-guarded paths\n\n## Test Coverage\n- 85%+ lines on new code\n- Integration test: full flow (load epic -> refine -> publish)\n- Pre-commit hooks: green\n\n## Verification\n- [x] All tests pass (npm run test:run)\n- [x] Typecheck clean (tsc -b --noEmit)\n- [x] Build succeeds (npm run build)\n- [x] Bundle size delta: 28 KB gzipped (within 30 KB limit)\n- [x] Deep-review checkpoint 1 (R-9): 0 critical findings\n- [x] Deep-review checkpoint 2 (R-16): 0 critical findings\n\n## Risks\n- Prompt cache discipline: verified via byte-equality test + dev HUD\n- Always-overwrite publish: documented, v2 will add concurrency check\n\n## Related\n- PRD: docs/plans/2026-05-18-issue-refinery-implementation-plan.md\n- HLD: docs/plans/2026-05-18-issue-refinery-hld.md\n- ADR: docs/adr/0002-issue-refinery-isolation.md\nEOF\n)\"\n```",
+        "testStrategy": "Final checklist:\n1. All verification commands succeed\n2. Commit message follows Conventional Commits\n3. PR created with base=main\n4. PR body includes verification checklist\n5. No --no-verify used anywhere",
+        "priority": "high",
+        "dependencies": [
+          "19"
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-05-18T13:39:20.517Z",
+      "taskCount": 20,
+      "completedCount": 1,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}

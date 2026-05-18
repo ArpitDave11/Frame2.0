@@ -1,0 +1,328 @@
+PRD: Issue Refinery
+Version: 1.0
+Date: 2026-05-18
+Status: Ready for Taskmaster ingestion (parse_prd)
+Owner: FRAME team
+Related plans:
+- docs/plans/2026-05-18-issue-refinery-hld.md
+- docs/plans/2026-05-18-issue-refinery-design.md
+- docs/plans/2026-05-18-issue-refinery-implementation-plan.md
+
+========================================================================
+1. PROBLEM STATEMENT
+========================================================================
+FRAME's existing "Requirement Design" tab refines work at the Epic level
+through a 6-stage AI pipeline. Once an epic is decomposed into child
+issues, those individual issues often need further refinement — clarifying
+acceptance criteria, tightening language, aligning with the epic's intent
+— but there is no focused, fast surface for that. Today, users either
+re-run the full epic pipeline (overkill) or edit issues by hand in GitLab
+(no AI assistance, no grounding in the epic).
+
+The Issue Refinery feature gives users a dedicated tab to refine a single
+GitLab issue using a focused 3-stage pipeline that is grounded in the
+parent epic's content.
+
+========================================================================
+2. GOALS
+========================================================================
+G1. Provide a new top-level tab "Issue Refinery" in the FRAME workspace.
+G2. Let the user load a GitLab epic, see its direct child issues, and
+    pick one for refinement.
+G3. Run a 3-stage AI pipeline (Comprehension, Refinement, Validation)
+    against the selected issue, using the parent epic as grounding
+    context.
+G4. Surface refinement as a stage-and-publish UX: refined draft shown as
+    a diff with advisory validation findings; the user explicitly clicks
+    "Publish to GitLab" to write back via PUT.
+G5. Coexist with the existing "Issues" creation tab — no regressions.
+G6. Run entirely client-side. No new backend services. No edits to the
+    existing epic pipeline. Respect all scope guards.
+
+========================================================================
+3. NON-GOALS (v1)
+========================================================================
+N1. Refining tasks/subtasks nested under issues (epic→issue only).
+N2. Optimistic concurrency / merge-conflict detection on publish.
+N3. Iterative refinement loop (Validation → Refinement feedback).
+N4. Category templates for issues (bug / feature / spike).
+N5. Batch refinement (multiple issues at once).
+N6. Refining issues that have no parent epic.
+N7. Streaming partial AI results to the UI.
+N8. Any backend or infrastructure changes.
+
+========================================================================
+4. USERS & USE CASES
+========================================================================
+Primary user: product engineer or tech lead working in FRAME who has
+already decomposed an epic into issues and wants to polish them
+individually before sprint planning.
+
+Use case 1: "Tighten acceptance criteria"
+  - User opens Issue Refinery, loads epic, picks a vague issue, clicks
+    Refine. Comprehension highlights ambiguities; Refinement produces a
+    cleaner body with explicit AC; Validation scores 78/100 with one
+    nitpick. User edits one line, clicks Publish.
+
+Use case 2: "Align an issue with the epic's intent"
+  - User notices an issue drifted from epic intent. Refinery's
+    Comprehension stage surfaces gaps; user re-Refines to apply changes.
+
+Use case 3: "Quick polish before standup"
+  - User runs Refinery on three back-to-back issues in 5 minutes.
+
+========================================================================
+5. LOCKED DESIGN DECISIONS
+========================================================================
+D1.  New top-level tab "issueRefinery"; coexists with existing "issues".
+D2.  New pipeline directory: src/pipeline/issue/. Existing
+     src/pipeline/orchestrator* and src/pipeline/stages/** untouched.
+D3.  3 stages: Comprehension -> Refinement -> Validation.
+D4.  Single-pass execution. No iteration loop.
+D5.  Freeform refinement. No category template.
+D6.  Validation is advisory only. Publish is always enabled.
+D7.  Always-overwrite on publish. No updated_at concurrency check in v1.
+D8.  Findings only. No source-quote schema field.
+D9.  Strict json_schema response format for all 3 stages.
+D10. Sandwich prompt structure: byte-identical static prefix across
+     stages enables prompt-cache hits on stages 2 and 3.
+D11. Single retry per stage on JSON-schema validation failure.
+D12. Reuse aiClient.ts and gitlabClient.ts wholesale. Add only one new
+     method: gitlabClient.updateIssue(projectId, issueIid, payload).
+D13. Hierarchy v1: direct epic -> issue children only.
+D14. Dev-only HUD logs cached_tokens per call to verify cache discipline.
+
+========================================================================
+6. FUNCTIONAL REQUIREMENTS
+========================================================================
+F1.  Adding "issueRefinery" to the TabId union in uiStore enables the
+     new tab.
+F2.  The tab renders an empty state until the user loads an epic.
+F3.  Loading an epic uses the existing LoadEpicModal pattern; no
+     duplication.
+F4.  After loading, the left pane lists all direct child issues with
+     title + iid. Pagination handled (per_page=100, follow Link headers).
+F5.  Selecting a child issue populates the right pane with the original
+     issue body.
+F6.  Clicking Refine runs the 3-stage pipeline:
+       F6.1 Comprehension stage (temperature 0.2, reasoning_effort
+            minimal, strict json_schema). Returns
+            { epicIntent, issueIntent, gaps[], ambiguities[],
+              alignmentNotes[] }.
+       F6.2 Refinement stage (temperature 0.4, strict json_schema).
+            Consumes Comprehension result + original issue. Returns
+            { refinedBody } as Markdown with required sections:
+            Summary, Context, Acceptance Criteria, Technical Notes.
+       F6.3 Validation stage (temperature 0.2, strict json_schema).
+            Consumes refined body. Returns { score: 0-100, findings[] }.
+            Each finding prefixed with [critical] / [important] / [nit].
+F7.  All three stage calls share a byte-identical static prefix
+     (system rules + <epic>...</epic> + <issue>...</issue>) to maximize
+     prompt-cache hits.
+F8.  On any stage's JSON-schema validation failure, retry once with the
+     Instructor pattern (append the error to messages). Second failure
+     surfaces as phase='error' with diagnostic.
+F9.  ComprehensionCard renders gaps, ambiguities, and alignmentNotes as
+     sub-cards. No source quotes in v1.
+F10. RefinedIssueCard shows side-by-side diff (toggle to unified) and an
+     Edit button that lets the user inline-edit the refined body.
+F11. ValidationCard shows a color-coded score badge (green >=80,
+     amber 60-79, red <60) and a findings list color-coded by tag.
+F12. Publish button is enabled when phase='ready' and refinedDraft is
+     non-empty. If the user has edited the draft, show a confirm dialog
+     before publishing.
+F13. Publish calls gitlabClient.updateIssue(projectId, issueIid,
+     { description: refinedDraft }) and transitions phase to
+     publishing -> idle (success) or error (failure).
+F14. Dev-only PromptCacheHUD displays the cached_tokens count for the
+     last 3 stage calls.
+F15. All Markdown rendered inside cards disallows h1-h6 elements
+     (the card owns the heading).
+
+========================================================================
+7. NON-FUNCTIONAL REQUIREMENTS
+========================================================================
+NFR1. P50 end-to-end refinement latency <= 10 seconds (3 sequential
+      Azure OpenAI calls with cache reuse).
+NFR2. P50 cost per refinement <= $0.02 (gpt-4.1 default).
+NFR3. JSON-schema strict compliance: 100% after single retry.
+NFR4. No partial state ever committed. If a stage fails, phase='error'
+      and previous stage outputs are preserved for inspection.
+NFR5. Zero changes to scope-guarded paths:
+        - src/pipeline/orchestrator*
+        - src/pipeline/stages/**
+        - src/components/welcome/**
+        - any existing test file
+NFR6. Test coverage on new code >= 85% lines. New lines in touched
+      existing files >= 100% covered.
+NFR7. Bundle size impact: <= 30 KB gzipped (diff library + new code).
+NFR8. Accessibility: keyboard navigation, ARIA labels, no color-only
+      signals.
+
+========================================================================
+8. NEW & TOUCHED FILES
+========================================================================
+NEW files:
+  src/pipeline/issue/runIssuePipeline.ts
+  src/pipeline/issue/schemas.ts
+  src/pipeline/issue/promptAssembly.ts
+  src/pipeline/issue/comprehension/prompt.ts
+  src/pipeline/issue/comprehension/runComprehension.ts
+  src/pipeline/issue/refinement/prompt.ts
+  src/pipeline/issue/refinement/runRefinement.ts
+  src/pipeline/issue/validation/prompt.ts
+  src/pipeline/issue/validation/runValidation.ts
+  src/actions/refineIssueAction.ts
+  src/stores/issueRefineryStore.ts
+  src/components/issueRefinery/IssueRefineryView.tsx
+  src/components/issueRefinery/ChildIssueList.tsx
+  src/components/issueRefinery/ComprehensionCard.tsx
+  src/components/issueRefinery/RefinedIssueCard.tsx
+  src/components/issueRefinery/ValidationCard.tsx
+  src/components/issueRefinery/PublishButton.tsx
+  src/components/issueRefinery/PromptCacheHUD.tsx
+  (+ test files for each)
+  src/test/integration/issueRefineryFlow.test.tsx
+  docs/knowledge/components/issueRefinery/*.md
+  docs/knowledge/pipeline/issue/*.md
+  docs/knowledge/actions/refineIssueAction.md
+  docs/knowledge/stores/issueRefineryStore.md
+  docs/devlog/2026-05-18-issue-refinery.md
+  docs/adr/0002-issue-refinery-isolation.md
+  docs/reviews/2026-05-18-issue-refinery-phase-A-review.md
+  docs/reviews/2026-05-18-issue-refinery-phase-B-review.md
+
+TOUCHED files (additive only):
+  src/services/gitlab/types.ts            -- add UpdateIssuePayload
+  src/services/gitlab/gitlabClient.ts     -- add updateIssue method
+  src/services/gitlab/gitlabClient.test.ts -- add 3 tests
+  src/stores/uiStore.ts                   -- add 'issueRefinery' TabId
+  src/components/layout/ViewRouter.tsx    -- add case + import
+  src/components/layout/WorkspaceSidebar.tsx -- add sidebar entry
+  docs/knowledge/README.md                -- cross-link to new pages
+  docs/knowledge/SYSTEM.md                -- cross-link refinery flow
+
+========================================================================
+9. ATOMIC TASKS (R-prefix)
+========================================================================
+R-0   Preflight & branch setup
+R-1   Add updateIssue method to gitlabClient + 3 tests
+R-2   Create issueRefineryStore + 8 tests
+R-3   Define Zod schemas for 3 stages + parse tests
+R-4   Build promptAssembly module + byte-equality test
+R-5   Implement Comprehension stage runner + 4 tests
+R-6   Implement Refinement stage runner + 4 tests
+R-7   Implement Validation stage runner + 4 tests
+R-8   Implement runIssuePipeline orchestrator + 5 tests
+R-9   Implement refineIssueAction (refine + publish) + 8 tests
+[CHECKPOINT 1: 5-agent deep-review post-headless]
+R-10  Build ChildIssueList component + tests
+R-11  Build ComprehensionCard + ValidationCard + tests
+R-12  Build RefinedIssueCard with diff + tests
+R-13  Build PublishButton + PromptCacheHUD + tests
+R-14  Compose IssueRefineryView + smoke test
+R-15  Register tab in uiStore, ViewRouter, WorkspaceSidebar
+R-16  Integration test (mocked fetch, full flow)
+[CHECKPOINT 2: 5-agent deep-review post-UI]
+R-17  Knowledge-base docs (per-component, per-stage)
+R-18  Devlog entry + ADR for isolation decision
+R-19  Final commit + PR
+
+Each task follows the standing protocol:
+  next_task -> set_task_status: in_progress -> implement ->
+  invoke superpowers:verification-before-completion (paste actual
+  command output) -> append journal entry to .powerstack4/task_plan.md
+  -> set_task_status: completed -> commit per Conventional Commits.
+
+========================================================================
+10. ACCEPTANCE CRITERIA
+========================================================================
+AC1.  Clicking the Issue Refinery tab renders the new view; existing
+      tabs continue to render unchanged.
+AC2.  Loading an epic populates the left pane with all direct child
+      issues (pagination handled).
+AC3.  Selecting a child shows the original body and enables Refine.
+AC4.  Clicking Refine transitions phase: idle -> comprehending ->
+      refining -> validating -> ready.
+AC5.  ComprehensionCard, RefinedIssueCard, and ValidationCard render
+      with their respective outputs.
+AC6.  The Publish button is disabled until phase='ready'; clicking it
+      issues PUT /projects/:id/issues/:iid with the refined body.
+AC7.  On Publish success, phase returns to idle and the original body
+      in the right pane updates to the published body on next selection.
+AC8.  Dev mode shows PromptCacheHUD with cached_tokens > 0 for stages
+      2 and 3 (verifying prompt cache discipline).
+AC9.  No edits to scope-guarded paths. Pre-commit hooks pass.
+AC10. All new tests green; existing tests untouched and green.
+AC11. Typecheck clean (tsc -b --noEmit). Build clean (npm run build).
+AC12. Both deep-review checkpoints conclude with zero critical findings.
+
+========================================================================
+11. RISKS & MITIGATIONS
+========================================================================
+R1.  Prompt cache busts silently -> cost spikes.
+     Mitigation: byte-equality test in promptAssembly; dev HUD shows
+     cached_tokens per call; per-PR manual verification gate.
+
+R2.  Strict json_schema unsupported by current Azure deployment.
+     Mitigation: R-0 preflight check; reuse aiClient.ts's existing
+     fallback path; escalate via AskUserQuestion if unsupported.
+
+R3.  Always-overwrite clobbers a teammate's edit.
+     Mitigation: documented decision; v2 will add updated_at check.
+
+R4.  GitLab pagination silently truncates child list.
+     Mitigation: force per_page=100, follow Link headers, integration
+     test asserts.
+
+R5.  LLM emits H1 despite schema rule.
+     Mitigation: disallowedElements at render time strips them.
+
+R6.  Refined body breaks GitLab quick actions.
+     Mitigation: system rule preserves them; test asserts preservation
+     of /label, @user, #ref.
+
+R7.  Re-Refine destroys user's inline edits silently.
+     Mitigation: confirm dialog when userEditedDraft=true before
+     re-running pipeline.
+
+R8.  Bundle size from diff library.
+     Mitigation: prefer ~15 KB lib; fallback to custom unified diff
+     using 'diff' npm package.
+
+========================================================================
+12. ROLLBACK PLAN
+========================================================================
+The feature is additive and has no persistent state. Rollback = revert
+the merge commit. The new tab disappears. No backend changes. No data
+migrations. Already-published GitLab issue descriptions are NOT
+rolled back automatically (intentionally — those were user-confirmed
+edits).
+
+========================================================================
+13. SUCCESS METRICS (post-launch, not blocking)
+========================================================================
+M1. Refinement runs per week (target: >= 20 in dogfood week).
+M2. Publish-to-refine ratio (target: >= 0.6 — users actually adopt
+    the refined body).
+M3. P50 latency observed (target: <= 10 s).
+M4. P50 cost observed (target: <= $0.02).
+M5. cached_tokens > 0 on stages 2 and 3 in 100% of runs.
+M6. Zero critical bugs reported via Feedback modal in first 2 weeks.
+
+========================================================================
+14. APPENDIX: REFERENCES
+========================================================================
+- HLD:    docs/plans/2026-05-18-issue-refinery-hld.md
+- Design: docs/plans/2026-05-18-issue-refinery-design.md
+- Plan:   docs/plans/2026-05-18-issue-refinery-implementation-plan.md
+- Research applied:
+    docs/research/Production-Grade Prompt Engineering Patterns for Azure.md
+    docs/research/storyforge_gitlab_traversal_complete.md
+    docs/research/Production-Grade Patterns for Rendering Structured .md
+- Existing files to mirror in style:
+    src/pipeline/refinePipelineAction.ts
+    src/services/gitlab/gitlabClient.ts
+    src/services/docIntel/analyzeAction.ts
+- Standing protocol: CLAUDE.md, .claude/STANDING_PROTOCOL.md
+- Deep-review runbook: docs/runbooks/deep-review-a10.md

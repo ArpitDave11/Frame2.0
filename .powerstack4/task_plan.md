@@ -138,6 +138,47 @@ Cut `phase-a-docmining` branch from main (uncommitted pre-existing work carried 
 
 ---
 
+## Issue Refinery — atomic execution (started 2026-05-18)
+
+Tracking 20 atomic tasks (R-0..R-19 in plan, IDs 1..20 in Taskmaster) for the Issue Refinery feature. Authoritative docs:
+- HLD: `docs/plans/2026-05-18-issue-refinery-hld.md`
+- Design: `docs/plans/2026-05-18-issue-refinery-design.md`
+- Plan: `docs/plans/2026-05-18-issue-refinery-implementation-plan.md`
+- PRD: `.taskmaster/docs/issue-refinery-prd.txt`
+- Tracker: `.taskmaster/tasks/tasks.json` (claude-code provider, sonnet)
+
+Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
+
+| ID | Plan ID | Title | Status |
+|----|---------|-------|--------|
+| 1 | R-0 | Preflight + branch setup | in-progress |
+| 2 | R-1 | gitlabClient.updateIssue + types | pending |
+| 3 | R-2 | issueRefineryStore | pending |
+| 4 | R-3 | Pipeline Zod schemas | pending |
+| 5 | R-4 | promptAssembly module | pending |
+| 6 | R-5 | Comprehension stage | pending |
+| 7 | R-6 | Refinement stage | pending |
+| 8 | R-7 | Validation stage | pending |
+| 9 | R-8 | runIssuePipeline orchestrator | pending |
+| 10 | R-9 | refineIssueAction | pending |
+| 11 | R-10 | ChildIssueList component | pending |
+| 12 | R-11 | ComprehensionCard + ValidationCard | pending |
+| 13 | R-12 | RefinedIssueCard with diff | pending |
+| 14 | R-13 | PublishButton + PromptCacheHUD | pending |
+| 15 | R-14 | IssueRefineryView composition | pending |
+| 16 | R-15 | Tab registration | pending |
+| 17 | R-16 | Integration test | pending |
+| 18 | R-17 | Knowledge-base docs | pending |
+| 19 | R-18 | Devlog + ADR | pending |
+| 20 | R-19 | Final commit | pending |
+
+Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-18 · R-0 (task 1) — preflight + branch
+Created branch `feature/issue-refinery` stacked on `feature/phase-a-docmining` (option-1 per user). Working tree carried forward 144 uncommitted files; will commit Issue Refinery planning artifacts + Taskmaster config in one commit and leave unrelated changes (BEMT cleanup, pre-session hook/setting tweaks) for separate commits per user direction. **R-0b verification:** `aiClient.ts:60` transparently forwards `request.responseFormat` to `body.response_format` — strict `{ type: 'json_schema', strict: true }` is wire-supported at the client layer; deployment-level support (Azure API version 2024-08-01-preview+) is an assumption pending the first real call in R-5. **R-0c verification:** `gitlabClient.fetchEpicIssues` (line 295) exists, calls `/groups/:groupId/epics/:epicIid/issues`, returns `GitLabIssue[]` with optional `description`. **Caveat surfaced:** the function does not currently paginate — it will silently truncate at GitLab's default `per_page=20`. R-2 (task 3) must add `per_page=100` and follow Link headers; flagged in the design doc §6.2 and the plan's risk table (R4). **Taskmaster setup:** routed via the native `claude-code` provider (no API key, free), `parse-prd` produced 20 tasks in 113K tokens, dependency graph respects the plan's ordering (e.g., task 10 depends on 9+3+2, UI tasks 11–14 depend on 10).
+
+---
+
 ## Previous session — Bug Report Verification (archived)
 
 (Task list from a prior session kept for traceability; superseded by the DocMining execution above.)
