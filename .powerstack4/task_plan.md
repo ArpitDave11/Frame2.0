@@ -154,7 +154,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 1 | R-0 | Preflight + branch setup | in-progress |
 | 2 | R-1 | gitlabClient.updateIssue + types | done |
 | 3 | R-2 | issueRefineryStore | done |
-| 4 | R-3 | Pipeline Zod schemas | pending |
+| 4 | R-3 | Pipeline Zod schemas | done |
 | 5 | R-4 | promptAssembly module | pending |
 | 6 | R-5 | Comprehension stage | pending |
 | 7 | R-6 | Refinement stage | pending |
@@ -173,6 +173,9 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 20 | R-19 | Final commit | pending |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-19 · R-3 (task 4) — pipeline Zod schemas
+Added `zod ^4.4.3` as a direct project dependency (was resolving from a global install previously — would not have shipped in any bundle). Created `src/pipeline/issue/schemas.ts` with `ComprehensionSchema`, `RefinementSchema`, and `ValidationSchema`. Each field carries the budget/vocabulary rules in `.describe()` per the Azure prompt-engineering research finding (constraints in schema descriptions are materially stronger than the same rules in prose prompts). Refinement schema enforces 4-section markdown via the description; no H1 rule; GitLab quick-action preservation rule. Validation findings must be `[critical]` / `[important]` / `[nit]` prefixed. Compile-time bidirectional compatibility check (`IsExactly<>` helper) ensures `z.infer<>` of each schema matches the predeclared interface in `types.ts` — if either side drifts, the build fails. **Verification:** `npx vitest run src/pipeline/issue/schemas.test.ts` → 13/13 passed (valid parse, empty-field reject, oversize-array reject, missing-field reject, 50-char floor reject, score bounds 0/100/-1/150/85.5, findings-cap). Typecheck on R-3 files clean.
 
 ### 2026-05-19 · R-2 (task 3) — issueRefineryStore
 Created `src/stores/issueRefineryStore.ts` (Zustand v5, in-memory, no persistence) and the predeclared result types in `src/pipeline/issue/types.ts` so the store can reference `ComprehensionResult` / `ValidationResult` / `Phase` without depending on the R-3 Zod schemas. Store state: `selectedEpic`, `children`, `selectedChildIid`, `originalBody`, `originalProjectId`, `comprehension`, `refinedDraft`, `userEditedDraft`, `validation`, `phase`, `error`, `lastCachedTokens`. Actions: `setSelectedEpic` (clears all per-child derived state, fresh epic context), `setSelectedChild` (pulls description + project_id from the matching child; no-op for unknown iid; clears derived state on switch), `setComprehension`, `setRefinedDraft(draft, userEdited)` (the boolean is what the UI's `Refine again` confirmation reads), `setValidation`, `setPhase(p, error?)`, `recordCachedTokens` (dev observability), `reset`. **Verification:** `npx vitest run src/stores/issueRefineryStore.test.ts` → 12/12 passed (target was ≥8). Coverage: initial state, setSelectedEpic clears derived state, setSelectedChild happy path + missing description fallback + unknown iid no-op + switching child clears state, userEditedDraft flag behavior, setPhase with/without error, recordCachedTokens append order, reset. Typecheck on R-2 files clean (0 errors).
