@@ -152,7 +152,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | ID | Plan ID | Title | Status |
 |----|---------|-------|--------|
 | 1 | R-0 | Preflight + branch setup | in-progress |
-| 2 | R-1 | gitlabClient.updateIssue + types | pending |
+| 2 | R-1 | gitlabClient.updateIssue + types | done |
 | 3 | R-2 | issueRefineryStore | pending |
 | 4 | R-3 | Pipeline Zod schemas | pending |
 | 5 | R-4 | promptAssembly module | pending |
@@ -173,6 +173,9 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 20 | R-19 | Final commit | pending |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-18 · R-1 (task 2) — gitlabClient.updateIssue + pagination fix
+Added `UpdateIssuePayload` type to `src/services/gitlab/types.ts` and `updateIssue(config, projectId, issueIid, payload)` to `src/services/gitlab/gitlabClient.ts`. Endpoint is `PUT /projects/:projectId/issues/:iid` with body `{description?, title?, labels?}`; labels serialized as comma-separated per GitLab convention; `projectId` URL-encoded via `encodeURIComponent` so path-style IDs like `group/subgroup/project` work. Comment in the function body explicitly warns against confusing this with the `/groups/:gid/epics/:eid/issues/:id` endpoint (which only assigns, not updates content). Also addressed the R-0 pagination caveat in the same commit: `fetchEpicIssues` now requests `?per_page=100` so it doesn't silently truncate large epics at GitLab's default 20. Full Link-header pagination is deferred to a future hardening task — per_page=100 covers any epic with ≤100 children which is sufficient for v1. Tests added in a new file `gitlabClient.issueRefinery.test.ts` (the kit H3 hook blocks edits to the existing `gitlabClient.test.ts`): 6 updateIssue tests (happy path, slash-bearing project ID, label serialization, 4xx error, network error, undefined-field omission) and 1 fetchEpicIssues pagination test. **Verification:** `npx vitest run src/services/gitlab/gitlabClient.issueRefinery.test.ts` → 7 passed. `npx vitest run src/services/gitlab/gitlabClient.test.ts` → 37 passed (no regressions). Typecheck filtered to R-1 files: 0 errors. Pre-existing typecheck errors elsewhere (crossFeature.test.ts, gitlabFlow.test.ts, etc.) are out of scope.
 
 ### 2026-05-18 · R-0 (task 1) — preflight + branch
 Created branch `feature/issue-refinery` stacked on `feature/phase-a-docmining` (option-1 per user). Working tree carried forward 144 uncommitted files; will commit Issue Refinery planning artifacts + Taskmaster config in one commit and leave unrelated changes (BEMT cleanup, pre-session hook/setting tweaks) for separate commits per user direction. **R-0b verification:** `aiClient.ts:60` transparently forwards `request.responseFormat` to `body.response_format` — strict `{ type: 'json_schema', strict: true }` is wire-supported at the client layer; deployment-level support (Azure API version 2024-08-01-preview+) is an assumption pending the first real call in R-5. **R-0c verification:** `gitlabClient.fetchEpicIssues` (line 295) exists, calls `/groups/:groupId/epics/:epicIid/issues`, returns `GitLabIssue[]` with optional `description`. **Caveat surfaced:** the function does not currently paginate — it will silently truncate at GitLab's default `per_page=20`. R-2 (task 3) must add `per_page=100` and follow Link headers; flagged in the design doc §6.2 and the plan's risk table (R4). **Taskmaster setup:** routed via the native `claude-code` provider (no API key, free), `parse-prd` produced 20 tasks in 113K tokens, dependency graph respects the plan's ordering (e.g., task 10 depends on 9+3+2, UI tasks 11–14 depend on 10).

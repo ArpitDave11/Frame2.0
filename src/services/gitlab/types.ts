@@ -247,3 +247,9 @@ export interface GitLabUpdateEpicParams {
   labels?: string[];
   parent_id?: number;
 }
+
+export interface UpdateIssuePayload {
+  description?: string;
+  title?: string;
+  labels?: string[];
+}

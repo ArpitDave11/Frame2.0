@@ -38,6 +38,7 @@ import type {
   GitLabEpicSearchParams,
   GitLabCreateEpicParams,
   GitLabUpdateEpicParams,
+  UpdateIssuePayload,
 } from './types';
 
 // ─── Base URL ───────────────────────────────────────────────
@@ -297,7 +298,27 @@ export async function fetchEpicIssues(
   groupId: string,
   epicIid: number,
 ): Promise<{ success: boolean; data?: GitLabIssue[]; error?: string }> {
-  const result = await gitlabGet<GitLabIssue[]>(config, `/groups/${groupId}/epics/${epicIid}/issues`);
+  // per_page=100 prevents silent truncation at GitLab's default of 20.
+  const result = await gitlabGet<GitLabIssue[]>(config, `/groups/${groupId}/epics/${epicIid}/issues?per_page=100`);
+  if (!result.ok) return { success: false, error: result.error };
+  return { success: true, data: result.data };
+}
+
+export async function updateIssue(
+  config: GitLabConfig,
+  projectId: number | string,
+  issueIid: number,
+  payload: UpdateIssuePayload,
+): Promise<GitLabIssueResult> {
+  // Endpoint: PUT /projects/:id/issues/:iid — updates issue *content*.
+  // Do NOT confuse with /groups/:gid/epics/:eid/issues/:id which only assigns/links.
+  const body: Record<string, unknown> = {};
+  if (payload.description !== undefined) body.description = payload.description;
+  if (payload.title !== undefined) body.title = payload.title;
+  if (payload.labels !== undefined) body.labels = payload.labels.join(',');
+
+  const encodedProjectId = encodeURIComponent(String(projectId));
+  const result = await gitlabPut<GitLabIssue>(config, `/projects/${encodedProjectId}/issues/${issueIid}`, body);
   if (!result.ok) return { success: false, error: result.error };
   return { success: true, data: result.data };
 }
