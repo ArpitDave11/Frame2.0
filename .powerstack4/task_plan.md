@@ -153,7 +153,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 |----|---------|-------|--------|
 | 1 | R-0 | Preflight + branch setup | in-progress |
 | 2 | R-1 | gitlabClient.updateIssue + types | done |
-| 3 | R-2 | issueRefineryStore | pending |
+| 3 | R-2 | issueRefineryStore | done |
 | 4 | R-3 | Pipeline Zod schemas | pending |
 | 5 | R-4 | promptAssembly module | pending |
 | 6 | R-5 | Comprehension stage | pending |
@@ -173,6 +173,9 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 20 | R-19 | Final commit | pending |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-19 · R-2 (task 3) — issueRefineryStore
+Created `src/stores/issueRefineryStore.ts` (Zustand v5, in-memory, no persistence) and the predeclared result types in `src/pipeline/issue/types.ts` so the store can reference `ComprehensionResult` / `ValidationResult` / `Phase` without depending on the R-3 Zod schemas. Store state: `selectedEpic`, `children`, `selectedChildIid`, `originalBody`, `originalProjectId`, `comprehension`, `refinedDraft`, `userEditedDraft`, `validation`, `phase`, `error`, `lastCachedTokens`. Actions: `setSelectedEpic` (clears all per-child derived state, fresh epic context), `setSelectedChild` (pulls description + project_id from the matching child; no-op for unknown iid; clears derived state on switch), `setComprehension`, `setRefinedDraft(draft, userEdited)` (the boolean is what the UI's `Refine again` confirmation reads), `setValidation`, `setPhase(p, error?)`, `recordCachedTokens` (dev observability), `reset`. **Verification:** `npx vitest run src/stores/issueRefineryStore.test.ts` → 12/12 passed (target was ≥8). Coverage: initial state, setSelectedEpic clears derived state, setSelectedChild happy path + missing description fallback + unknown iid no-op + switching child clears state, userEditedDraft flag behavior, setPhase with/without error, recordCachedTokens append order, reset. Typecheck on R-2 files clean (0 errors).
 
 ### 2026-05-18 · R-1 (task 2) — gitlabClient.updateIssue + pagination fix
 Added `UpdateIssuePayload` type to `src/services/gitlab/types.ts` and `updateIssue(config, projectId, issueIid, payload)` to `src/services/gitlab/gitlabClient.ts`. Endpoint is `PUT /projects/:projectId/issues/:iid` with body `{description?, title?, labels?}`; labels serialized as comma-separated per GitLab convention; `projectId` URL-encoded via `encodeURIComponent` so path-style IDs like `group/subgroup/project` work. Comment in the function body explicitly warns against confusing this with the `/groups/:gid/epics/:eid/issues/:id` endpoint (which only assigns, not updates content). Also addressed the R-0 pagination caveat in the same commit: `fetchEpicIssues` now requests `?per_page=100` so it doesn't silently truncate large epics at GitLab's default 20. Full Link-header pagination is deferred to a future hardening task — per_page=100 covers any epic with ≤100 children which is sufficient for v1. Tests added in a new file `gitlabClient.issueRefinery.test.ts` (the kit H3 hook blocks edits to the existing `gitlabClient.test.ts`): 6 updateIssue tests (happy path, slash-bearing project ID, label serialization, 4xx error, network error, undefined-field omission) and 1 fetchEpicIssues pagination test. **Verification:** `npx vitest run src/services/gitlab/gitlabClient.issueRefinery.test.ts` → 7 passed. `npx vitest run src/services/gitlab/gitlabClient.test.ts` → 37 passed (no regressions). Typecheck filtered to R-1 files: 0 errors. Pre-existing typecheck errors elsewhere (crossFeature.test.ts, gitlabFlow.test.ts, etc.) are out of scope.
