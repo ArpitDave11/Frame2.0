@@ -159,7 +159,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 6 | R-5 | Comprehension stage | done |
 | 7 | R-6 | Refinement stage | done |
 | 8 | R-7 | Validation stage | done |
-| 9 | R-8 | runIssuePipeline orchestrator | pending |
+| 9 | R-8 | runIssuePipeline orchestrator | done |
 | 10 | R-9 | refineIssueAction | pending |
 | 11 | R-10 | ChildIssueList component | pending |
 | 12 | R-11 | ComprehensionCard + ValidationCard | pending |
@@ -173,6 +173,9 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 20 | R-19 | Final commit | pending |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-21 · R-8 (task 9) — runIssuePipeline orchestrator
+Created `src/pipeline/issue/runIssuePipeline.ts` — pure async function composing R-5 → R-6 → R-7. No store imports, no UI imports, no fetch logic. Scope-guard verified by `grep -E "from '.*pipeline/stages|from '.*pipeline/orchestrator'"` returning empty. Each stage is wrapped in try/catch that re-throws as `IssuePipelineError` with `stage: 'comprehension' | 'refinement' | 'validation'` and the original cause attached, so the action layer (R-9) can tell the user which step failed and the UI can surface stage-specific recovery options. Partial results from completed earlier stages are NOT returned on failure — strict success-or-error to avoid the action layer accidentally committing a mid-flight state. `IssuePipelineResult` includes `cachedTokens: number[]` populated with `[0, 0, 0]` for now (placeholder — `aiClient.callAI` does not yet expose `data.usage.prompt_tokens_details.cached_tokens`; the field shape stays stable so a future aiClient extension can populate without contract changes). **Verification:** 6/6 tests pass: happy path with sequential invocation, comprehension forwarded to refinement, refined body forwarded to validation, Comprehension failure short-circuits the other stages, Refinement failure tags `stage='refinement'`, Validation failure tags `stage='validation'`. Each stage is module-mocked at the `vi.mock` level. Typecheck clean.
 
 ### 2026-05-21 · R-7 (task 8) — Validation stage runner
 Created `src/pipeline/issue/validation/runValidation.ts`, identical shape to R-5/R-6. Signature: `runValidation(aiConfig, epicBody, issueBody, refinedBody)`. Temperature 0.2, `reasoningEffort: 'minimal'`, strict json_schema for `ValidationResult`. Refined body embedded under `<refined>...</refined>` via `buildPrompts('validation', ..., { refined })`. Return type: `{ score: 0-100, findings: string[] }` per the design's advisory-only contract; UI never gates Publish on it. **Verification:** 6/6 tests pass: happy path, params plumbing, refined-body embedded in user prompt, perfect score (100 + empty findings), Instructor retry on out-of-range score (150 → corrected), double-fail throws. Typecheck clean.
