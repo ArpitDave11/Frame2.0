@@ -158,7 +158,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 5 | R-4 | promptAssembly module | done |
 | 6 | R-5 | Comprehension stage | done |
 | 7 | R-6 | Refinement stage | done |
-| 8 | R-7 | Validation stage | pending |
+| 8 | R-7 | Validation stage | done |
 | 9 | R-8 | runIssuePipeline orchestrator | pending |
 | 10 | R-9 | refineIssueAction | pending |
 | 11 | R-10 | ChildIssueList component | pending |
@@ -173,6 +173,9 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 20 | R-19 | Final commit | pending |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-21 · R-7 (task 8) — Validation stage runner
+Created `src/pipeline/issue/validation/runValidation.ts`, identical shape to R-5/R-6. Signature: `runValidation(aiConfig, epicBody, issueBody, refinedBody)`. Temperature 0.2, `reasoningEffort: 'minimal'`, strict json_schema for `ValidationResult`. Refined body embedded under `<refined>...</refined>` via `buildPrompts('validation', ..., { refined })`. Return type: `{ score: 0-100, findings: string[] }` per the design's advisory-only contract; UI never gates Publish on it. **Verification:** 6/6 tests pass: happy path, params plumbing, refined-body embedded in user prompt, perfect score (100 + empty findings), Instructor retry on out-of-range score (150 → corrected), double-fail throws. Typecheck clean.
 
 ### 2026-05-21 · R-6 (task 7) — Refinement stage runner
 Created `src/pipeline/issue/refinement/runRefinement.ts` with the same Instructor-retry shape as R-5. Signature: `runRefinement(aiConfig, epicBody, issueBody, comprehension)`. Temperature 0.4 (the design's moderate-temp setting for the rewriting stage), `responseFormat` strict json_schema for `RefinementResult`, no `reasoningEffort` (omitted — moderate creativity is desired). Comprehension result flows in via `buildPrompts('refinement', ..., { comprehension })` which embeds the JSON.stringify-d comprehension under `<comprehension>...</comprehension>`. **Verification:** 6/6 tests pass: happy path, params plumbing (temp 0.4 + responseFormat), comprehension JSON embedded in user prompt, GitLab quick-action preservation through the pass-through (system rule #3 enforced upstream but verified the runner doesn't strip them), Instructor retry on too-short body, double-fail throws. Typecheck clean.
