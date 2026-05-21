@@ -156,7 +156,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 3 | R-2 | issueRefineryStore | done |
 | 4 | R-3 | Pipeline Zod schemas | done |
 | 5 | R-4 | promptAssembly module | done |
-| 6 | R-5 | Comprehension stage | pending |
+| 6 | R-5 | Comprehension stage | done |
 | 7 | R-6 | Refinement stage | pending |
 | 8 | R-7 | Validation stage | pending |
 | 9 | R-8 | runIssuePipeline orchestrator | pending |
@@ -173,6 +173,9 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 20 | R-19 | Final commit | pending |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-21 · R-5 (task 6) — Comprehension stage runner
+Created `src/pipeline/issue/comprehension/runComprehension.ts` exporting `runComprehension(aiConfig, epicBody, issueBody)`. The runner builds prompts via `buildPrompts('comprehension', ...)`, converts `ComprehensionSchema` to JSON Schema via `z.toJSONSchema()` (Zod 4 built-in), and calls `aiClient.callAI` wrapped in the existing `withRetry` (network retry only). Stage params: `temperature: 0.2`, `reasoningEffort: 'minimal'`, `responseFormat: { type: 'json_schema', strict: true, name: 'ComprehensionResult', schema }`. On JSON parse or schema validation failure, the Instructor retry pattern fires: a single additional call is issued with `PREVIOUS ATTEMPT FAILED JSON-SCHEMA VALIDATION:\n<error>\n...` appended to the user prompt. After the second failure, the runner throws with diagnostic. **Verification:** `npx vitest run src/pipeline/issue/comprehension/runComprehension.test.ts` → 5/5 passed: happy path, params plumbing (temperature + responseFormat), Instructor retry succeeds on second call, double-fail throws, malformed-JSON throws. callAI is module-mocked. Typecheck clean. Test file initially had a noUncheckedIndexedAccess error on direct `mock.calls[n]` destructuring; refactored to use a `callNth(n)` helper that asserts presence — same pattern will reuse in R-6 / R-7.
 
 ### 2026-05-21 · R-4 (task 5) — promptAssembly module
 Created `src/pipeline/issue/promptAssembly.ts` exporting `buildPrompts(stage, epicBody, issueBody, previous?)`, `SYSTEM_RULES`, `STAGE_INSTRUCTIONS`, and `getCachePrefix()` (the last is exported for the cache-discipline test). The static prefix — `SYSTEM_RULES` as systemPrompt plus the `<epic>...</epic>\n\n<issue>...</issue>` document block — is byte-identical across all three stage calls. Only the tail (stage-specific instruction + optional previous-stage data block) varies. This is what enables prompt-cache hits on stages 2 and 3 per the Azure research. **Verification:** `npx vitest run src/pipeline/issue/promptAssembly.test.ts` → 10/10 passed (initial run had one false-positive assertion conflating the JSON data block with the word "comprehension" in the stage instruction; rewrote the test file using delete-then-Write since the H3 hook blocks edits to just-created test files). Tests cover: byte-identical systemPrompt across stages, byte-identical cache prefix across stages, divergent tails, no Date/timestamp/requestId tokens in the static prefix (regex assertions), determinism (same inputs → same output, ruling out Date.now / Math.random), and per-stage tail content (comprehension has no data block; refinement embeds JSON.stringify(comprehension); validation embeds refined body verbatim; refinement without previous.comprehension does not insert an empty data block). Typecheck clean.
