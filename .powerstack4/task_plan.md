@@ -170,7 +170,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 17 | R-16 | Integration test | done |
 | 18 | R-17 | Knowledge-base docs | done |
 | 19 | R-18 | Devlog + ADR | done |
-| 20 | R-19 | Final commit | in-progress |
+| 20 | R-19 | Final commit | done |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
 
@@ -232,6 +232,13 @@ Dispatched 5 parallel reviewers against the 7-commit UI delta. Findings consolid
 **Verification:** 21 test files, **157/157 pass** (was 139; added 18 net-new tests: 7 arrow-key, 4 tier-label, 4 readOnly per phase, 3 integration failure paths). Typecheck on every Issue Refinery file clean. Pre-commit hooks all green.
 
 **Exit criteria for R-17 (KB docs + devlog + PR) met.**
+
+### 2026-05-22 · R-19 — final verification + branch ready for PR
+Total feature branch state: **22 commits** on `feature/issue-refinery` (R-0 through R-19 plus 2 deep-review fix-loop commits at 86f5d27 and e5bc617). **Issue Refinery test suite: 157/157 pass across 21 files. Layout regression suite: 23/23 pass on the files I touched.** Typecheck on every Issue Refinery file and every touched layout file: clean.
+
+**Pre-existing failures noted (not regressions):** `src/components/layout/WelcomeSidebar.test.tsx` 10 failures (`useAuth must be used within AuthProvider`) are present on the base branch `feature/phase-a-docmining` BEFORE Issue Refinery work began — confirmed by `git stash` + `git checkout feature/phase-a-docmining` + retest. Scope-guarded path; left for a separate cleanup task.
+
+**Branch ready for PR.** Final step (push + `gh pr create`) intentionally deferred per the user's "stop just before PR" cadence direction.
 
 ### 2026-05-22 · R-17 / R-18 — knowledge-base docs, devlog, ADR
 **R-17:** Wrote 16 KB pages under `docs/knowledge/`:
