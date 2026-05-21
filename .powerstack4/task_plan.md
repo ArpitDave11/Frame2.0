@@ -160,7 +160,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 7 | R-6 | Refinement stage | done |
 | 8 | R-7 | Validation stage | done |
 | 9 | R-8 | runIssuePipeline orchestrator | done |
-| 10 | R-9 | refineIssueAction | pending |
+| 10 | R-9 | refineIssueAction | done |
 | 11 | R-10 | ChildIssueList component | pending |
 | 12 | R-11 | ComprehensionCard + ValidationCard | pending |
 | 13 | R-12 | RefinedIssueCard with diff | pending |
@@ -173,6 +173,11 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 20 | R-19 | Final commit | pending |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-21 · R-9 (task 10) — refineIssueAction (boundary)
+Created `src/actions/refineIssueAction.ts` with two exports: `refineSelectedIssue()` and `publishRefinedIssue()`. Mirrors the boundary pattern of the existing `refinePipelineAction.ts`. **refineSelectedIssue** validates that an epic and a child issue are selected (else toast + no-op), assembles `aiConfig` from `configStore.config.ai` + `endpoints`, flips phase to `comprehending`, runs `runIssuePipeline`, writes `comprehension` + `refinedDraft` (with `userEdited=false`) + `validation` + cachedTokens back, sets phase=`ready`. On any error: phase=`error` with the error message; toast surfaces failure. **publishRefinedIssue** validates a non-empty refined draft (whitespace-only rejected) and a known projectId + iid (else toast + no-op), reads `gitlab` config, calls `gitlabClient.updateIssue(config, projectId, iid, { description })`, transitions phase publishing → idle on success (success toast) or → error on failure (error toast). Per locked decision D7 — always overwrite, no `updated_at` concurrency check. Found two typecheck issues that I fixed in the same task: the uiStore Toast type uses `title` not `message` (renamed all calls via replace_all), and `Array.prototype.at(-1)` isn't in the tsconfig lib target (replaced with a `lastToast()` helper using `arr[arr.length - 1]`). **Verification:** 10/10 action tests pass. Full Issue Refinery suite (9 test files, 75 tests) green: gitlabClient.issueRefinery (7), issueRefineryStore (12), schemas (13), promptAssembly (10), Comprehension (5), Refinement (6), Validation (6), orchestrator (6), action (10). Typecheck on every Issue Refinery file clean.
+
+**Phase R-A (R-1..R-9) complete — ready for the 5-agent deep-review checkpoint #1 before any UI work begins (R-10..R-16).**
 
 ### 2026-05-21 · R-8 (task 9) — runIssuePipeline orchestrator
 Created `src/pipeline/issue/runIssuePipeline.ts` — pure async function composing R-5 → R-6 → R-7. No store imports, no UI imports, no fetch logic. Scope-guard verified by `grep -E "from '.*pipeline/stages|from '.*pipeline/orchestrator'"` returning empty. Each stage is wrapped in try/catch that re-throws as `IssuePipelineError` with `stage: 'comprehension' | 'refinement' | 'validation'` and the original cause attached, so the action layer (R-9) can tell the user which step failed and the UI can surface stage-specific recovery options. Partial results from completed earlier stages are NOT returned on failure — strict success-or-error to avoid the action layer accidentally committing a mid-flight state. `IssuePipelineResult` includes `cachedTokens: number[]` populated with `[0, 0, 0]` for now (placeholder — `aiClient.callAI` does not yet expose `data.usage.prompt_tokens_details.cached_tokens`; the field shape stays stable so a future aiClient extension can populate without contract changes). **Verification:** 6/6 tests pass: happy path with sequential invocation, comprehension forwarded to refinement, refined body forwarded to validation, Comprehension failure short-circuits the other stages, Refinement failure tags `stage='refinement'`, Validation failure tags `stage='validation'`. Each stage is module-mocked at the `vi.mock` level. Typecheck clean.
