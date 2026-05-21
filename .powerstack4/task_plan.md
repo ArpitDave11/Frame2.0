@@ -161,7 +161,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 8 | R-7 | Validation stage | done |
 | 9 | R-8 | runIssuePipeline orchestrator | done |
 | 10 | R-9 | refineIssueAction | done |
-| 11 | R-10 | ChildIssueList component | pending |
+| 11 | R-10 | ChildIssueList component | done |
 | 12 | R-11 | ComprehensionCard + ValidationCard | pending |
 | 13 | R-12 | RefinedIssueCard with diff | pending |
 | 14 | R-13 | PublishButton + PromptCacheHUD | pending |
