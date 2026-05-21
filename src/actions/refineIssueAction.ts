@@ -10,6 +10,12 @@
  *   publishRefinedIssue()     reads the refined draft from the store and
  *                             PUTs it to GitLab via gitlabClient.updateIssue.
  *
+ * Deep-review hardening (see docs/reviews/2026-05-21-issue-refinery-phase-A-review.md):
+ *   - C2: in-flight concurrency guard + stale-child write-back check
+ *   - C4: per-stage phase advancement via onStageStart callback
+ *   - I1: clearResults() before kickoff so failed runs don't mix fresh/stale
+ *   - I8: 50 KB per-body size cap to bound prompt cost on hostile inputs
+ *
  * Mirrors the action-boundary pattern of `src/pipeline/refinePipelineAction.ts`.
  */
 
@@ -17,8 +23,28 @@ import type { AIClientConfig } from '@/services/ai/types';
 import { useConfigStore } from '@/stores/configStore';
 import { useUiStore } from '@/stores/uiStore';
 import { useIssueRefineryStore } from '@/stores/issueRefineryStore';
-import { runIssuePipeline } from '@/pipeline/issue/runIssuePipeline';
+import { runIssuePipeline, type StageId } from '@/pipeline/issue/runIssuePipeline';
 import { updateIssue } from '@/services/gitlab/gitlabClient';
+
+/** Phases during which Refine is NOT idempotent — clicking again does nothing. */
+const IN_FLIGHT_PHASES = new Set<string>([
+  'comprehending',
+  'refining',
+  'validating',
+  'publishing',
+]);
+
+/** Upper bound on individual prompt-body bytes (UTF-16 code-units close enough). */
+const MAX_BODY_CHARS = 50_000;
+
+/** Map orchestrator stage id → store phase value. */
+function phaseForStage(stage: StageId): 'comprehending' | 'refining' | 'validating' {
+  return stage === 'comprehension'
+    ? 'comprehending'
+    : stage === 'refinement'
+      ? 'refining'
+      : 'validating';
+}
 
 // ─── Refine ───────────────────────────────────────────────────────
 
@@ -26,9 +52,10 @@ import { updateIssue } from '@/services/gitlab/gitlabClient';
  * Runs the 3-stage pipeline against the currently selected child issue and
  * writes the results to the issueRefineryStore. Fire-and-forget from UI.
  *
- * No-op if no child is selected. On any stage failure, the store ends in
- * phase='error' with `error` populated; previously cached stage outputs
- * are cleared to avoid mixing fresh + stale state.
+ * No-op if no child is selected. Re-entry while a refine is in flight is also
+ * a no-op (in-flight guard). On any stage failure, the store ends in
+ * phase='error' with `error` populated; previously cached stage outputs are
+ * cleared at kickoff so the UI never displays mixed fresh + stale state.
  */
 export async function refineSelectedIssue(): Promise<void> {
   const store = useIssueRefineryStore.getState();
@@ -41,8 +68,28 @@ export async function refineSelectedIssue(): Promise<void> {
     return;
   }
 
+  // C2: in-flight guard — second click while busy is a no-op.
+  if (IN_FLIGHT_PHASES.has(store.phase)) {
+    return;
+  }
+
   const epicBody = store.selectedEpic.body;
   const issueBody = store.originalBody ?? '';
+
+  // I8: bound prompt cost / context-window risk for adversarial inputs.
+  if (epicBody.length > MAX_BODY_CHARS || issueBody.length > MAX_BODY_CHARS) {
+    useUiStore.getState().addToast({
+      type: 'error',
+      title: `Epic or issue body exceeds ${MAX_BODY_CHARS.toLocaleString()} characters — too large to refine safely.`,
+    });
+    return;
+  }
+
+  // C2 (stale-child write check): capture the iid at start. If the user
+  // switches selection mid-flight, late writes must not land on the new child.
+  const startIid = store.selectedChildIid;
+  const isStale = () =>
+    useIssueRefineryStore.getState().selectedChildIid !== startIid;
 
   const cfg = useConfigStore.getState().config;
   const aiConfig: AIClientConfig = {
@@ -52,25 +99,30 @@ export async function refineSelectedIssue(): Promise<void> {
     endpoints: cfg.endpoints,
   };
 
-  // Clear any stale per-child results before kicking off.
+  // I1: clear any stale per-issue derived state from a previous (possibly
+  // failed) refine before kicking off. Does NOT drop selectedEpic/children.
+  store.clearResults();
   store.setPhase('comprehending', null);
 
   try {
-    // We run the full pipeline in one go but flip the phase between calls so
-    // the UI can show progressive feedback. The orchestrator does not expose
-    // per-stage callbacks today; promoting per-stage hooks would touch the
-    // pipeline contract — deferred until UI testing shows a real need.
-    const result = await runIssuePipeline(aiConfig, epicBody, issueBody);
+    const result = await runIssuePipeline(aiConfig, epicBody, issueBody, {
+      onStageStart: (stage) => {
+        if (isStale()) return; // C2: don't advance phase for an abandoned run.
+        useIssueRefineryStore.getState().setPhase(phaseForStage(stage), null);
+      },
+    });
 
-    // Write results in one batch so UI re-renders once.
-    store.setComprehension(result.comprehension);
-    store.setRefinedDraft(result.refined.refinedBody, /* userEdited */ false);
-    store.setValidation(result.validation);
-    for (const n of result.cachedTokens) store.recordCachedTokens(n);
-    store.setPhase('ready', null);
+    if (isStale()) return; // C2: discard results bound to a now-unselected child.
+
+    const s = useIssueRefineryStore.getState();
+    s.setComprehension(result.comprehension);
+    s.setRefinedDraft(result.refined.refinedBody, /* userEdited */ false);
+    s.setValidation(result.validation);
+    s.setPhase('ready', null);
   } catch (e) {
+    if (isStale()) return; // C2: don't surface errors from abandoned runs.
     const message = e instanceof Error ? e.message : String(e);
-    store.setPhase('error', message);
+    useIssueRefineryStore.getState().setPhase('error', message);
     useUiStore.getState().addToast({ type: 'error', title: `Refine failed: ${message}` });
   }
 }
@@ -85,7 +137,8 @@ export async function refineSelectedIssue(): Promise<void> {
  * in v1 — a teammate's edit between load and publish will be silently
  * clobbered. Documented in the design doc; revisit in v2.
  *
- * No-op if no draft is present or no child is selected.
+ * No-op if no draft is present, no child is selected, or another in-flight
+ * action (refine / publish) is running.
  */
 export async function publishRefinedIssue(): Promise<void> {
   const store = useIssueRefineryStore.getState();
@@ -103,6 +156,11 @@ export async function publishRefinedIssue(): Promise<void> {
     return;
   }
 
+  // C2: don't stomp an in-flight refine or another publish.
+  if (IN_FLIGHT_PHASES.has(store.phase)) {
+    return;
+  }
+
   const gitlabConfig = useConfigStore.getState().config.gitlab;
   store.setPhase('publishing', null);
 
@@ -114,13 +172,13 @@ export async function publishRefinedIssue(): Promise<void> {
   );
 
   if (result.success) {
-    store.setPhase('idle', null);
+    useIssueRefineryStore.getState().setPhase('idle', null);
     useUiStore.getState().addToast({
       type: 'success',
       title: 'Refined issue published to GitLab.',
     });
   } else {
-    store.setPhase('error', result.error ?? 'Unknown publish error');
+    useIssueRefineryStore.getState().setPhase('error', result.error ?? 'Unknown publish error');
     useUiStore.getState().addToast({
       type: 'error',
       title: `Publish failed: ${result.error ?? 'unknown'}`,

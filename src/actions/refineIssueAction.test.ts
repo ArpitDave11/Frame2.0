@@ -3,6 +3,13 @@
  *
  * The orchestrator and gitlab updateIssue are module-mocked. Stores are
  * exercised live (Zustand is trivial to reset between tests).
+ *
+ * Updated post-deep-review (2026-05-21):
+ *   - cachedTokens dropped from IssuePipelineResult (C3)
+ *   - onStageStart callback drives phase machine (C4)
+ *   - Concurrency guard + stale-child check (C2)
+ *   - clearResults at kickoff (I1)
+ *   - 50KB body-size cap (I8)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -12,7 +19,11 @@ import { useConfigStore } from '@/stores/configStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { GitLabIssue } from '@/services/gitlab/types';
 import type { ComprehensionResult, RefinementResult, ValidationResult } from '@/pipeline/issue/types';
-import type { IssuePipelineResult } from '@/pipeline/issue/runIssuePipeline';
+import type {
+  IssuePipelineResult,
+  RunPipelineOptions,
+  StageId,
+} from '@/pipeline/issue/runIssuePipeline';
 
 vi.mock('@/pipeline/issue/runIssuePipeline', () => ({ runIssuePipeline: vi.fn() }));
 vi.mock('@/services/gitlab/gitlabClient', () => ({ updateIssue: vi.fn() }));
@@ -38,6 +49,17 @@ const ISSUE: GitLabIssue = {
   project_id: 999,
 };
 
+const ISSUE_B: GitLabIssue = {
+  id: 101,
+  iid: 2,
+  title: 'Other',
+  description: 'other body',
+  state: 'opened',
+  web_url: 'https://gitlab/test/-/issues/2',
+  labels: [],
+  project_id: 999,
+};
+
 const COMP: ComprehensionResult = {
   epicIntent: 'X',
   issueIntent: 'Y',
@@ -54,7 +76,6 @@ const PIPE_OK: IssuePipelineResult = {
   comprehension: COMP,
   refined: REF,
   validation: VAL,
-  cachedTokens: [0, 2200, 2200],
 };
 
 function lastToast() {
@@ -65,12 +86,11 @@ function lastToast() {
 beforeEach(() => {
   vi.clearAllMocks();
   useIssueRefineryStore.getState().reset();
-  // Drain any leftover toasts so each test gets a clean slate.
   const toasts = useUiStore.getState().toasts;
   for (const t of toasts) useUiStore.getState().removeToast(t.id);
 });
 
-describe('refineSelectedIssue', () => {
+describe('refineSelectedIssue — preconditions', () => {
   it('is a no-op when no child is selected (toasts an error)', async () => {
     await refineSelectedIssue();
 
@@ -79,7 +99,45 @@ describe('refineSelectedIssue', () => {
     expect(useIssueRefineryStore.getState().phase).toBe('idle');
   });
 
-  it('happy path — phase ends ready, store gets all 3 results', async () => {
+  it('rejects an oversize epic body (>50KB) with an error toast', async () => {
+    const oversize = { ...EPIC, body: 'x'.repeat(50_001) };
+    const s = useIssueRefineryStore.getState();
+    s.setSelectedEpic(oversize, [ISSUE]);
+    s.setSelectedChild(ISSUE.iid);
+
+    await refineSelectedIssue();
+
+    expect(runIssuePipeline).not.toHaveBeenCalled();
+    expect(lastToast()?.type).toBe('error');
+    expect(lastToast()?.title).toMatch(/50,000/);
+  });
+
+  it('rejects an oversize issue body (>50KB) with an error toast', async () => {
+    const huge = { ...ISSUE, description: 'x'.repeat(50_001) };
+    const s = useIssueRefineryStore.getState();
+    s.setSelectedEpic(EPIC, [huge]);
+    s.setSelectedChild(huge.iid);
+
+    await refineSelectedIssue();
+
+    expect(runIssuePipeline).not.toHaveBeenCalled();
+    expect(lastToast()?.type).toBe('error');
+  });
+
+  it('skips re-entry while phase is in-flight (concurrency guard)', async () => {
+    const s = useIssueRefineryStore.getState();
+    s.setSelectedEpic(EPIC, [ISSUE]);
+    s.setSelectedChild(ISSUE.iid);
+    s.setPhase('refining', null); // simulate an in-flight refine.
+
+    await refineSelectedIssue();
+
+    expect(runIssuePipeline).not.toHaveBeenCalled();
+  });
+});
+
+describe('refineSelectedIssue — happy path', () => {
+  it('phase ends ready, store gets all 3 results', async () => {
     vi.mocked(runIssuePipeline).mockResolvedValueOnce(PIPE_OK);
     const s = useIssueRefineryStore.getState();
     s.setSelectedEpic(EPIC, [ISSUE]);
@@ -93,26 +151,109 @@ describe('refineSelectedIssue', () => {
     expect(after.refinedDraft).toBe(REF.refinedBody);
     expect(after.userEditedDraft).toBe(false);
     expect(after.validation).toEqual(VAL);
-    expect(after.lastCachedTokens).toEqual([0, 2200, 2200]);
     expect(after.error).toBeNull();
   });
 
-  it('flips phase to comprehending before the orchestrator call', async () => {
-    let phaseAtCallTime = '';
-    vi.mocked(runIssuePipeline).mockImplementationOnce(async () => {
-      phaseAtCallTime = useIssueRefineryStore.getState().phase;
-      return PIPE_OK;
-    });
+  it('advances phase through comprehending → refining → validating → ready via onStageStart', async () => {
+    const seenPhases: string[] = [];
+    vi.mocked(runIssuePipeline).mockImplementationOnce(
+      async (_cfg: unknown, _e: unknown, _i: unknown, options?: RunPipelineOptions) => {
+        // Simulate the orchestrator's calls.
+        const stages: StageId[] = ['comprehension', 'refinement', 'validation'];
+        for (const stage of stages) {
+          options?.onStageStart?.(stage);
+          seenPhases.push(useIssueRefineryStore.getState().phase);
+        }
+        return PIPE_OK;
+      },
+    );
     const s = useIssueRefineryStore.getState();
     s.setSelectedEpic(EPIC, [ISSUE]);
     s.setSelectedChild(ISSUE.iid);
 
     await refineSelectedIssue();
 
-    expect(phaseAtCallTime).toBe('comprehending');
+    expect(seenPhases).toEqual(['comprehending', 'refining', 'validating']);
+    expect(useIssueRefineryStore.getState().phase).toBe('ready');
   });
 
-  it('on pipeline failure, phase becomes error with the message', async () => {
+  it('clears stale per-issue results before starting (I1)', async () => {
+    const s = useIssueRefineryStore.getState();
+    s.setSelectedEpic(EPIC, [ISSUE]);
+    s.setSelectedChild(ISSUE.iid);
+    // Seed stale state from a prior run.
+    s.setComprehension({
+      epicIntent: 'stale',
+      issueIntent: 'stale',
+      gaps: [],
+      ambiguities: [],
+      alignmentNotes: [],
+    });
+    s.setRefinedDraft('stale draft', true);
+    s.setValidation({ score: 10, findings: [] });
+    s.setPhase('error', 'old error');
+
+    // Pipeline never returns — so we can observe the cleared state mid-flight.
+    let observed: ReturnType<typeof useIssueRefineryStore.getState> | null = null;
+    vi.mocked(runIssuePipeline).mockImplementationOnce(async () => {
+      observed = useIssueRefineryStore.getState();
+      return PIPE_OK;
+    });
+
+    await refineSelectedIssue();
+
+    expect(observed!.comprehension).toBeNull();
+    expect(observed!.refinedDraft).toBeNull();
+    expect(observed!.validation).toBeNull();
+    expect(observed!.userEditedDraft).toBe(false);
+    expect(observed!.error).toBeNull();
+  });
+});
+
+describe('refineSelectedIssue — stale-child race (C2)', () => {
+  it('discards pipeline results when selectedChildIid changes mid-refine', async () => {
+    vi.mocked(runIssuePipeline).mockImplementationOnce(async () => {
+      // User switches child while pipeline is running.
+      useIssueRefineryStore.getState().setSelectedChild(ISSUE_B.iid);
+      return PIPE_OK;
+    });
+
+    const s = useIssueRefineryStore.getState();
+    s.setSelectedEpic(EPIC, [ISSUE, ISSUE_B]);
+    s.setSelectedChild(ISSUE.iid);
+
+    await refineSelectedIssue();
+
+    const after = useIssueRefineryStore.getState();
+    // We do NOT clobber the new child with results from the abandoned run.
+    expect(after.selectedChildIid).toBe(ISSUE_B.iid);
+    expect(after.comprehension).toBeNull();
+    expect(after.refinedDraft).toBeNull();
+    expect(after.validation).toBeNull();
+  });
+
+  it('does not advance phase via onStageStart for an abandoned run', async () => {
+    vi.mocked(runIssuePipeline).mockImplementationOnce(
+      async (_cfg: unknown, _e: unknown, _i: unknown, options?: RunPipelineOptions) => {
+        useIssueRefineryStore.getState().setSelectedChild(ISSUE_B.iid);
+        options?.onStageStart?.('refinement');
+        return PIPE_OK;
+      },
+    );
+    const s = useIssueRefineryStore.getState();
+    s.setSelectedEpic(EPIC, [ISSUE, ISSUE_B]);
+    s.setSelectedChild(ISSUE.iid);
+
+    await refineSelectedIssue();
+
+    // After selectedChild switched to B, B's phase should stay 'idle' (the
+    // store was cleared on setSelectedChild).
+    expect(useIssueRefineryStore.getState().phase).toBe('idle');
+  });
+});
+
+describe('refineSelectedIssue — failure handling', () => {
+  it('pipeline failure sets phase=error and toasts', async () => {
     vi.mocked(runIssuePipeline).mockRejectedValueOnce(new Error('refine boom'));
     const s = useIssueRefineryStore.getState();
     s.setSelectedEpic(EPIC, [ISSUE]);
@@ -126,6 +267,24 @@ describe('refineSelectedIssue', () => {
     expect(lastToast()?.type).toBe('error');
   });
 
+  it('failure of an abandoned run is suppressed', async () => {
+    vi.mocked(runIssuePipeline).mockImplementationOnce(async () => {
+      useIssueRefineryStore.getState().setSelectedChild(ISSUE_B.iid);
+      throw new Error('boom');
+    });
+    const s = useIssueRefineryStore.getState();
+    s.setSelectedEpic(EPIC, [ISSUE, ISSUE_B]);
+    s.setSelectedChild(ISSUE.iid);
+
+    await refineSelectedIssue();
+
+    // setSelectedChild cleared state to idle/null; the abandoned error doesn't
+    // overwrite it.
+    expect(useIssueRefineryStore.getState().phase).toBe('idle');
+  });
+});
+
+describe('refineSelectedIssue — config plumbing', () => {
   it('reads aiConfig from configStore (provider, azure, openai, endpoints)', async () => {
     vi.mocked(runIssuePipeline).mockResolvedValueOnce(PIPE_OK);
     const s = useIssueRefineryStore.getState();
@@ -190,7 +349,6 @@ describe('publishRefinedIssue', () => {
     const after = useIssueRefineryStore.getState();
     expect(after.phase).toBe('error');
     expect(after.error).toContain('403');
-    // Draft preserved so the user can retry / copy out.
     expect(after.refinedDraft).toBe(REF.refinedBody);
     expect(after.userEditedDraft).toBe(true);
   });
@@ -216,6 +374,18 @@ describe('publishRefinedIssue', () => {
     s.setSelectedEpic(EPIC, [ISSUE]);
     s.setSelectedChild(ISSUE.iid);
     s.setRefinedDraft('   \n  ', false);
+
+    await publishRefinedIssue();
+
+    expect(updateIssue).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op when a refine is in flight (concurrency guard)', async () => {
+    const s = useIssueRefineryStore.getState();
+    s.setSelectedEpic(EPIC, [ISSUE]);
+    s.setSelectedChild(ISSUE.iid);
+    s.setRefinedDraft(REF.refinedBody, false);
+    s.setPhase('refining', null);
 
     await publishRefinedIssue();
 

@@ -60,6 +60,14 @@ export interface IssueRefineryState {
   setValidation: (v: ValidationResult) => void;
   setPhase: (p: Phase, error?: string | null) => void;
   recordCachedTokens: (n: number) => void;
+  /**
+   * Clear per-issue derived state (comprehension, refinedDraft, validation,
+   * lastCachedTokens, error) without dropping the selected epic / child.
+   * Used by the action layer at the start of every refine kickoff so that a
+   * mid-pipeline failure doesn't leave the UI showing mixed fresh + stale
+   * stage outputs.
+   */
+  clearResults: () => void;
   reset: () => void;
 }
 
@@ -131,6 +139,16 @@ export const useIssueRefineryStore = create<IssueRefineryState>((set, get) => ({
 
   recordCachedTokens: (n) =>
     set((s) => ({ lastCachedTokens: [...s.lastCachedTokens, n] })),
+
+  clearResults: () =>
+    set({
+      comprehension: null,
+      refinedDraft: null,
+      userEditedDraft: false,
+      validation: null,
+      error: null,
+      lastCachedTokens: [],
+    }),
 
   reset: () => set({ ...INITIAL_STATE, lastCachedTokens: [] }),
 }));

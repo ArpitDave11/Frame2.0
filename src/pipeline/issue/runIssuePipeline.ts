@@ -12,6 +12,11 @@
  * re-throws with `{ stage, cause }` context so the action layer can show
  * the user which step failed. Partial results from completed earlier stages
  * are not returned — the caller gets exactly success-or-error.
+ *
+ * The optional `onStageStart` callback lets the caller advance UI phase
+ * (comprehending → refining → validating) without breaking the
+ * pipeline's purity rule against importing stores: the action layer
+ * passes a closure that calls `setPhase`.
  */
 
 import type { AIClientConfig } from '@/services/ai/types';
@@ -26,14 +31,15 @@ export interface IssuePipelineResult {
   comprehension: ComprehensionResult;
   refined: RefinementResult;
   validation: ValidationResult;
+}
+
+export interface RunPipelineOptions {
   /**
-   * Per-stage `cached_tokens` reported by the LLM provider, in call order.
-   * Currently always zeros — `aiClient.callAI` does not yet expose
-   * `data.usage.prompt_tokens_details.cached_tokens`. A future task will
-   * extend AIResponse; the orchestrator's contract already carries the field
-   * so callers and the dev HUD don't need to change.
+   * Invoked synchronously just before each stage call so the caller can
+   * advance UI state. Kept as a callback (not a store import) to preserve
+   * the orchestrator's purity / scope-guard invariant.
    */
-  cachedTokens: number[];
+  onStageStart?: (stage: StageId) => void;
 }
 
 export interface IssuePipelineError extends Error {
@@ -51,7 +57,8 @@ function tagError(stage: StageId, cause: unknown): IssuePipelineError {
 
 /**
  * Run the 3-stage issue refinery pipeline. Pure — no side effects beyond the
- * AI calls performed by the stage runners.
+ * AI calls performed by the stage runners and the optional `onStageStart`
+ * callback supplied by the caller.
  *
  * @throws IssuePipelineError tagged with `stage` and `cause`.
  */
@@ -59,9 +66,11 @@ export async function runIssuePipeline(
   aiConfig: AIClientConfig,
   epicBody: string,
   issueBody: string,
+  options: RunPipelineOptions = {},
 ): Promise<IssuePipelineResult> {
   let comprehension: ComprehensionResult;
   try {
+    options.onStageStart?.('comprehension');
     comprehension = await runComprehension(aiConfig, epicBody, issueBody);
   } catch (e) {
     throw tagError('comprehension', e);
@@ -69,6 +78,7 @@ export async function runIssuePipeline(
 
   let refined: RefinementResult;
   try {
+    options.onStageStart?.('refinement');
     refined = await runRefinement(aiConfig, epicBody, issueBody, comprehension);
   } catch (e) {
     throw tagError('refinement', e);
@@ -76,15 +86,11 @@ export async function runIssuePipeline(
 
   let validation: ValidationResult;
   try {
+    options.onStageStart?.('validation');
     validation = await runValidation(aiConfig, epicBody, issueBody, refined.refinedBody);
   } catch (e) {
     throw tagError('validation', e);
   }
 
-  return {
-    comprehension,
-    refined,
-    validation,
-    cachedTokens: [0, 0, 0],
-  };
+  return { comprehension, refined, validation };
 }

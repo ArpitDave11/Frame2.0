@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runIssuePipeline, type IssuePipelineError } from './runIssuePipeline';
+import { runIssuePipeline, type IssuePipelineError, type StageId } from './runIssuePipeline';
 import type { AIClientConfig } from '@/services/ai/types';
 import type { ComprehensionResult, RefinementResult, ValidationResult } from './types';
 
@@ -50,9 +50,10 @@ describe('runIssuePipeline', () => {
     expect(result.comprehension).toEqual(COMP);
     expect(result.refined).toEqual(REF);
     expect(result.validation).toEqual(VAL);
-    expect(result.cachedTokens).toEqual([0, 0, 0]);
+    // Note: cachedTokens field intentionally absent — see C3 in
+    // docs/reviews/2026-05-21-issue-refinery-phase-A-review.md.
+    expect(result).not.toHaveProperty('cachedTokens');
 
-    // Sequential invocation.
     expect(runComprehension).toHaveBeenCalledTimes(1);
     expect(runRefinement).toHaveBeenCalledTimes(1);
     expect(runValidation).toHaveBeenCalledTimes(1);
@@ -85,7 +86,9 @@ describe('runIssuePipeline', () => {
   it('on Comprehension failure, refinement and validation are never invoked', async () => {
     vi.mocked(runComprehension).mockRejectedValueOnce(new Error('boom'));
 
-    await expect(runIssuePipeline(CFG, 'e', 'i')).rejects.toThrow(/comprehension/);
+    await expect(runIssuePipeline(CFG, 'e', 'i')).rejects.toMatchObject({
+      stage: 'comprehension',
+    } satisfies Partial<IssuePipelineError>);
     expect(runRefinement).not.toHaveBeenCalled();
     expect(runValidation).not.toHaveBeenCalled();
   });
@@ -108,5 +111,37 @@ describe('runIssuePipeline', () => {
     await expect(runIssuePipeline(CFG, 'e', 'i')).rejects.toMatchObject({
       stage: 'validation',
     } satisfies Partial<IssuePipelineError>);
+  });
+
+  it('invokes onStageStart before each stage, in order', async () => {
+    vi.mocked(runComprehension).mockResolvedValueOnce(COMP);
+    vi.mocked(runRefinement).mockResolvedValueOnce(REF);
+    vi.mocked(runValidation).mockResolvedValueOnce(VAL);
+    const seen: StageId[] = [];
+
+    await runIssuePipeline(CFG, 'e', 'i', { onStageStart: (s) => seen.push(s) });
+
+    expect(seen).toEqual(['comprehension', 'refinement', 'validation']);
+  });
+
+  it('onStageStart is optional — pipeline works without it', async () => {
+    vi.mocked(runComprehension).mockResolvedValueOnce(COMP);
+    vi.mocked(runRefinement).mockResolvedValueOnce(REF);
+    vi.mocked(runValidation).mockResolvedValueOnce(VAL);
+
+    const result = await runIssuePipeline(CFG, 'e', 'i');
+    expect(result.comprehension).toEqual(COMP);
+  });
+
+  it('does not invoke onStageStart for stages that never run after a failure', async () => {
+    vi.mocked(runComprehension).mockResolvedValueOnce(COMP);
+    vi.mocked(runRefinement).mockRejectedValueOnce(new Error('refine boom'));
+    const seen: StageId[] = [];
+
+    await expect(
+      runIssuePipeline(CFG, 'e', 'i', { onStageStart: (s) => seen.push(s) }),
+    ).rejects.toThrow();
+    // Comprehension and refinement started; validation never did.
+    expect(seen).toEqual(['comprehension', 'refinement']);
   });
 });
