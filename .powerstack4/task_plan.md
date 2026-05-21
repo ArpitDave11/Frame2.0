@@ -157,7 +157,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 4 | R-3 | Pipeline Zod schemas | done |
 | 5 | R-4 | promptAssembly module | done |
 | 6 | R-5 | Comprehension stage | done |
-| 7 | R-6 | Refinement stage | pending |
+| 7 | R-6 | Refinement stage | done |
 | 8 | R-7 | Validation stage | pending |
 | 9 | R-8 | runIssuePipeline orchestrator | pending |
 | 10 | R-9 | refineIssueAction | pending |
@@ -173,6 +173,9 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 20 | R-19 | Final commit | pending |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-21 · R-6 (task 7) — Refinement stage runner
+Created `src/pipeline/issue/refinement/runRefinement.ts` with the same Instructor-retry shape as R-5. Signature: `runRefinement(aiConfig, epicBody, issueBody, comprehension)`. Temperature 0.4 (the design's moderate-temp setting for the rewriting stage), `responseFormat` strict json_schema for `RefinementResult`, no `reasoningEffort` (omitted — moderate creativity is desired). Comprehension result flows in via `buildPrompts('refinement', ..., { comprehension })` which embeds the JSON.stringify-d comprehension under `<comprehension>...</comprehension>`. **Verification:** 6/6 tests pass: happy path, params plumbing (temp 0.4 + responseFormat), comprehension JSON embedded in user prompt, GitLab quick-action preservation through the pass-through (system rule #3 enforced upstream but verified the runner doesn't strip them), Instructor retry on too-short body, double-fail throws. Typecheck clean.
 
 ### 2026-05-21 · R-5 (task 6) — Comprehension stage runner
 Created `src/pipeline/issue/comprehension/runComprehension.ts` exporting `runComprehension(aiConfig, epicBody, issueBody)`. The runner builds prompts via `buildPrompts('comprehension', ...)`, converts `ComprehensionSchema` to JSON Schema via `z.toJSONSchema()` (Zod 4 built-in), and calls `aiClient.callAI` wrapped in the existing `withRetry` (network retry only). Stage params: `temperature: 0.2`, `reasoningEffort: 'minimal'`, `responseFormat: { type: 'json_schema', strict: true, name: 'ComprehensionResult', schema }`. On JSON parse or schema validation failure, the Instructor retry pattern fires: a single additional call is issued with `PREVIOUS ATTEMPT FAILED JSON-SCHEMA VALIDATION:\n<error>\n...` appended to the user prompt. After the second failure, the runner throws with diagnostic. **Verification:** `npx vitest run src/pipeline/issue/comprehension/runComprehension.test.ts` → 5/5 passed: happy path, params plumbing (temperature + responseFormat), Instructor retry succeeds on second call, double-fail throws, malformed-JSON throws. callAI is module-mocked. Typecheck clean. Test file initially had a noUncheckedIndexedAccess error on direct `mock.calls[n]` destructuring; refactored to use a `callNth(n)` helper that asserts presence — same pattern will reuse in R-6 / R-7.
