@@ -155,7 +155,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 2 | R-1 | gitlabClient.updateIssue + types | done |
 | 3 | R-2 | issueRefineryStore | done |
 | 4 | R-3 | Pipeline Zod schemas | done |
-| 5 | R-4 | promptAssembly module | pending |
+| 5 | R-4 | promptAssembly module | done |
 | 6 | R-5 | Comprehension stage | pending |
 | 7 | R-6 | Refinement stage | pending |
 | 8 | R-7 | Validation stage | pending |
@@ -173,6 +173,9 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 20 | R-19 | Final commit | pending |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
+
+### 2026-05-21 · R-4 (task 5) — promptAssembly module
+Created `src/pipeline/issue/promptAssembly.ts` exporting `buildPrompts(stage, epicBody, issueBody, previous?)`, `SYSTEM_RULES`, `STAGE_INSTRUCTIONS`, and `getCachePrefix()` (the last is exported for the cache-discipline test). The static prefix — `SYSTEM_RULES` as systemPrompt plus the `<epic>...</epic>\n\n<issue>...</issue>` document block — is byte-identical across all three stage calls. Only the tail (stage-specific instruction + optional previous-stage data block) varies. This is what enables prompt-cache hits on stages 2 and 3 per the Azure research. **Verification:** `npx vitest run src/pipeline/issue/promptAssembly.test.ts` → 10/10 passed (initial run had one false-positive assertion conflating the JSON data block with the word "comprehension" in the stage instruction; rewrote the test file using delete-then-Write since the H3 hook blocks edits to just-created test files). Tests cover: byte-identical systemPrompt across stages, byte-identical cache prefix across stages, divergent tails, no Date/timestamp/requestId tokens in the static prefix (regex assertions), determinism (same inputs → same output, ruling out Date.now / Math.random), and per-stage tail content (comprehension has no data block; refinement embeds JSON.stringify(comprehension); validation embeds refined body verbatim; refinement without previous.comprehension does not insert an empty data block). Typecheck clean.
 
 ### 2026-05-19 · R-3 (task 4) — pipeline Zod schemas
 Added `zod ^4.4.3` as a direct project dependency (was resolving from a global install previously — would not have shipped in any bundle). Created `src/pipeline/issue/schemas.ts` with `ComprehensionSchema`, `RefinementSchema`, and `ValidationSchema`. Each field carries the budget/vocabulary rules in `.describe()` per the Azure prompt-engineering research finding (constraints in schema descriptions are materially stronger than the same rules in prose prompts). Refinement schema enforces 4-section markdown via the description; no H1 rule; GitLab quick-action preservation rule. Validation findings must be `[critical]` / `[important]` / `[nit]` prefixed. Compile-time bidirectional compatibility check (`IsExactly<>` helper) ensures `z.infer<>` of each schema matches the predeclared interface in `types.ts` — if either side drifts, the build fails. **Verification:** `npx vitest run src/pipeline/issue/schemas.test.ts` → 13/13 passed (valid parse, empty-field reject, oversize-array reject, missing-field reject, 50-char floor reject, score bounds 0/100/-1/150/85.5, findings-cap). Typecheck on R-3 files clean.
