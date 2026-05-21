@@ -1,35 +1,29 @@
 /**
- * Issue Refinery — top-level tab view (R-14).
+ * Issue Refinery — top-level tab view (R-14, with deep-review #2 fixes).
  *
- * Composes the five Issue Refinery components into a two-pane layout. Reads
- * from `gitlabStore` to detect epic-loaded events (the existing LoadEpicModal
- * writes to `gitlabStore.selectedEpic` + `loadedEpicIid`); a useEffect bridges
- * that state into `issueRefineryStore.setSelectedEpic` and fetches the
- * direct child issues.
+ * Composes the Issue Refinery components into a two-pane layout. The
+ * gitlab → store bridge is delegated to `bridgeLoadedEpicAction()` in the
+ * action layer (Phase B review B-I4) so the view stays presentational.
  *
- * The bridge keeps the existing LoadEpicModal pattern untouched — Issue
- * Refinery does not duplicate epic-search UI.
+ * The `bridgedIidRef` is only updated AFTER a successful bridge — addresses
+ * B-C1 (retry not blocked on fetch failure).
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useGitlabStore } from '@/stores/gitlabStore';
 import { useUiStore } from '@/stores/uiStore';
-import { useConfigStore } from '@/stores/configStore';
 import { useIssueRefineryStore } from '@/stores/issueRefineryStore';
-import { fetchEpicIssues } from '@/services/gitlab/gitlabClient';
-import { refineSelectedIssue } from '@/actions/refineIssueAction';
+import { refineSelectedIssue, bridgeLoadedEpicAction } from '@/actions/refineIssueAction';
 import { ChildIssueList } from './ChildIssueList';
 import { ComprehensionCard } from './ComprehensionCard';
 import { RefinedIssueCard } from './RefinedIssueCard';
 import { ValidationCard } from './ValidationCard';
 import { PublishButton } from './PublishButton';
-import { PromptCacheHUD } from './PromptCacheHUD';
 
 export const IssueRefineryView: React.FC = () => {
   const loadedEpicIid = useGitlabStore((s) => s.loadedEpicIid);
   const loadedGroupId = useGitlabStore((s) => s.loadedGroupId);
   const gitlabSelectedEpic = useGitlabStore((s) => s.selectedEpic);
-  const gitlabConfig = useConfigStore((s) => s.config.gitlab);
 
   const irSelectedEpic = useIssueRefineryStore((s) => s.selectedEpic);
   const phase = useIssueRefineryStore((s) => s.phase);
@@ -37,13 +31,11 @@ export const IssueRefineryView: React.FC = () => {
   const error = useIssueRefineryStore((s) => s.error);
 
   const openModal = useUiStore((s) => s.openModal);
-  const addToast = useUiStore((s) => s.addToast);
 
   const [childrenLoading, setChildrenLoading] = useState(false);
 
-  // Bridge: gitlabStore.loadedEpic → issueRefineryStore.setSelectedEpic.
-  // Fetches the child issue list (per_page=100 ceiling — see R-1 docstring)
-  // and pushes everything into our store.
+  // Only-bridge-once-per-epic guard. Reset on failure so the user can retry
+  // the same epic without first loading a different one (B-C1).
   const bridgedIidRef = useRef<number | null>(null);
   useEffect(() => {
     if (
@@ -54,44 +46,35 @@ export const IssueRefineryView: React.FC = () => {
     ) {
       return;
     }
-    if (bridgedIidRef.current === loadedEpicIid) return; // already bridged this epic
-    bridgedIidRef.current = loadedEpicIid;
+    if (bridgedIidRef.current === loadedEpicIid) return;
 
     let cancelled = false;
     setChildrenLoading(true);
-    fetchEpicIssues(gitlabConfig, loadedGroupId, loadedEpicIid)
-      .then((res) => {
+    bridgeLoadedEpicAction(loadedGroupId, loadedEpicIid, gitlabSelectedEpic)
+      .then((ok) => {
         if (cancelled) return;
         setChildrenLoading(false);
-        if (!res.success) {
-          addToast({ type: 'error', title: `Failed to load child issues: ${res.error ?? 'unknown'}` });
-          return;
-        }
-        useIssueRefineryStore.getState().setSelectedEpic(
-          {
-            groupId: loadedGroupId,
-            epicIid: loadedEpicIid,
-            title: gitlabSelectedEpic.title,
-            body: gitlabSelectedEpic.description ?? '',
-          },
-          res.data ?? [],
-        );
+        // B-C1: only mark this epic as "bridged" if the fetch actually succeeded.
+        if (ok) bridgedIidRef.current = loadedEpicIid;
       })
-      .catch((e) => {
+      .catch(() => {
         if (cancelled) return;
         setChildrenLoading(false);
-        addToast({ type: 'error', title: `Failed to load child issues: ${(e as Error).message}` });
+        // Leave bridgedIidRef untouched so the user can retry.
       });
 
     return () => {
       cancelled = true;
     };
-  }, [loadedEpicIid, loadedGroupId, gitlabSelectedEpic, gitlabConfig, addToast]);
+  }, [loadedEpicIid, loadedGroupId, gitlabSelectedEpic]);
 
   const handleLoadEpic = () => openModal('loadEpic');
   const refineDisabled =
-    selectedChildIid === null || phase === 'comprehending' || phase === 'refining' ||
-    phase === 'validating' || phase === 'publishing';
+    selectedChildIid === null ||
+    phase === 'comprehending' ||
+    phase === 'refining' ||
+    phase === 'validating' ||
+    phase === 'publishing';
 
   return (
     <div className="ir-view" data-testid="issue-refinery-view">
@@ -144,8 +127,6 @@ export const IssueRefineryView: React.FC = () => {
           )}
         </main>
       </div>
-
-      <PromptCacheHUD />
     </div>
   );
 };

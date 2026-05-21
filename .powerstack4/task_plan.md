@@ -207,6 +207,32 @@ Dispatched the 5-agent deep-review protocol (`docs/runbooks/deep-review-a10.md`)
 ### 2026-05-21 · R-10..R-16 — UI phase + integration test
 Built the seven UI tasks back-to-back per the batched cadence: ChildIssueList (R-10), ComprehensionCard + ValidationCard (R-11), RefinedIssueCard (R-12), PublishButton + PromptCacheHUD (R-13), IssueRefineryView composition (R-14), tab registration in uiStore + ViewRouter + WorkspaceSidebar (R-15), and the full end-to-end integration test (R-16). Six new commits: 173b943, 8e7d2c8, ad532cd, 2bff52a, 943fbeb, a09ec95 (plus the integration test in this entry). The IssueRefineryView bridges `gitlabStore.selectedEpic` → `fetchEpicIssues` → `issueRefineryStore.setSelectedEpic` via a `useEffect` keyed on `loadedEpicIid`; the existing LoadEpicModal is reused (not duplicated) for epic selection. **Verification:** full Issue Refinery suite — 19 test files, **139/139 pass** (was 95; added 44 component/integration tests). Typecheck on every Issue Refinery file: clean. Integration test confirms strict-schema stripping at the wire, per_page=100 on the gitlab GET, all 3 stages use `responseFormat: { type: 'json_schema', strict: true }`, and the publish PUT lands at `/gitlab-api/projects/999/issues/12` with `{ description: REFINED_BODY }`. **Ready for deep-review checkpoint #2.**
 
+### 2026-05-22 · Deep-review checkpoint #2 + Phase B fix loop
+Dispatched 5 parallel reviewers against the 7-commit UI delta. Findings consolidated into `docs/reviews/2026-05-22-issue-refinery-phase-B-review.md`. Three critical findings, ~16 important, ~15 nice-to-have.
+
+**Fixed (single fix-loop commit):**
+- **B-C1** — `bridgedIidRef.current = loadedEpicIid` was assigned before fetch resolved, locking out retry of the same epic when the fetch failed. Moved the assignment into the `.then(ok)` branch so it only persists after a successful bridge.
+- **B-C2** — `RefinedIssueCard`'s textarea is now `readOnly` whenever `phase !== 'ready' | 'idle' | 'error'`. The pipeline can no longer silently overwrite the user's mid-typing edits. Aria-label updates accordingly.
+- **B-C3** — Added `src/test/integration/issueRefineryFailures.test.tsx` covering three failure paths the original integration test missed: gitlab fetch failure, mid-stage pipeline failure, publish PUT failure. Uses `vi.resetAllMocks()` rather than `clearAllMocks()` so queued `mockResolvedValueOnce` setups don't leak between cases.
+- **B-I1** — `ChildIssueList` now implements the WAI-ARIA radio pattern: Up/Down/Left/Right wrap-around selection, Home/End for first/last, `tabIndex=0` only on the selected item. Companion test file `ChildIssueList.aria.test.tsx` (7 tests).
+- **B-I2** — `ValidationCard` score badge now includes a tier word ("Good" / "Fair" / "Poor") visible *and* in the aria-label so screen-reader users get the same signal sighted users do (was color-only previously). Companion test file `ValidationCard.aria.test.tsx` (4 tests).
+- **B-I3** — `PromptCacheHUD` removed entirely (component + test). YAGNI — `lastCachedTokens` was never written by the action layer, so the HUD was dormant by design. Re-introduce as a focused task when `aiClient.callAI` is extended to expose `prompt_tokens_details.cached_tokens`.
+- **B-I4** — `bridgeLoadedEpicAction(groupId, epicIid, epic)` extracted into `src/actions/refineIssueAction.ts`. The view no longer imports `fetchEpicIssues` directly — keeps the action-boundary pattern clean.
+
+**Acknowledged (deferred — see review doc):**
+- `window.confirm` a11y limitations (replaceable with `<dialog>` in a polish task).
+- `AbortController` for the gitlab fetch (cancelled flag already prevents store writes; aborting HTTP is v2).
+- Refetch on tab re-entry (`bridgedIidRef` resets on remount — minor cost).
+- Multiple per-field Zustand selectors (cosmetic).
+- Large-body textarea performance (measure in dogfood first).
+- Verbose error-text in toasts (action layer should scrub at source).
+- Severity-prefix parsing brittleness (works for current prompt; lift to schema if it drifts).
+- CSS not in delta (next polish task).
+
+**Verification:** 21 test files, **157/157 pass** (was 139; added 18 net-new tests: 7 arrow-key, 4 tier-label, 4 readOnly per phase, 3 integration failure paths). Typecheck on every Issue Refinery file clean. Pre-commit hooks all green.
+
+**Exit criteria for R-17 (KB docs + devlog + PR) met.**
+
 ### 2026-05-21 · R-8 (task 9) — runIssuePipeline orchestrator
 Created `src/pipeline/issue/runIssuePipeline.ts` — pure async function composing R-5 → R-6 → R-7. No store imports, no UI imports, no fetch logic. Scope-guard verified by `grep -E "from '.*pipeline/stages|from '.*pipeline/orchestrator'"` returning empty. Each stage is wrapped in try/catch that re-throws as `IssuePipelineError` with `stage: 'comprehension' | 'refinement' | 'validation'` and the original cause attached, so the action layer (R-9) can tell the user which step failed and the UI can surface stage-specific recovery options. Partial results from completed earlier stages are NOT returned on failure — strict success-or-error to avoid the action layer accidentally committing a mid-flight state. `IssuePipelineResult` includes `cachedTokens: number[]` populated with `[0, 0, 0]` for now (placeholder — `aiClient.callAI` does not yet expose `data.usage.prompt_tokens_details.cached_tokens`; the field shape stays stable so a future aiClient extension can populate without contract changes). **Verification:** 6/6 tests pass: happy path with sequential invocation, comprehension forwarded to refinement, refined body forwarded to validation, Comprehension failure short-circuits the other stages, Refinement failure tags `stage='refinement'`, Validation failure tags `stage='validation'`. Each stage is module-mocked at the `vi.mock` level. Typecheck clean.
 

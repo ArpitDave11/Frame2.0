@@ -29,6 +29,7 @@ export const ValidationCard: React.FC = () => {
   if (validation === null) return null;
 
   const tier = scoreTier(validation.score);
+  const tierLabel = tier === 'good' ? 'Good' : tier === 'warn' ? 'Fair' : 'Poor';
 
   return (
     <section className="ir-card ir-validation-card" data-testid="validation-card">
@@ -42,8 +43,9 @@ export const ValidationCard: React.FC = () => {
           className={`ir-validation-card__score ir-validation-card__score--${tier}`}
           data-testid="validation-score"
           data-tier={tier}
-          aria-label={`Quality score ${validation.score} out of 100`}
+          aria-label={`${tierLabel} quality, score ${validation.score} out of 100`}
         >
+          <span className="ir-validation-card__score-tier">{tierLabel}</span>
           <span className="ir-validation-card__score-num">{validation.score}</span>
           <span className="ir-validation-card__score-suffix">/100</span>
         </div>

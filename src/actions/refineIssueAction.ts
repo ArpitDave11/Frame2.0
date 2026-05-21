@@ -24,7 +24,8 @@ import { useConfigStore } from '@/stores/configStore';
 import { useUiStore } from '@/stores/uiStore';
 import { useIssueRefineryStore } from '@/stores/issueRefineryStore';
 import { runIssuePipeline, type StageId } from '@/pipeline/issue/runIssuePipeline';
-import { updateIssue } from '@/services/gitlab/gitlabClient';
+import { updateIssue, fetchEpicIssues } from '@/services/gitlab/gitlabClient';
+import type { GitLabEpic } from '@/services/gitlab/types';
 
 /** Phases during which Refine is NOT idempotent — clicking again does nothing. */
 const IN_FLIGHT_PHASES = new Set<string>([
@@ -44,6 +45,44 @@ function phaseForStage(stage: StageId): 'comprehending' | 'refining' | 'validati
     : stage === 'refinement'
       ? 'refining'
       : 'validating';
+}
+
+// ─── Bridge: gitlabStore → issueRefineryStore (B-I4) ─────────────
+
+/**
+ * Fetches the child issues for a loaded GitLab epic and pushes the result
+ * into `issueRefineryStore.setSelectedEpic`. Wraps the gitlab-fetch + error
+ * handling that previously lived inline in IssueRefineryView, keeping the
+ * view presentational.
+ *
+ * Returns `true` on success so the caller (a useEffect bridge in the view)
+ * can persist the bridged epic-iid only after a successful fetch — addresses
+ * B-C1 (no lockout-on-failure).
+ */
+export async function bridgeLoadedEpicAction(
+  groupId: string,
+  epicIid: number,
+  epic: GitLabEpic,
+): Promise<boolean> {
+  const gitlabConfig = useConfigStore.getState().config.gitlab;
+  const result = await fetchEpicIssues(gitlabConfig, groupId, epicIid);
+  if (!result.success) {
+    useUiStore.getState().addToast({
+      type: 'error',
+      title: `Failed to load child issues: ${result.error ?? 'unknown'}`,
+    });
+    return false;
+  }
+  useIssueRefineryStore.getState().setSelectedEpic(
+    {
+      groupId,
+      epicIid,
+      title: epic.title,
+      body: epic.description ?? '',
+    },
+    result.data ?? [],
+  );
+  return true;
 }
 
 // ─── Refine ───────────────────────────────────────────────────────

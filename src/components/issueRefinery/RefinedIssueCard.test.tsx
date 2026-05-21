@@ -1,5 +1,5 @@
 /**
- * Issue Refinery — RefinedIssueCard tests (R-12).
+ * Issue Refinery — RefinedIssueCard tests (R-12, updated for B-C2 readOnly).
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -40,6 +40,7 @@ describe('RefinedIssueCard', () => {
     s.setSelectedEpic(EPIC, [ISSUE]);
     s.setSelectedChild(ISSUE.iid);
     s.setRefinedDraft('## Summary\nrefined content', false);
+    s.setPhase('ready', null);
 
     render(<RefinedIssueCard />);
 
@@ -55,6 +56,7 @@ describe('RefinedIssueCard', () => {
     s.setSelectedEpic(EPIC, [ISSUE]);
     s.setSelectedChild(ISSUE.iid);
     s.setRefinedDraft('refined', false);
+    s.setPhase('ready', null);
 
     render(<RefinedIssueCard />);
     expect(screen.queryByText('original body content')).not.toBeNull();
@@ -65,6 +67,7 @@ describe('RefinedIssueCard', () => {
     s.setSelectedEpic(EPIC, [ISSUE]);
     s.setSelectedChild(ISSUE.iid);
     s.setRefinedDraft('initial draft', false);
+    s.setPhase('ready', null);
 
     render(<RefinedIssueCard />);
     const textarea = screen.getByTestId('refined-textarea');
@@ -80,6 +83,7 @@ describe('RefinedIssueCard', () => {
     s.setSelectedEpic(EPIC, [ISSUE]);
     s.setSelectedChild(ISSUE.iid);
     s.setRefinedDraft('content', false);
+    s.setPhase('ready', null);
 
     const { rerender } = render(<RefinedIssueCard />);
     expect(screen.queryByTestId('refined-edited-badge')).toBeNull();
@@ -87,5 +91,33 @@ describe('RefinedIssueCard', () => {
     useIssueRefineryStore.getState().setRefinedDraft('content', true);
     rerender(<RefinedIssueCard />);
     expect(screen.queryByTestId('refined-edited-badge')).not.toBeNull();
+  });
+
+  describe('B-C2 — textarea readOnly gating while pipeline runs', () => {
+    function setUp(phase: 'idle' | 'comprehending' | 'refining' | 'validating' | 'ready' | 'publishing' | 'error') {
+      const s = useIssueRefineryStore.getState();
+      s.setSelectedEpic(EPIC, [ISSUE]);
+      s.setSelectedChild(ISSUE.iid);
+      s.setRefinedDraft('## Summary\nfoo', false);
+      s.setPhase(phase, null);
+    }
+
+    it.each(['comprehending', 'refining', 'validating', 'publishing'] as const)(
+      'textarea is readOnly while phase=%s',
+      (phase) => {
+        setUp(phase);
+        render(<RefinedIssueCard />);
+        const textarea = screen.getByTestId('refined-textarea') as HTMLTextAreaElement;
+        expect(textarea.readOnly).toBe(true);
+        expect(textarea.getAttribute('aria-label')).toMatch(/read-only/i);
+      },
+    );
+
+    it.each(['ready', 'idle', 'error'] as const)('textarea is editable while phase=%s', (phase) => {
+      setUp(phase);
+      render(<RefinedIssueCard />);
+      const textarea = screen.getByTestId('refined-textarea') as HTMLTextAreaElement;
+      expect(textarea.readOnly).toBe(false);
+    });
   });
 });

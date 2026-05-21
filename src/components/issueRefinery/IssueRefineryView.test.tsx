@@ -1,8 +1,9 @@
 /**
- * Issue Refinery — IssueRefineryView composition smoke tests (R-14).
+ * Issue Refinery — IssueRefineryView composition smoke tests (R-14,
+ * updated post deep-review #2).
  *
- * End-to-end wiring with mocked GitLab + action layer. Full integration
- * test lives in src/test/integration/issueRefineryFlow.test.tsx (R-16).
+ * The bridge logic (B-I4) moved into refineIssueAction.bridgeLoadedEpicAction
+ * so it's mocked at the module level here.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -13,14 +14,16 @@ import { useGitlabStore } from '@/stores/gitlabStore';
 import { useUiStore } from '@/stores/uiStore';
 import type { GitLabIssue, GitLabEpic } from '@/services/gitlab/types';
 
-vi.mock('@/services/gitlab/gitlabClient', () => ({ fetchEpicIssues: vi.fn() }));
 vi.mock('@/actions/refineIssueAction', () => ({
   refineSelectedIssue: vi.fn(),
   publishRefinedIssue: vi.fn(),
+  bridgeLoadedEpicAction: vi.fn(),
 }));
 
-import { fetchEpicIssues } from '@/services/gitlab/gitlabClient';
-import { refineSelectedIssue } from '@/actions/refineIssueAction';
+import {
+  refineSelectedIssue,
+  bridgeLoadedEpicAction,
+} from '@/actions/refineIssueAction';
 
 const EPIC: GitLabEpic = {
   id: 200,
@@ -49,14 +52,12 @@ const ISSUE: GitLabIssue = {
 beforeEach(() => {
   vi.clearAllMocks();
   useIssueRefineryStore.getState().reset();
-  // Reset gitlab + ui stores.
   useGitlabStore.setState({
     selectedEpic: null,
     loadedEpicIid: null,
     loadedGroupId: null,
   });
-  const toasts = useUiStore.getState().toasts;
-  for (const t of toasts) useUiStore.getState().removeToast(t.id);
+  useUiStore.setState({ toasts: [], activeModal: null });
 });
 
 describe('IssueRefineryView — initial render', () => {
@@ -73,9 +74,9 @@ describe('IssueRefineryView — initial render', () => {
   });
 });
 
-describe('IssueRefineryView — gitlab bridge', () => {
-  it('fetches children and populates issueRefineryStore when an epic is loaded in gitlabStore', async () => {
-    vi.mocked(fetchEpicIssues).mockResolvedValueOnce({ success: true, data: [ISSUE] });
+describe('IssueRefineryView — gitlab bridge (B-I4 + B-C1)', () => {
+  it('delegates to bridgeLoadedEpicAction when an epic is loaded in gitlabStore', async () => {
+    vi.mocked(bridgeLoadedEpicAction).mockResolvedValueOnce(true);
 
     render(<IssueRefineryView />);
     act(() => {
@@ -86,39 +87,12 @@ describe('IssueRefineryView — gitlab bridge', () => {
       });
     });
 
-    await waitFor(() => {
-      expect(fetchEpicIssues).toHaveBeenCalledTimes(1);
-    });
-    const irState = useIssueRefineryStore.getState();
-    expect(irState.selectedEpic?.epicIid).toBe(EPIC.iid);
-    expect(irState.selectedEpic?.title).toBe('Payments revamp');
-    expect(irState.selectedEpic?.body).toBe('Replace legacy gateway.');
-    expect(irState.children).toEqual([ISSUE]);
+    await waitFor(() => expect(bridgeLoadedEpicAction).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(bridgeLoadedEpicAction).mock.calls[0]).toEqual(['42', EPIC.iid, EPIC]);
   });
 
-  it('toasts an error when fetchEpicIssues fails', async () => {
-    vi.mocked(fetchEpicIssues).mockResolvedValueOnce({ success: false, error: '500 boom' });
-
-    render(<IssueRefineryView />);
-    act(() => {
-      useGitlabStore.setState({
-        selectedEpic: EPIC,
-        loadedEpicIid: EPIC.iid,
-        loadedGroupId: '42',
-      });
-    });
-
-    await waitFor(() => {
-      const toasts = useUiStore.getState().toasts;
-      expect(toasts.length).toBeGreaterThan(0);
-      const last = toasts[toasts.length - 1];
-      expect(last?.type).toBe('error');
-      expect(last?.title).toContain('500');
-    });
-  });
-
-  it('does not re-bridge the same epic twice', async () => {
-    vi.mocked(fetchEpicIssues).mockResolvedValue({ success: true, data: [ISSUE] });
+  it('does not re-bridge a successfully-bridged epic on re-render', async () => {
+    vi.mocked(bridgeLoadedEpicAction).mockResolvedValueOnce(true);
 
     const { rerender } = render(<IssueRefineryView />);
     act(() => {
@@ -128,11 +102,38 @@ describe('IssueRefineryView — gitlab bridge', () => {
         loadedGroupId: '42',
       });
     });
-    await waitFor(() => expect(fetchEpicIssues).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeLoadedEpicAction).toHaveBeenCalledTimes(1));
 
-    // Re-render without changing the epic.
     rerender(<IssueRefineryView />);
-    expect(fetchEpicIssues).toHaveBeenCalledTimes(1);
+    expect(bridgeLoadedEpicAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('B-C1: a failed bridge does NOT lock out subsequent retry of the same epic', async () => {
+    vi.mocked(bridgeLoadedEpicAction)
+      .mockResolvedValueOnce(false) // first attempt fails
+      .mockResolvedValueOnce(true); //  retry succeeds
+
+    render(<IssueRefineryView />);
+    // First attempt — fails.
+    act(() => {
+      useGitlabStore.setState({
+        selectedEpic: EPIC,
+        loadedEpicIid: EPIC.iid,
+        loadedGroupId: '42',
+      });
+    });
+    await waitFor(() => expect(bridgeLoadedEpicAction).toHaveBeenCalledTimes(1));
+
+    // Retry — gitlabStore replays the same loaded epic, e.g. user re-clicks
+    // "Load epic" and picks the same one. Simulate by toggling the iid to a
+    // different value and back, since React batches identical-state updates.
+    act(() => {
+      useGitlabStore.setState({ loadedEpicIid: 999, loadedGroupId: '42' });
+    });
+    act(() => {
+      useGitlabStore.setState({ loadedEpicIid: EPIC.iid, loadedGroupId: '42' });
+    });
+    await waitFor(() => expect(bridgeLoadedEpicAction).toHaveBeenCalledTimes(2));
   });
 });
 
@@ -185,6 +186,9 @@ describe('IssueRefineryView — error banner', () => {
     s.setPhase('error', 'stage failed: foo');
 
     render(<IssueRefineryView />);
-    expect(screen.queryByTestId('ir-error')?.textContent).toContain('stage failed: foo');
+    const errEl = screen.queryByTestId('ir-error');
+    expect(errEl?.textContent).toContain('stage failed: foo');
+    // role="alert" surfaces screen reader announcement.
+    expect(errEl?.getAttribute('role')).toBe('alert');
   });
 });

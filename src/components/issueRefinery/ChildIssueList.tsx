@@ -58,15 +58,54 @@ export const ChildIssueList: React.FC<ChildIssueListProps> = ({ onRequestLoadEpi
           This epic has no child issues.
         </p>
       ) : (
-        <ul className="ir-childlist__items" role="radiogroup" aria-label="Child issues">
+        <ul
+          className="ir-childlist__items"
+          role="radiogroup"
+          aria-label="Child issues"
+          onKeyDown={(e) => {
+            // B-I1: WAI-ARIA radio pattern — Up/Down/Home/End move selection.
+            if (children.length === 0) return;
+            const currentIdx = children.findIndex((c) => c.iid === selectedChildIid);
+            let nextIdx = currentIdx;
+            switch (e.key) {
+              case 'ArrowDown':
+              case 'ArrowRight':
+                nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % children.length;
+                e.preventDefault();
+                break;
+              case 'ArrowUp':
+              case 'ArrowLeft':
+                nextIdx = currentIdx < 0 ? children.length - 1 : (currentIdx - 1 + children.length) % children.length;
+                e.preventDefault();
+                break;
+              case 'Home':
+                nextIdx = 0;
+                e.preventDefault();
+                break;
+              case 'End':
+                nextIdx = children.length - 1;
+                e.preventDefault();
+                break;
+              default:
+                return;
+            }
+            const next = children[nextIdx];
+            if (next) setSelectedChild(next.iid);
+          }}
+        >
           {children.map((c) => {
             const selected = c.iid === selectedChildIid;
+            // Only the selected radio (or first, when nothing selected) gets
+            // tabindex=0 per ARIA radiogroup pattern.
+            const focusable =
+              selected || (selectedChildIid === null && c.iid === children[0]?.iid);
             return (
               <li key={c.id} className="ir-childlist__item">
                 <button
                   type="button"
                   role="radio"
                   aria-checked={selected}
+                  tabIndex={focusable ? 0 : -1}
                   onClick={() => setSelectedChild(c.iid)}
                   className={`ir-childlist__item-btn${selected ? ' ir-childlist__item-btn--selected' : ''}`}
                   data-testid={`childlist-item-${c.iid}`}

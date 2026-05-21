@@ -19,9 +19,15 @@ export const RefinedIssueCard: React.FC = () => {
   const originalBody = useIssueRefineryStore((s) => s.originalBody);
   const refinedDraft = useIssueRefineryStore((s) => s.refinedDraft);
   const userEditedDraft = useIssueRefineryStore((s) => s.userEditedDraft);
+  const phase = useIssueRefineryStore((s) => s.phase);
   const setRefinedDraft = useIssueRefineryStore((s) => s.setRefinedDraft);
 
   if (refinedDraft === null) return null;
+
+  // B-C2: lock the textarea while a re-run pipeline is mid-flight or a
+  // publish is in progress. Otherwise an in-flight `setRefinedDraft` (from
+  // the orchestrator) could clobber the user's keystrokes silently.
+  const editable = phase === 'ready' || phase === 'idle' || phase === 'error';
 
   const handleEdit = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setRefinedDraft(e.target.value, /* userEdited */ true);
@@ -50,9 +56,14 @@ export const RefinedIssueCard: React.FC = () => {
             className="ir-refined-card__textarea"
             value={refinedDraft}
             onChange={handleEdit}
+            readOnly={!editable}
             spellCheck={false}
             data-testid="refined-textarea"
-            aria-label="Refined issue body (editable)"
+            aria-label={
+              editable
+                ? 'Refined issue body (editable)'
+                : 'Refined issue body (read-only while pipeline is running)'
+            }
           />
         </div>
       </div>
