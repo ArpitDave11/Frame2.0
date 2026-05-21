@@ -18,6 +18,7 @@ import { PreviewPane } from '@/components/editor/PreviewPane';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import ExtremeInitiativeView from '@/components/initiative/ExtremeInitiativeView';
 import DocIntelView from '@/components/docIntel/DocIntelView';
+import { IssueRefineryView } from '@/components/issueRefinery/IssueRefineryView';
 
 // ─── Planner View ───────────────────────────────────────────
 
@@ -84,6 +85,8 @@ export function ViewRouter() {
       return <ErrorBoundary viewName="Extreme Initiative"><ExtremeInitiativeView /></ErrorBoundary>;
     case 'docIntel':
       return <ErrorBoundary viewName="Document Intelligence"><div data-testid="docintel-view-wrapper" style={{ flex: 1, overflow: 'auto' }}><DocIntelView /></div></ErrorBoundary>;
+    case 'issueRefinery':
+      return <ErrorBoundary viewName="Issue Refinery"><div data-testid="issue-refinery-wrapper" style={{ flex: 1, overflow: 'auto' }}><IssueRefineryView /></div></ErrorBoundary>;
     default:
       return <ErrorBoundary viewName="Epic Planner"><PlannerView /></ErrorBoundary>;
   }

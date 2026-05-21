@@ -21,6 +21,7 @@ import {
   LinkSimple,
   Lightning,
   FileMagnifyingGlass,
+  Wrench,
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { useUiStore } from '@/stores/uiStore';
@@ -53,6 +54,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'sprint', icon: Kanban, label: 'Performa - Sprint', tabOverride: 'issues', issueSubTab: 'sprint' },
   { id: 'initiative', icon: Lightning, label: 'Extreme Initiative' },
   { id: 'docIntel', icon: FileMagnifyingGlass, label: 'Doc Intelligence' },
+  { id: 'issueRefinery', icon: Wrench, label: 'Issue Refinery' },
   { id: 'analytics', icon: ChartBar, label: 'Analytics' },
   { id: 'settings', icon: GearSix, label: 'Settings', isModal: true },
   { id: 'feedback', icon: ChatCircle, label: 'Feedback', isModal: true },
