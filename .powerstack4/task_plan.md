@@ -164,7 +164,7 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 11 | R-10 | ChildIssueList component | done |
 | 12 | R-11 | ComprehensionCard + ValidationCard | done |
 | 13 | R-12 | RefinedIssueCard with diff | done |
-| 14 | R-13 | PublishButton + PromptCacheHUD | pending |
+| 14 | R-13 | PublishButton + PromptCacheHUD | done |
 | 15 | R-14 | IssueRefineryView composition | pending |
 | 16 | R-15 | Tab registration | pending |
 | 17 | R-16 | Integration test | pending |
