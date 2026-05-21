@@ -168,9 +168,9 @@ Branch: `feature/issue-refinery` (stacked on `feature/phase-a-docmining`).
 | 15 | R-14 | IssueRefineryView composition | done |
 | 16 | R-15 | Tab registration | done |
 | 17 | R-16 | Integration test | done |
-| 18 | R-17 | Knowledge-base docs | pending |
-| 19 | R-18 | Devlog + ADR | pending |
-| 20 | R-19 | Final commit | pending |
+| 18 | R-17 | Knowledge-base docs | done |
+| 19 | R-18 | Devlog + ADR | done |
+| 20 | R-19 | Final commit | in-progress |
 
 Deep-review checkpoints (manual, not Taskmaster tasks): after task 10 (post-headless) and after task 17 (post-integration).
 
@@ -232,6 +232,17 @@ Dispatched 5 parallel reviewers against the 7-commit UI delta. Findings consolid
 **Verification:** 21 test files, **157/157 pass** (was 139; added 18 net-new tests: 7 arrow-key, 4 tier-label, 4 readOnly per phase, 3 integration failure paths). Typecheck on every Issue Refinery file clean. Pre-commit hooks all green.
 
 **Exit criteria for R-17 (KB docs + devlog + PR) met.**
+
+### 2026-05-22 · R-17 / R-18 — knowledge-base docs, devlog, ADR
+**R-17:** Wrote 16 KB pages under `docs/knowledge/`:
+- Components (7 files): `components/issueRefinery/{README,IssueRefineryView,ChildIssueList,ComprehensionCard,RefinedIssueCard,ValidationCard,PublishButton}.md`
+- Pipeline (7 files): `pipeline/issue/{README,runIssuePipeline,stageRunner,promptAssembly,schemas,toStrictJsonSchema,types}.md`
+- Action: `actions/refineIssueAction.md`
+- Store: `stores/issueRefineryStore.md`
+
+Each page documents: purpose, exports, key invariants, consumer list, gotchas. Cross-links via relative markdown paths. PromptCacheHUD intentionally omitted (removed in B-I3).
+
+**R-18:** `docs/devlog/2026-05-22-issue-refinery.md` — what shipped, scale (22 commits, 20+ new files, 157 tests), process (kit-runner discipline through both deep-reviews), lessons learned (Zod 4 strict-mode incompatibility, vi.clearAllMocks vs resetAllMocks, kit H3 hook discipline, action-boundary value, prompt-cache testability), what's next. `docs/adr/0002-issue-refinery-isolation.md` — records the decision to keep the new pipeline in `src/pipeline/issue/` rather than extending the epic orchestrator.
 
 ### 2026-05-21 · R-8 (task 9) — runIssuePipeline orchestrator
 Created `src/pipeline/issue/runIssuePipeline.ts` — pure async function composing R-5 → R-6 → R-7. No store imports, no UI imports, no fetch logic. Scope-guard verified by `grep -E "from '.*pipeline/stages|from '.*pipeline/orchestrator'"` returning empty. Each stage is wrapped in try/catch that re-throws as `IssuePipelineError` with `stage: 'comprehension' | 'refinement' | 'validation'` and the original cause attached, so the action layer (R-9) can tell the user which step failed and the UI can surface stage-specific recovery options. Partial results from completed earlier stages are NOT returned on failure — strict success-or-error to avoid the action layer accidentally committing a mid-flight state. `IssuePipelineResult` includes `cachedTokens: number[]` populated with `[0, 0, 0]` for now (placeholder — `aiClient.callAI` does not yet expose `data.usage.prompt_tokens_details.cached_tokens`; the field shape stays stable so a future aiClient extension can populate without contract changes). **Verification:** 6/6 tests pass: happy path with sequential invocation, comprehension forwarded to refinement, refined body forwarded to validation, Comprehension failure short-circuits the other stages, Refinement failure tags `stage='refinement'`, Validation failure tags `stage='validation'`. Each stage is module-mocked at the `vi.mock` level. Typecheck clean.
