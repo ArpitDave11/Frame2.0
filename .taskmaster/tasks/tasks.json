@@ -1,0 +1,196 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "B-0: Preflight Verification",
+        "description": "Verify the worktree at FRAME_DEPLOYED-brp is correctly set up on branch feature/brp with a clean baseline before any code changes.",
+        "details": "## Implementation Steps\n\n1. Confirm worktree exists at `/Users/arpit/Documents/FRAME_DEPLOYED-brp` via `ls -la`\n2. Verify branch is `feature/brp` via `git branch --show-current`\n3. Run `npm install` and confirm exit 0\n4. Run `npx tsc -b --noEmit` and confirm exit 0\n5. Run `npm run test:run` and capture output (note any pre-existing failures)\n6. Document baseline in journal entry\n\n## Pseudo-code\n```bash\ncd /Users/arpit/Documents/FRAME_DEPLOYED-brp\ngit branch --show-current  # expect: feature/brp\nnpm install\nnpx tsc -b --noEmit\nnpm run test:run\n```\n\n## Key Files\n- Worktree root: `/Users/arpit/Documents/FRAME_DEPLOYED-brp/`\n- package.json (verify deps)\n- tsconfig.json (verify config)",
+        "testStrategy": "1. `git worktree list` shows FRAME_DEPLOYED-brp on feature/brp\n2. `npm install` exits 0 with no errors\n3. `npx tsc -b --noEmit` exits 0\n4. `npm run test:run` exits 0 (or known failures documented)\n5. No uncommitted changes to existing files",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-05-24T18:20:05.500Z"
+      },
+      {
+        "id": "2",
+        "title": "B-1: P1 Types and Constants Module",
+        "description": "Create the BRP type model and constants files with all core types per F1.1 and F1.2 - the foundation that all subsequent phases build upon.",
+        "details": "## Implementation Steps\n\n1. Create `src/domain/brp.constants.ts` with:\n   - `FIBONACCI_POINTS` readonly array: [1, 2, 3, 5, 8, 13, 21, 40, 100]\n   - `DEFAULT_SP_PER_RESOURCE = 10`\n   - `VARIANCE_AGREE_THRESHOLD = 0.20`\n   - `VARIANCE_CAUTION_THRESHOLD = 0.50`\n   - `CONFIDENCE_BUMP_THRESHOLD = 0.40`\n\n2. Create `src/domain/brp.ts` with types only (no functions yet):\n   - `FibonacciPoint` = literal union 1|2|3|5|8|13|21|40|100\n   - `AnalysisStatus` = 'raw' | 'analyzing' | 'done' | 'error'\n   - `VarianceBand` = 'agree' | 'caution' | 're-groom' | 'flagged' | 'pending'\n   - `CapacityInputs` = { resources, spPerResource, sprintCount, holidayDays, leaveDays }\n   - `CapacityResult` = { gross, holidayDeduction, leaveDeduction, total }\n   - `BreakdownItem` = { title: string; points: FibonacciPoint }\n   - `ReferenceEpic` = { epicId: string; title: string; similarity: number; actualSp: number }\n   - `GeneratedStory` = { title: string; points: FibonacciPoint; acceptanceCriteria: string[] }\n   - `FrameResult` = { frameEstimate, breakdown, rationale, confidence, references, generatedStories, modelVersion, analyzedAt }\n   - `Epic` = { id, iid, title, gitlabWebUrl, podId, source, humanEstimate, analysisStatus, frameResult }\n   - `Pod` = { id, name, gitlabSubgroupId, capacity: CapacityInputs, epics: Epic[] }\n   - `Crew` = { id, name, gitlabGroupId, pods: Pod[] }\n   - `PI` = { id, name, startDate, endDate, sprintCount }\n   - `PodMetrics` = { totalCapacity, humanLoad, frameLoad, balance, avgConfidence, epicCount, flaggedCount, reGroomCount }\n   - `AnalysisEvent` union type (started | progress | done | error)\n   - `AIEstimator` interface with analyzeEpic method\n\n## Pseudo-code\n```typescript\n// src/domain/brp.constants.ts\nexport const FIBONACCI_POINTS = [1, 2, 3, 5, 8, 13, 21, 40, 100] as const;\nexport const DEFAULT_SP_PER_RESOURCE = 10;\nexport const VARIANCE_AGREE_THRESHOLD = 0.20;\nexport const VARIANCE_CAUTION_THRESHOLD = 0.50;\nexport const CONFIDENCE_BUMP_THRESHOLD = 0.40;\n\n// src/domain/brp.ts\nexport type FibonacciPoint = 1 | 2 | 3 | 5 | 8 | 13 | 21 | 40 | 100;\nexport type AnalysisStatus = 'raw' | 'analyzing' | 'done' | 'error';\n// ... all other types\n```\n\n## Key Patterns to Follow\n- Match src/domain/types.ts style (no React, no Zustand imports)\n- Match src/domain/complexity.ts for constants pattern\n- Pure TypeScript only - dependency-free",
+        "testStrategy": "1. `npx tsc -b --noEmit` exits 0 - both files compile in isolation\n2. Import test in brp.test.ts: `import { FibonacciPoint, Epic, ... } from './brp'` compiles\n3. Grep confirms no imports from React, Zustand, or any FRAME service\n4. Visual review confirms all types match PRD F1.1 specification",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "3",
+        "title": "B-2: computeCapacity Function with Tests",
+        "description": "Implement the computeCapacity pure function in brp.ts with comprehensive unit tests per F1.3 specification.",
+        "details": "## Implementation Steps\n\n1. Add `computeCapacity` function to `src/domain/brp.ts`:\n   - Input: `CapacityInputs`\n   - Output: `CapacityResult`\n   - Formula: gross = resources × spPerResource × sprintCount\n   - holidayDeduction = holidayDays × resources (holidays hit everyone)\n   - leaveDeduction = leaveDays (already total person-days)\n   - total = max(0, gross - holidayDeduction - leaveDeduction)\n\n2. Create `src/domain/brp.test.ts` with computeCapacity tests:\n   - Worked example: 6 resources × 10 SP × 6 sprints = 360 gross, -12 holiday, -5 leave = 343\n   - Edge case: negative total clamps to 0\n   - Edge case: zero resources = 0 capacity\n   - Edge case: large leave exceeds gross = 0\n\n## Pseudo-code\n```typescript\n// src/domain/brp.ts\nexport function computeCapacity(inputs: CapacityInputs): CapacityResult {\n  const gross = inputs.resources * inputs.spPerResource * inputs.sprintCount;\n  const holidayDeduction = inputs.holidayDays * inputs.resources;\n  const leaveDeduction = inputs.leaveDays;\n  const total = Math.max(0, gross - holidayDeduction - leaveDeduction);\n  return { gross, holidayDeduction, leaveDeduction, total };\n}\n\n// src/domain/brp.test.ts\nimport { describe, it, expect } from 'vitest';\nimport { computeCapacity } from './brp';\n\ndescribe('computeCapacity', () => {\n  it('computes PRD worked example: 6×10×6 - 12 - 5 = 343', () => {\n    const result = computeCapacity({\n      resources: 6, spPerResource: 10, sprintCount: 6,\n      holidayDays: 2, leaveDays: 5\n    });\n    expect(result.total).toBe(343);\n    expect(result.gross).toBe(360);\n    expect(result.holidayDeduction).toBe(12);\n    expect(result.leaveDeduction).toBe(5);\n  });\n  \n  it('clamps negative total to 0', () => {\n    const result = computeCapacity({\n      resources: 1, spPerResource: 10, sprintCount: 1,\n      holidayDays: 0, leaveDays: 100\n    });\n    expect(result.total).toBe(0);\n  });\n});\n```",
+        "testStrategy": "1. `npm run test:run -- src/domain/brp.test.ts` exits 0\n2. Test verifies PRD example: 343 total for 6×10×6 - 12 - 5\n3. Test verifies negative total clamps to 0\n4. Test verifies zero resources yields zero capacity\n5. Pure function: same inputs always produce same outputs (deterministic)",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "4",
+        "title": "B-3: computeDelta and computeVariance Functions with Tests",
+        "description": "Implement computeDelta and computeVariance pure functions per F1.4 and F1.5 with threshold boundary tests.",
+        "details": "## Implementation Steps\n\n1. Add `computeDelta` to `src/domain/brp.ts`:\n   - Returns `frameResult.frameEstimate - humanEstimate`\n   - Returns `null` if either side is missing\n\n2. Add `computeVariance` to `src/domain/brp.ts`:\n   - Step 1: If analysisStatus !== 'done' OR frameResult is null:\n     - Return 'flagged' if description is thin (< 80 chars OR < 2 sentences)\n     - Otherwise return 'pending'\n   - Step 2: If computeDelta is null → return 'pending'\n   - Step 3: Compute ratio = |delta| / max(humanEstimate, frameEstimate)\n     - ratio ≤ 0.20 → 'agree'\n     - ratio ≤ 0.50 → 'caution'\n     - else → 're-groom'\n   - Step 4: If band is 'agree' AND confidence < 0.40 → bump to 'caution'\n\n3. Add tests to `src/domain/brp.test.ts`:\n   - computeDelta null cases (no frameResult, no humanEstimate)\n   - computeDelta positive/negative values\n   - computeVariance 'pending' for raw epic\n   - computeVariance 'flagged' for thin description\n   - computeVariance exact threshold tests (0.20, 0.50)\n   - computeVariance confidence bump at 0.40\n\n## Pseudo-code\n```typescript\nexport function computeDelta(epic: Epic): number | null {\n  if (!epic.frameResult || epic.humanEstimate === null) return null;\n  return epic.frameResult.frameEstimate - epic.humanEstimate;\n}\n\nexport function computeVariance(epic: Epic): VarianceBand {\n  // Step 1: Check analysis status\n  if (epic.analysisStatus !== 'done' || !epic.frameResult) {\n    const isThin = !epic.description || epic.description.length < 80;\n    return isThin ? 'flagged' : 'pending';\n  }\n  // Step 2: Check delta\n  const delta = computeDelta(epic);\n  if (delta === null) return 'pending';\n  // Step 3: Compute ratio\n  const human = epic.humanEstimate!;\n  const frame = epic.frameResult.frameEstimate;\n  const ratio = Math.abs(delta) / Math.max(human, frame);\n  let band: VarianceBand;\n  if (ratio <= VARIANCE_AGREE_THRESHOLD) band = 'agree';\n  else if (ratio <= VARIANCE_CAUTION_THRESHOLD) band = 'caution';\n  else band = 're-groom';\n  // Step 4: Confidence bump\n  if (band === 'agree' && epic.frameResult.confidence < CONFIDENCE_BUMP_THRESHOLD) {\n    band = 'caution';\n  }\n  return band;\n}\n```",
+        "testStrategy": "1. `npm run test:run -- src/domain/brp.test.ts` exits 0\n2. Tests cover: null delta (missing frameResult), null delta (missing humanEstimate)\n3. Tests cover exact thresholds: ratio = 0.20 → 'agree', ratio = 0.201 → 'caution'\n4. Tests cover exact thresholds: ratio = 0.50 → 'caution', ratio = 0.501 → 're-groom'\n5. Tests cover confidence bump: 'agree' + confidence 0.39 → 'caution'\n6. Tests cover 'flagged' for thin description (< 80 chars)",
+        "priority": "high",
+        "dependencies": [
+          "3"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "5",
+        "title": "B-4: computePodMetrics Function with Tests",
+        "description": "Implement computePodMetrics pure function per F1.6 with flagged-exclusion regression guard and edge case tests.",
+        "details": "## Implementation Steps\n\n1. Add `computePodMetrics` to `src/domain/brp.ts`:\n   - Returns PodMetrics object with all rollup values\n   - CRITICAL: humanLoad and frameLoad EXCLUDE flagged epics\n   - Calls computeCapacity internally for totalCapacity\n   - Calls computeVariance per epic for flagged/re-groom counts\n\n2. Add comprehensive tests:\n   - Normal pod with mixed variance bands\n   - Empty pod (zero epics)\n   - All-flagged pod (loads should be 0)\n   - Regression guard: flagged epics excluded from load calculation\n\n## Pseudo-code\n```typescript\nexport function computePodMetrics(pod: Pod): PodMetrics {\n  const totalCapacity = computeCapacity(pod.capacity).total;\n  let humanLoad = 0;\n  let frameLoad = 0;\n  let confidenceSum = 0;\n  let confidenceCount = 0;\n  let flaggedCount = 0;\n  let reGroomCount = 0;\n  \n  for (const epic of pod.epics) {\n    const band = computeVariance(epic);\n    if (band === 'flagged') {\n      flaggedCount++;\n      continue; // CRITICAL: exclude from load\n    }\n    if (band === 're-groom') reGroomCount++;\n    \n    if (epic.humanEstimate !== null) humanLoad += epic.humanEstimate;\n    if (epic.frameResult) {\n      frameLoad += epic.frameResult.frameEstimate;\n      confidenceSum += epic.frameResult.confidence;\n      confidenceCount++;\n    }\n  }\n  \n  return {\n    totalCapacity,\n    humanLoad,\n    frameLoad,\n    balance: totalCapacity - frameLoad,\n    avgConfidence: confidenceCount > 0 ? confidenceSum / confidenceCount : 0,\n    epicCount: pod.epics.length,\n    flaggedCount,\n    reGroomCount,\n  };\n}\n```\n\n3. Add tests to verify:\n   - Flagged epics NOT included in humanLoad/frameLoad\n   - Empty pod returns zeros\n   - Balance = totalCapacity - frameLoad",
+        "testStrategy": "1. `npm run test:run -- src/domain/brp.test.ts` exits 0\n2. Coverage report shows ≥ 95% lines for brp.ts\n3. Regression test: pod with flagged epic, verify that epic's estimate is NOT in humanLoad/frameLoad\n4. Empty pod test: all metrics return 0 or safe defaults\n5. All-flagged pod: loads are 0, flaggedCount equals epicCount",
+        "priority": "high",
+        "dependencies": [
+          "4"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "6",
+        "title": "B-5: brpStore State Shape and Loading Actions",
+        "description": "Create the brpStore Zustand store with state shape and Loading action group (loadCrew, loadPods, loadEpicsIntoPod, reset) per F2.1-F2.5.",
+        "details": "## Implementation Steps\n\n1. Create `src/stores/brpStore.ts` following initiativeStore.ts pattern:\n   - State shape per F2.1:\n     - crews: Crew[]\n     - currentPI: PI | null\n     - view: 'portfolio' | 'pod'\n     - selectedCrewId, selectedPodId, selectedEpicId: string | null\n     - collapsedPods: Set<string>\n     - reGroomOnlyFilter: boolean\n     - openModal: 'capacity' | 'epicPicker' | 'podLoader' | 'metrics' | null\n     - modalContext: { podId?: string } | null\n     - analysisStatus: 'idle' | 'running' | 'done'\n   - Initial state: crews: [], empty selections, etc.\n\n2. Implement Loading actions:\n   - loadCrew(crew: Crew): adds crew to crews array\n   - loadPods(crewId, pods: Pod[]): sets pods on specified crew\n   - loadEpicsIntoPod(podId, epics: Epic[]): sets epics on specified pod\n   - reset(): restores initial state\n\n3. Create `src/stores/brpStore.test.ts` with tests:\n   - State shape verification\n   - loadCrew adds crew correctly\n   - loadPods places pods on correct crew\n   - loadEpicsIntoPod places epics on correct pod\n   - reset clears all state\n\n## Pseudo-code\n```typescript\nimport { create } from 'zustand';\nimport type { Crew, Pod, Epic, PI, CapacityInputs, FrameResult, AIEstimator } from '../domain/brp';\n\ninterface BrpState {\n  crews: Crew[];\n  currentPI: PI | null;\n  view: 'portfolio' | 'pod';\n  selectedCrewId: string | null;\n  selectedPodId: string | null;\n  selectedEpicId: string | null;\n  collapsedPods: Set<string>;\n  reGroomOnlyFilter: boolean;\n  openModal: 'capacity' | 'epicPicker' | 'podLoader' | 'metrics' | null;\n  modalContext: { podId?: string } | null;\n  analysisStatus: 'idle' | 'running' | 'done';\n}\n\nconst INITIAL: BrpState = {\n  crews: [],\n  currentPI: null,\n  view: 'portfolio',\n  selectedCrewId: null,\n  selectedPodId: null,\n  selectedEpicId: null,\n  collapsedPods: new Set(),\n  reGroomOnlyFilter: false,\n  openModal: null,\n  modalContext: null,\n  analysisStatus: 'idle',\n};\n\nexport const useBrpStore = create<BrpStore>()((set, get) => ({\n  ...INITIAL,\n  loadCrew: (crew) => set((s) => ({ crews: [...s.crews, crew] })),\n  // ... other actions\n}));\n```",
+        "testStrategy": "1. `npm run test:run -- src/stores/brpStore.test.ts` exits 0\n2. Tests verify initial state shape matches F2.1\n3. loadCrew test: crew added to crews array\n4. loadPods test: pods correctly placed on specified crew\n5. loadEpicsIntoPod test: epics correctly placed on specified pod\n6. reset test: all state returns to initial\n7. Grep confirms NO derived data (variance, delta, totalCapacity) in state",
+        "priority": "high",
+        "dependencies": [
+          "5"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "7",
+        "title": "B-6: brpStore Capacity, Estimates, and Analysis Actions",
+        "description": "Implement Capacity, Estimates, and Analysis action groups (updatePodCapacity, setHumanEstimate, runAnalysis, setEpicAnalysisStatus, setEpicFrameResult) per F2.2.",
+        "details": "## Implementation Steps\n\n1. Add Capacity actions to brpStore:\n   - updatePodCapacity(podId, inputs: CapacityInputs): updates pod.capacity\n   - CRITICAL: Never stores totalCapacity - that's derived via computeCapacity\n\n2. Add Estimates actions:\n   - setHumanEstimate(epicId, value: number | null): updates epic.humanEstimate\n\n3. Add Analysis actions:\n   - runAnalysis(estimator: AIEstimator): orchestrates analysis for all epics in scope\n   - setEpicAnalysisStatus(epicId, status: AnalysisStatus): updates epic status\n   - setEpicFrameResult(epicId, result: FrameResult): sets epic.frameResult\n\n4. Key pattern: runAnalysis accepts AIEstimator as parameter (dependency injection)\n   - Store imports only the interface, never the implementation\n   - Per F2.4: estimator is supplied by caller\n\n5. Add tests:\n   - updatePodCapacity changes inputs, computeCapacity(inputs) yields expected total\n   - setHumanEstimate changes value, computeVariance returns expected band\n   - runAnalysis transitions statuses correctly\n   - Verify NO derived state stored after each action\n\n## Pseudo-code\n```typescript\nupdatePodCapacity: (podId, inputs) => set((s) => ({\n  crews: s.crews.map(c => ({\n    ...c,\n    pods: c.pods.map(p => p.id === podId ? { ...p, capacity: inputs } : p)\n  }))\n})),\n\nsetHumanEstimate: (epicId, value) => set((s) => ({\n  crews: s.crews.map(c => ({\n    ...c,\n    pods: c.pods.map(p => ({\n      ...p,\n      epics: p.epics.map(e => e.id === epicId ? { ...e, humanEstimate: value } : e)\n    }))\n  }))\n})),\n\nrunAnalysis: async (estimator) => {\n  set({ analysisStatus: 'running' });\n  // Walk epics, call estimator.analyzeEpic, update statuses\n  // Per PRD: uses injected estimator, not direct import\n  set({ analysisStatus: 'done' });\n},\n```",
+        "testStrategy": "1. `npm run test:run -- src/stores/brpStore.test.ts` exits 0\n2. updatePodCapacity test: inputs stored, computeCapacity(inputs) = expected\n3. setHumanEstimate test: value stored, computeVariance returns expected band\n4. runAnalysis test: transitions 'idle' → 'running' → 'done'\n5. Grep across brpStore.ts confirms NO variance/delta/totalCapacity stored\n6. Reviewer confirms store imports only AIEstimator interface from domain/brp.ts",
+        "priority": "high",
+        "dependencies": [
+          "6"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "8",
+        "title": "B-7: brpStore Navigation and UI Actions",
+        "description": "Implement Navigation and UI action groups (setView, select*, togglePodCollapse, setReGroomOnlyFilter, modal actions) per F2.2.",
+        "details": "## Implementation Steps\n\n1. Add Navigation actions:\n   - setView(view: 'portfolio' | 'pod')\n   - selectCrew(id: string | null)\n   - selectPod(id: string | null)\n   - selectEpic(id: string | null)\n\n2. Add UI state actions:\n   - togglePodCollapse(podId: string): toggles podId in collapsedPods Set\n   - setReGroomOnlyFilter(enabled: boolean)\n   - openModalFor(modal: string, context?: { podId?: string })\n   - closeModal()\n\n3. Add tests:\n   - setView changes view state\n   - select* actions update selection state\n   - togglePodCollapse adds/removes from Set\n   - modal actions open/close correctly with context\n\n4. Final verification:\n   - Grep confirms NO derived state anywhere in store\n   - All state is inputs/raw data only\n\n## Pseudo-code\n```typescript\nsetView: (view) => set({ view }),\nselectCrew: (id) => set({ selectedCrewId: id }),\nselectPod: (id) => set({ selectedPodId: id }),\nselectEpic: (id) => set({ selectedEpicId: id }),\n\ntogglePodCollapse: (podId) => set((s) => {\n  const next = new Set(s.collapsedPods);\n  if (next.has(podId)) next.delete(podId);\n  else next.add(podId);\n  return { collapsedPods: next };\n}),\n\nsetReGroomOnlyFilter: (enabled) => set({ reGroomOnlyFilter: enabled }),\n\nopenModalFor: (modal, context) => set({ openModal: modal, modalContext: context ?? null }),\ncloseModal: () => set({ openModal: null, modalContext: null }),\n```",
+        "testStrategy": "1. `npm run test:run -- src/stores/brpStore.test.ts` exits 0\n2. All navigation actions update correct state\n3. togglePodCollapse correctly adds/removes from Set\n4. Modal actions set/clear openModal and modalContext\n5. CRITICAL: `grep -n 'variance\\|delta\\|totalCapacity' src/stores/brpStore.ts` returns 0 matches\n6. Action list is complete against PRD F2.2 five groups",
+        "priority": "medium",
+        "dependencies": [
+          "7"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "9",
+        "title": "B-8: AIEstimator Interface and Zod Schemas",
+        "description": "Define the AIEstimator interface in domain/brp.ts (already declared) and add Zod schemas for FrameResult and AnalysisEvent validation per F3.1.",
+        "details": "## Implementation Steps\n\n1. Confirm AIEstimator interface in src/domain/brp.ts (from task 2):\n   ```typescript\n   interface AIEstimator {\n     analyzeEpic(epic: Epic, refs: ReferenceEpic[]): AsyncIterable<AnalysisEvent>;\n   }\n   ```\n\n2. Add Zod schemas alongside the estimator (in services/brp/ai/ or domain/):\n   - FrameResultSchema: validates all FrameResult fields\n   - AnalysisEventSchema: discriminated union for started|progress|done|error\n\n3. Create test file for Zod parsing:\n   - Valid FrameResult parses successfully\n   - Invalid FrameResult (e.g., wrong type, missing field) fails\n   - All AnalysisEvent variants parse correctly\n   - Invalid events fail parsing\n\n## Pseudo-code\n```typescript\nimport { z } from 'zod';\nimport { FIBONACCI_POINTS } from '../domain/brp.constants';\n\nexport const FibonacciPointSchema = z.union([\n  z.literal(1), z.literal(2), z.literal(3), z.literal(5),\n  z.literal(8), z.literal(13), z.literal(21), z.literal(40), z.literal(100)\n]);\n\nexport const BreakdownItemSchema = z.object({\n  title: z.string(),\n  points: FibonacciPointSchema,\n});\n\nexport const FrameResultSchema = z.object({\n  frameEstimate: FibonacciPointSchema,\n  breakdown: z.array(BreakdownItemSchema),\n  rationale: z.string(),\n  confidence: z.number().min(0).max(1),\n  references: z.array(ReferenceEpicSchema),\n  generatedStories: z.array(GeneratedStorySchema).nullable(),\n  modelVersion: z.string(),\n  analyzedAt: z.string(),\n});\n\nexport const AnalysisEventSchema = z.discriminatedUnion('kind', [\n  z.object({ kind: z.literal('started'), epicId: z.string() }),\n  z.object({ kind: z.literal('progress'), epicId: z.string(), pct: z.number() }),\n  z.object({ kind: z.literal('done'), epicId: z.string(), result: FrameResultSchema }),\n  z.object({ kind: z.literal('error'), epicId: z.string(), message: z.string() }),\n]);\n```",
+        "testStrategy": "1. `npm run test:run` on Zod parse tests exits 0\n2. Valid FrameResult: schema.parse() succeeds\n3. Invalid FrameResult (bad type): schema.parse() throws\n4. All 4 AnalysisEvent kinds parse correctly\n5. Event with unknown kind fails\n6. Confidence out of range [0,1] fails",
+        "priority": "medium",
+        "dependencies": [
+          "8"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "10",
+        "title": "B-9: Simulated Estimator and Provider",
+        "description": "Implement createSimulatedEstimator() and getEstimator() provider per F3.2-F3.5 with determinism and schema validation tests.",
+        "details": "## Implementation Steps\n\n1. Create `src/services/brp/ai/simulatedEstimator.ts`:\n   - Export `createSimulatedEstimator(): AIEstimator`\n   - Deterministic: hash epic.id → seed → stable FrameResult\n   - Confidence inversely tracks breakdown variance: 1 - stdev/mean, clamped [0.1, 0.95]\n   - Returns AsyncIterable<AnalysisEvent> with started → progress → done\n   - All emitted events pass Zod schema validation\n\n2. Create `src/services/brp/ai/estimatorProvider.ts`:\n   - Export `getEstimator(): AIEstimator`\n   - Returns createSimulatedEstimator() today\n   - Single-line swap point for P7 real estimator\n\n3. Create `src/services/brp/ai/simulatedEstimator.test.ts`:\n   - Determinism test: same epicId → same FrameResult (run 10 times)\n   - Breakdown sum test: points sum within ±1 of frameEstimate\n   - Confidence test: high variance → lower confidence\n   - Schema test: all events pass Zod validation\n   - Event sequence: started → progress(es) → done\n\n## Pseudo-code\n```typescript\n// simulatedEstimator.ts\nimport { AIEstimator, Epic, ReferenceEpic, AnalysisEvent, FrameResult } from '@/domain/brp';\nimport { AnalysisEventSchema } from './schemas';\n\nfunction hashCode(str: string): number {\n  let hash = 0;\n  for (let i = 0; i < str.length; i++) {\n    hash = ((hash << 5) - hash) + str.charCodeAt(i);\n    hash |= 0;\n  }\n  return Math.abs(hash);\n}\n\nexport function createSimulatedEstimator(): AIEstimator {\n  return {\n    async *analyzeEpic(epic: Epic, refs: ReferenceEpic[]): AsyncIterable<AnalysisEvent> {\n      yield { kind: 'started', epicId: epic.id };\n      yield { kind: 'progress', epicId: epic.id, pct: 0.5 };\n      \n      const seed = hashCode(epic.id);\n      const frameEstimate = FIBONACCI_POINTS[seed % FIBONACCI_POINTS.length];\n      // Generate breakdown summing to frameEstimate...\n      const result: FrameResult = { /* deterministic based on seed */ };\n      \n      yield { kind: 'done', epicId: epic.id, result };\n    }\n  };\n}\n\n// estimatorProvider.ts\nimport { createSimulatedEstimator } from './simulatedEstimator';\nimport type { AIEstimator } from '@/domain/brp';\n\nexport function getEstimator(): AIEstimator {\n  return createSimulatedEstimator(); // P7 swaps this one line\n}\n```",
+        "testStrategy": "1. `npm run test:run -- src/services/brp/ai/simulatedEstimator.test.ts` exits 0\n2. Determinism: 10 runs with same epic.id produce identical frameEstimate\n3. Breakdown sum: |sum(breakdown.points) - frameEstimate| ≤ 1\n4. Confidence: inversely related to breakdown variance\n5. All emitted events pass `AnalysisEventSchema.parse()`\n6. Event sequence is started → progress → done (or error)\n7. Grep confirms estimatorProvider imports only interface, never simulatedEstimator directly",
+        "priority": "medium",
+        "dependencies": [
+          "9"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "11",
+        "title": "B-10: brpGitlabService Skeleton with Mocked Tests",
+        "description": "Create brpGitlabService.ts with 4 operations composing gitlabClient, with mocked unit tests per F4.1-F4.5.",
+        "details": "## Implementation Steps\n\n1. Create `src/services/brp/brpGitlabService.ts`:\n   - Import from gitlabClient.ts (never raw fetch)\n   - Implement 4 operations with GitLab → BRP type mapping:\n\n   a. `fetchCrews(config): Promise<Result<Crew[]>>`\n      - Compose fetchGitLabSubgroups or similar\n      - Map GitLab group → Crew with empty pods\n\n   b. `fetchPods(config, crewGroupId): Promise<Result<Pod[]>>`\n      - Compose fetchGitLabSubgroups\n      - Map subgroup → Pod with default CapacityInputs, empty epics\n\n   c. `fetchPodEpics(config, podSubgroupId): Promise<Result<Epic[]>>`\n      - Compose fetchGroupEpics\n      - Map GitLab epic → Epic with analysisStatus: 'raw', frameResult: null\n\n   d. `fetchReferenceEpics(config, podSubgroupId): Promise<Result<ReferenceEpic[]>>`\n      - Compose fetchGroupEpics with state: 'closed'\n      - Map to ReferenceEpic with actualSp\n\n2. Result type: `{ success: true; data: T } | { success: false; error: string }`\n   - Matches gitlabClient.ts pattern\n   - Never throws for expected failures\n\n3. Create `src/services/brp/brpGitlabService.test.ts`:\n   - vi.mock gitlabClient\n   - Test: returned Epic has analysisStatus 'raw', frameResult null\n   - Test: Pod has CapacityInputs with defaults\n   - Test: GitLab error → service error result (no throw)\n\n## Pseudo-code\n```typescript\nimport type { GitLabConfig } from '@/domain/configTypes';\nimport type { Crew, Pod, Epic, ReferenceEpic, CapacityInputs } from '@/domain/brp';\nimport { fetchGitLabSubgroups, fetchGroupEpics } from '@/services/gitlab/gitlabClient';\nimport { DEFAULT_SP_PER_RESOURCE } from '@/domain/brp.constants';\n\ntype Result<T> = { success: true; data: T } | { success: false; error: string };\n\nexport async function fetchCrews(config: GitLabConfig): Promise<Result<Crew[]>> {\n  const result = await fetchGitLabSubgroups(config, config.rootGroupId ?? '');\n  if (!result.success) return { success: false, error: result.error ?? 'Failed to fetch crews' };\n  \n  const crews: Crew[] = (result.data ?? []).map(sg => ({\n    id: String(sg.id),\n    name: sg.name,\n    gitlabGroupId: typeof sg.id === 'number' ? sg.id : parseInt(sg.id, 10),\n    pods: [],\n  }));\n  return { success: true, data: crews };\n}\n\nexport async function fetchPodEpics(config: GitLabConfig, podSubgroupId: number): Promise<Result<Epic[]>> {\n  const result = await fetchGroupEpics(config, String(podSubgroupId));\n  if (!result.success) return { success: false, error: result.error ?? 'Failed to fetch epics' };\n  \n  const epics: Epic[] = (result.data ?? []).map(e => ({\n    id: String(e.id),\n    iid: e.iid,\n    title: e.title,\n    gitlabWebUrl: e.web_url,\n    podId: String(podSubgroupId),\n    source: 'gitlab' as const,\n    humanEstimate: null,  // NEVER pre-filled\n    analysisStatus: 'raw' as const,  // ALWAYS 'raw'\n    frameResult: null,  // NEVER pre-filled\n  }));\n  return { success: true, data: epics };\n}\n```",
+        "testStrategy": "1. `npm run test:run -- src/services/brp/brpGitlabService.test.ts` exits 0\n2. fetchPodEpics: returned Epic has analysisStatus 'raw', frameResult null, humanEstimate null\n3. fetchPods: returned Pod has CapacityInputs with spPerResource = DEFAULT_SP_PER_RESOURCE\n4. GitLab error response → service returns { success: false, error: '...' }, no throw\n5. Grep confirms ZERO direct fetch() calls - only gitlabClient composition\n6. Grep confirms ZERO pre-filled frameResult or analysisStatus other than 'raw'",
+        "priority": "medium",
+        "dependencies": [
+          "10"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "12",
+        "title": "B-11: brpGitlabService Live Smoke Test",
+        "description": "Add optional live smoke test for brpGitlabService against real GitLab, gated by VITE_BRP_LIVE_SMOKE=1 per F4.1.",
+        "details": "## Implementation Steps\n\n1. Add integration test to `src/services/brp/brpGitlabService.test.ts`:\n   - Test is `.skip`'d by default\n   - Enabled when `process.env.VITE_BRP_LIVE_SMOKE === '1'`\n   - Uses real GitLab config from env vars\n\n2. Test flow:\n   - fetchCrews → returns non-empty Crew[]\n   - For first crew: fetchPods → returns Pod[]\n   - For first pod: fetchPodEpics → returns Epic[] with correct shape\n\n3. Document manual run command:\n   ```bash\n   VITE_BRP_LIVE_SMOKE=1 npm run test:run -- src/services/brp/brpGitlabService.test.ts\n   ```\n\n4. Capture one-shot output in journal entry (not committed)\n\n## Pseudo-code\n```typescript\ndescribe.skipIf(!process.env.VITE_BRP_LIVE_SMOKE)('brpGitlabService live smoke', () => {\n  const config: GitLabConfig = {\n    enabled: true,\n    accessToken: process.env.GITLAB_TOKEN!,\n    rootGroupId: process.env.GITLAB_ROOT_GROUP!,\n    authMode: 'pat',\n  };\n\n  it('fetches real crews → pods → epics', async () => {\n    const crewsResult = await fetchCrews(config);\n    expect(crewsResult.success).toBe(true);\n    expect(crewsResult.data!.length).toBeGreaterThan(0);\n    \n    const crew = crewsResult.data![0];\n    const podsResult = await fetchPods(config, crew.gitlabGroupId);\n    expect(podsResult.success).toBe(true);\n    \n    if (podsResult.data!.length > 0) {\n      const pod = podsResult.data![0];\n      const epicsResult = await fetchPodEpics(config, pod.gitlabSubgroupId);\n      expect(epicsResult.success).toBe(true);\n      // Verify shape: all epics have analysisStatus: 'raw'\n      for (const epic of epicsResult.data ?? []) {\n        expect(epic.analysisStatus).toBe('raw');\n        expect(epic.frameResult).toBeNull();\n      }\n    }\n  });\n});\n```",
+        "testStrategy": "1. Default run: `npm run test:run -- src/services/brp/brpGitlabService.test.ts` skips live tests, exits 0\n2. Live run (manual): VITE_BRP_LIVE_SMOKE=1 runs live tests against real GitLab\n3. Live test verifies: Crew[] returned, Pod[] returned, Epic[] has correct shape\n4. Journal documents manual run output as evidence\n5. Skip-by-default verified: no env var → test suite passes without network",
+        "priority": "low",
+        "dependencies": [
+          "11"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "13",
+        "title": "B-12: Knowledge Base Documentation",
+        "description": "Create knowledge base markdown docs for all new BRP modules under docs/knowledge/ per existing patterns.",
+        "details": "## Implementation Steps\n\n1. Create `docs/knowledge/domain/brp.md`:\n   - Document type model (Crew → Pod → Epic hierarchy)\n   - Document pure functions (computeCapacity, computeDelta, computeVariance, computePodMetrics)\n   - Document architectural invariants (no derived state stored)\n   - Link to source file locations\n\n2. Create `docs/knowledge/stores/brpStore.md`:\n   - Document state shape\n   - Document action groups (Loading, Capacity, Estimates, Analysis, Navigation/UI)\n   - Document the contract: store holds inputs, never derived data\n\n3. Create `docs/knowledge/services/brp/simulatedEstimator.md`:\n   - Document AIEstimator interface\n   - Document determinism guarantee (same epic → same result)\n   - Document event stream shape (started → progress → done)\n   - Document swap path for P7\n\n4. Create `docs/knowledge/services/brp/brpGitlabService.md`:\n   - Document 4 operations\n   - Document composition pattern (composes gitlabClient)\n   - Document boundary: GitLab shapes → BRP types\n   - Document: epics arrive 'raw', never pre-filled\n\n5. Update `docs/knowledge/README.md` with links to new docs\n\n## Key Patterns to Follow\n- Match existing docs/knowledge/components/issueRefinery/ style\n- Include source file paths with line numbers\n- Document public API and key invariants",
+        "testStrategy": "1. All 4 new markdown files exist in correct locations\n2. docs/knowledge/README.md updated with links\n3. Manual rendering check: markdown renders correctly in GitHub/VS Code\n4. Each doc links to source file with line numbers\n5. Cross-references between docs are valid",
+        "priority": "low",
+        "dependencies": [
+          "12"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "14",
+        "title": "B-13: Devlog Entry, ADR-0003, and Final Commit",
+        "description": "Complete the headless layer with devlog entry, ADR documenting the pure-model decision, and final commit marking branch ready for PR.",
+        "details": "## Implementation Steps\n\n1. Create `docs/adr/0003-brp-pure-model-no-derived-state.md`:\n   - Title: BRP Pure Model: No Derived State Storage\n   - Status: Accepted\n   - Context: Why stored variance/delta caused bugs in sample code\n   - Decision: Derived data computed by pure functions, never stored\n   - Consequences: UI must call functions at render time; simpler mental model\n   - Follow ADR template from existing ADRs\n\n2. Create `docs/devlog/<date>-brp-headless.md`:\n   - Date: actual session date\n   - Summary: what shipped in this headless layer\n   - File counts: X types, Y pure functions, Z tests, etc.\n   - Key decisions made during implementation\n   - Link to ADR-0003\n\n3. Update `docs/devlog/README.md` with link to new entry\n\n4. Final verification:\n   - `git diff --name-only main...HEAD` shows only NEW files\n   - `npm run build` exits 0\n   - All acceptance criteria AC1-AC12 verified\n\n5. Final commit:\n   - Conventional commit: `feat(brp): headless layer complete (P1-P4)`\n   - Co-authored-by Claude\n   - Do NOT push or create PR (user decides)\n\n## Acceptance Criteria Checklist (verify all before commit)\n- AC1: `npx tsc -b --noEmit` exits 0\n- AC2: `npm run test:run -- src/domain/brp.test.ts` exits 0\n- AC3: `npm run test:run -- src/stores/brpStore.test.ts` exits 0\n- AC4: `npm run test:run -- src/services/brp/` exits 0\n- AC5: grep 'variance:' on Epic/Pod/Crew returns 0\n- AC6: grep imports in brp.ts shows no React/Zustand/services\n- AC7: grep in brpStore.ts shows no simulatedEstimator import\n- AC8: grep in brpGitlabService.ts shows no direct fetch()\n- AC9: git diff shows only NEW files\n- AC10: no --no-verify in commit history\n- AC11: deep-review checkpoint passed (prior task)\n- AC12: `npm run build` exits 0",
+        "testStrategy": "1. ADR-0003 follows existing ADR template format\n2. Devlog entry has correct date and summary\n3. All 12 acceptance criteria pass (documented in commit message)\n4. Final commit uses Conventional Commits format\n5. `git diff --name-only main...HEAD` shows ONLY new BRP files\n6. `npm run build` exits 0\n7. Branch is clean, ready for PR (user decides when to open)",
+        "priority": "low",
+        "dependencies": [
+          "13"
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-05-24T18:20:05.500Z",
+      "taskCount": 14,
+      "completedCount": 1,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}

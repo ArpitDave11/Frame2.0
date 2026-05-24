@@ -1,0 +1,528 @@
+PRD: BRP (Breakdown & Re-groom Planning) — Headless Layer (P1 → P4)
+Version: 1.0
+Date: 2026-05-23
+Status: Ready for Taskmaster ingestion (parse_prd)
+Owner: FRAME team
+Related plans:
+- docs/Brp_plan/p1.md  (Phase 1 — types + pure functions)
+- docs/Brp_plan/p2.md  (Phase 2 — Zustand store)
+- docs/Brp_plan/p3.md  (Phase 3 — AI seam: AIEstimator + simulator)
+- docs/Brp_plan/p4.md  (Phase 4 — GitLab service)
+- docs/Brp_plan/ui_sample_brp/  (visual reference for P5 — DO NOT copy code shape; samples
+  store derived data on Epic and hold local useState, which p1/p2 forbid)
+
+========================================================================
+1. PROBLEM STATEMENT
+========================================================================
+FRAME refines epics through a 6-stage AI pipeline once an epic is loaded
+into the planner. But before that — during PI planning — Scrum Masters
+size raw epics by hand, eyeballing complexity. The result is sprint
+loads that drift from real capacity, with no consistent FRAME-grounded
+counter-estimate to flag the worst-sized epics before grooming wastes
+sprint time.
+
+BRP (Breakdown & Re-groom Planning) gives planners a capacity-driven
+sizing surface: load a GitLab crew, set pod capacity (5 inputs), and
+run an Analysis pass that produces a FRAME estimate + a variance band
+per epic. Epics in the "re-groom" band hand off to the existing 6-stage
+pipeline. Capacity, variance, and roll-ups are derived live from inputs
+— never stored — so the data model can't drift from its math.
+
+========================================================================
+2. SCOPE OF THIS PRD
+========================================================================
+This PRD covers ONLY the headless layer of BRP: Phases 1–4 of the
+7-phase plan (types, store, AI seam, GitLab service). It produces NO
+UI, registers NO tab, and ships NO user-facing change. It establishes
+a stable, fully-tested foundation that Phase 5 (components) and Phase 6
+(wiring) consume.
+
+A separate PRD will be written for P5 → P6 after this one closes.
+P7 (polish + AI-assist) gets its own PRD.
+
+========================================================================
+3. GOALS
+========================================================================
+G1. Establish the BRP type model and all derivation functions as
+    pure, dependency-free TypeScript with 100% test coverage on the
+    pure layer.
+G2. Establish a single Zustand store (brpStore) as the only mutation
+    surface for BRP state; every action unit-tested.
+G3. Establish a clean AI seam (AIEstimator interface) decoupled from
+    any LLM implementation; ship a deterministic simulator that lets
+    Phase 5 build against real-looking analysis events.
+G4. Establish a GitLab service layer that composes the existing
+    gitlabClient.ts and maps GitLab shapes to BRP types at the
+    boundary. Four operations: fetchCrews, fetchPods, fetchPodEpics,
+    fetchReferenceEpics.
+G5. Coexist with all existing FRAME features — zero changes to scope-
+    guarded paths or any non-BRP file.
+G6. Land on branch feature/brp (worktree off main). Branch is mergeable
+    to main on its own (independent of feature/issue-refinery).
+
+========================================================================
+4. NON-GOALS (this PRD)
+========================================================================
+N1. Any React component, view, or page. (P5)
+N2. Tab registration in uiStore / ViewRouter / WorkspaceSidebar. (P5)
+N3. Real LLM integration via aiClient.ts. (Phase 6/7 swap-in.)
+N4. Audit log for banking-grade traceability. (P7)
+N5. Capacity pre-fill via GitLab member count, holidays, sprint dates. (P7)
+N6. Duplicate-epic detection, variance-interpretation text. (P7)
+N7. Re-groom handoff into the 6-stage pipeline. (P6 wiring.)
+N8. Recharts dependency install — that's a P5 prerequisite, documented
+    here but not added in this PRD's scope.
+N9. Updates to root CLAUDE.md's "Active Work" section. (Deferred to
+    end-of-P4 wrap-up after there is real shipped code to reference.)
+N10. Editing the IR branch or its PRs. Entirely separate workstream.
+
+========================================================================
+5. USERS & USE CASES (headless layer's eventual consumers)
+========================================================================
+The headless layer has no direct users. Its consumers are:
+
+Consumer 1: Phase 5 components.
+  Read store via selectors. Call pure functions at render time. Dispatch
+  actions in response to events. The action signatures defined here
+  become the component contract.
+
+Consumer 2: Phase 6 wiring.
+  Composes services + store + AI seam into the 5 end-to-end flows
+  (Load, Capacity, Estimate, Analyze, Re-groom handoff).
+
+Consumer 3: Phase 7 polish + AI-assist.
+  Adds the audit log alongside this layer. The seam (AIEstimator) lets
+  Phase 7 swap simulator → real estimator without touching consumers.
+
+========================================================================
+6. LOCKED DESIGN DECISIONS
+========================================================================
+D1.  Pure layer lives at src/domain/brp.ts + src/domain/brp.constants.ts
+     — matches FRAME convention (src/domain/types.ts, complexity.ts).
+     NOT src/types/ or src/lib/ as p1 names them.
+
+D2.  Three architectural invariants enforced by the type shape (Phase 1):
+     a. Epic has NO top-level variance/delta/frameEstimate field. All
+        FRAME outputs live inside the nullable Epic.frameResult sub-object.
+     b. Pod stores CapacityInputs (5 raw inputs). It does NOT store
+        totalCapacity. Total is always computeCapacity(inputs).
+     c. VarianceBand is a return type of computeVariance — never a
+        field anywhere in the model.
+
+D3.  Pure functions: computeCapacity, computeDelta, computeVariance,
+     computePodMetrics. Same input → same output. No Date.now, no random.
+     Tests are the gate.
+
+D4.  Store at src/stores/brpStore.ts, patterned on initiativeStore.ts.
+     Holds inputs and raw data only. NEVER stores derived data
+     (variance, delta, totalCapacity, pod metrics). Reads pure functions
+     in tests; components call them at render time (P5).
+
+D5.  AIEstimator interface DEFINED IN src/domain/brp.ts (per p2's
+     recommended-option settled here). Implementation in
+     src/services/brp/ai/. This lets the store import only the
+     interface, never the impl.
+
+D6.  Simulator (src/services/brp/ai/simulatedEstimator.ts) is
+     deterministic — same epic → same FrameResult — using a hash of
+     epic.id as seed. Confidence moves inversely with breakdown variance.
+     Returns AsyncIterable<AnalysisEvent> so the real estimator (P7)
+     can stream without changing the interface.
+
+D7.  GitLab service composes existing src/services/gitlab/gitlabClient.ts
+     (does NOT bypass it, does NOT add raw fetch calls). Lives at
+     src/services/brp/brpGitlabService.ts. Returns BRP-typed results,
+     mapping GitLab shapes at the service boundary.
+
+D8.  No new external dependencies in this PRD. Zustand v5, Zod 4,
+     Vitest 4 — all already in package.json. Recharts (P5) is documented
+     as a future install but NOT added here.
+
+D9.  Branch: feature/brp, worktree at /Users/arpit/Documents/FRAME_DEPLOYED-brp.
+     Mergeable to main independently of feature/issue-refinery.
+
+D10. Variance UI label decision (sample wording vs plan wording) is
+     deferred to Phase 5. Internal type names (agree | caution | re-groom
+     | flagged | pending) are locked here; display labels are a P5 concern.
+
+========================================================================
+7. FUNCTIONAL REQUIREMENTS
+========================================================================
+
+7.1 — Phase 1 (Pure model & math)
+F1.1   src/domain/brp.ts exports: FibonacciPoint (literal union 1|2|3|
+       5|8|13|21|40|100), AnalysisStatus, VarianceBand, CapacityInputs,
+       CapacityResult, BreakdownItem, ReferenceEpic, GeneratedStory,
+       FrameResult, Epic, Pod, Crew, PI, PodMetrics, AnalysisEvent,
+       AIEstimator (interface).
+F1.2   src/domain/brp.constants.ts exports: FIBONACCI_POINTS (readonly
+       array), DEFAULT_SP_PER_RESOURCE = 10, VARIANCE_AGREE_THRESHOLD =
+       0.20, VARIANCE_CAUTION_THRESHOLD = 0.50, CONFIDENCE_BUMP_THRESHOLD
+       = 0.40.
+F1.3   computeCapacity(inputs: CapacityInputs): CapacityResult — formula:
+       gross = resources × spPerResource × sprintCount;
+       holiday = holidayDays × resources;
+       leave = leaveDays;
+       total = max(0, gross − holiday − leave).
+       Returns full breakdown.
+F1.4   computeDelta(epic: Epic): number | null —
+       frameResult.frameEstimate − humanEstimate.
+       null if either side missing.
+F1.5   computeVariance(epic: Epic): VarianceBand — order of checks:
+       (1) analysisStatus !== 'done' OR frameResult is null
+           → 'flagged' if description thin (heuristic TBD in test),
+             otherwise 'pending'.
+       (2) computeDelta is null → 'pending'.
+       (3) ratio = |delta| / max(human, frame);
+           ratio ≤ 0.20 → 'agree';
+           ratio ≤ 0.50 → 'caution';
+           else → 're-groom'.
+       (4) If band would be 'agree' and frameResult.confidence < 0.40
+           → bump to 'caution'.
+F1.6   computePodMetrics(pod: Pod): PodMetrics — returns totalCapacity,
+       humanLoad, frameLoad, balance, avgConfidence, epicCount,
+       flaggedCount, reGroomCount. humanLoad and frameLoad EXCLUDE
+       flagged epics (regression-guard for p1's stated past bug where
+       silent inclusion misrepresented load).
+
+7.2 — Phase 2 (Store)
+F2.1   src/stores/brpStore.ts exports useBrpStore (note: lowercase 'b'
+       to match initiativeStore casing pattern), with state:
+         crews: Crew[]; currentPI: PI | null;
+         view: 'portfolio' | 'pod';
+         selectedCrewId, selectedPodId, selectedEpicId: string | null;
+         collapsedPods: Set<string>;
+         reGroomOnlyFilter: boolean;
+         openModal: 'capacity' | 'epicPicker' | 'podLoader' | 'metrics' | null;
+         modalContext: { podId?: string } | null;
+         analysisStatus: 'idle' | 'running' | 'done';
+F2.2   Actions, grouped:
+         Loading: loadCrew, loadPods, loadEpicsIntoPod
+         Capacity: updatePodCapacity
+         Estimates: setHumanEstimate
+         Analysis: runAnalysis, setEpicAnalysisStatus, setEpicFrameResult
+         Navigation: setView, selectCrew, selectPod, selectEpic,
+                     togglePodCollapse, setReGroomOnlyFilter,
+                     openModalFor, closeModal
+         Reset: reset
+F2.3   The store NEVER stores derived data. No variance, delta,
+       totalCapacity, or pod metrics in state. Verified by reviewer
+       at the gate.
+F2.4   runAnalysis accepts an AIEstimator (parameter — store imports
+       only the interface from src/domain/brp.ts, not the impl). The
+       actual estimator instance is supplied by the caller (P6 wiring
+       provides estimatorProvider).
+F2.5   The store starts empty (crews: []). Mock data lives ONLY in
+       test fixtures (brpStore.test.ts) — never inlined in the store.
+
+7.3 — Phase 3 (AI seam)
+F3.1   src/domain/brp.ts already exports the AIEstimator interface
+       (per D5). Shape:
+         interface AIEstimator {
+           analyzeEpic(epic: Epic, refs: ReferenceEpic[]): AsyncIterable<AnalysisEvent>;
+         }
+       AnalysisEvent shape:
+         | { kind: 'started'; epicId: string }
+         | { kind: 'progress'; epicId: string; pct: number }
+         | { kind: 'done'; epicId: string; result: FrameResult }
+         | { kind: 'error'; epicId: string; message: string }
+F3.2   src/services/brp/ai/simulatedEstimator.ts exports
+       createSimulatedEstimator(): AIEstimator. Deterministic: hash
+       epic.id → seed → produces a stable FrameResult for that epic.
+F3.3   src/services/brp/ai/estimatorProvider.ts exports
+       getEstimator(): AIEstimator. Returns the simulator today.
+       Single-line swap point for P7.
+F3.4   Zod schema for FrameResult lives alongside the estimator
+       and validates every event payload. Invalid → error event.
+F3.5   No real LLM calls. No Azure config reads. No network. The
+       seam must be testable with zero network setup.
+
+7.4 — Phase 4 (GitLab service)
+F4.1   src/services/brp/brpGitlabService.ts exports four async
+       functions that compose gitlabClient.ts:
+         fetchCrews(config): Promise<Crew[]>
+         fetchPods(config, crewGroupId: number): Promise<Pod[]>
+         fetchPodEpics(config, podSubgroupId: number): Promise<Epic[]>
+         fetchReferenceEpics(config, podSubgroupId: number): Promise<ReferenceEpic[]>
+F4.2   Each function returns a Result-like shape consistent with
+       gitlabClient.ts's existing { success; data?; error? } pattern.
+       No exceptions for expected failures; throws only for programmer
+       errors.
+F4.3   GitLab → BRP mapping happens at this layer (the service is the
+       boundary). Returned Epic objects have analysisStatus: 'raw',
+       frameResult: null, humanEstimate: null. NEVER pre-filled.
+F4.4   fetchReferenceEpics returns closed epics with actual story-point
+       totals attached. Filter rule TBD with user before B-11 if not
+       obvious from existing gitlabClient.fetchEpics signature.
+F4.5   No direct fetch() calls. Composes gitlabClient.* exclusively.
+
+========================================================================
+8. NON-FUNCTIONAL REQUIREMENTS
+========================================================================
+NFR1. Test coverage on new code ≥ 95% lines for the pure layer
+      (src/domain/brp.ts); ≥ 85% for store + services.
+NFR2. TypeScript strict compiles with zero errors (npx tsc -b --noEmit).
+NFR3. Vitest run completes in < 5 seconds for the BRP test files
+      collectively (pure layer is fast).
+NFR4. Zero changes to scope-guarded paths:
+        - src/pipeline/orchestrator*
+        - src/pipeline/stages/**
+        - src/components/welcome/**
+        - any existing test file (per .claude/hooks/pre-edit-protect-tests.sh)
+NFR5. Zero edits to non-BRP source files in this PRD's scope. The
+      headless layer is purely additive.
+NFR6. No new top-level dependencies. (Zustand 5, Zod 4, Vitest 4 already
+      in package.json.)
+NFR7. No console.log, no debugger statements in shipped code.
+
+========================================================================
+9. NEW & TOUCHED FILES
+========================================================================
+NEW files (P1 — Phase 1):
+  src/domain/brp.ts                              -- types + 4 pure functions + AIEstimator interface
+  src/domain/brp.constants.ts                    -- Fibonacci, thresholds, defaults
+  src/domain/brp.test.ts                         -- unit tests for every pure function
+
+NEW files (P2 — Phase 2):
+  src/stores/brpStore.ts                         -- Zustand store
+  src/stores/brpStore.test.ts                    -- per-action unit tests
+
+NEW files (P3 — Phase 3):
+  src/services/brp/ai/simulatedEstimator.ts      -- deterministic AIEstimator impl
+  src/services/brp/ai/simulatedEstimator.test.ts -- determinism + schema tests
+  src/services/brp/ai/estimatorProvider.ts       -- the swap seam
+
+NEW files (P4 — Phase 4):
+  src/services/brp/brpGitlabService.ts           -- 4 ops, composes gitlabClient
+  src/services/brp/brpGitlabService.test.ts      -- mocked + (optional) live smoke
+
+NEW docs (deferred to B-12, B-13):
+  docs/knowledge/domain/brp.md
+  docs/knowledge/stores/brpStore.md
+  docs/knowledge/services/brp/simulatedEstimator.md
+  docs/knowledge/services/brp/brpGitlabService.md
+  docs/adr/0003-brp-pure-model-no-derived-state.md
+  docs/devlog/2026-05-24-brp-headless.md (date set at devlog time)
+
+TOUCHED files: NONE in this PRD's scope. The headless layer is purely
+additive. Tab registration, sidebar, ViewRouter changes are P5 only.
+
+========================================================================
+10. ATOMIC TASKS (B-prefix)
+========================================================================
+B-0   Preflight: confirm worktree at FRAME_DEPLOYED-brp, branch
+      feature/brp, baseline `npm install` clean, `npx tsc -b --noEmit`
+      green, `npm run test:run` green (or known-failing log captured).
+
+B-1   P1 types + constants: write src/domain/brp.ts (types only,
+      no functions yet) + src/domain/brp.constants.ts.
+      Verification: tsc -b --noEmit green; new file compiles in
+      isolation.
+
+B-2   P1 computeCapacity + tests: add the function to brp.ts;
+      brp.test.ts asserts the 6×10×6=343 worked example + clamp-at-0.
+      Verification: vitest run on brp.test.ts.
+
+B-3   P1 computeDelta + computeVariance + tests: both functions in
+      brp.ts; tests cover null-side cases, threshold boundaries (0.20
+      and 0.50 exactly), confidence bump at 0.40.
+      Verification: vitest run on brp.test.ts.
+
+B-4   P1 computePodMetrics + tests: function in brp.ts; tests cover
+      flagged-exclusion regression guard + empty-pod + all-flagged-pod.
+      Verification: vitest run on brp.test.ts; coverage report ≥ 95%
+      lines for brp.ts.
+
+B-5   P2 brpStore state + Loading actions + tests: state shape +
+      loadCrew + loadPods + loadEpicsIntoPod + reset. brpStore.test.ts
+      asserts shape and state transitions.
+      Verification: vitest run on brpStore.test.ts.
+
+B-6   P2 Capacity + Estimates + Analysis actions + tests:
+      updatePodCapacity, setHumanEstimate, runAnalysis (with injected
+      mock estimator), setEpicAnalysisStatus, setEpicFrameResult.
+      Tests assert no derived state stored after each action.
+      Verification: vitest run on brpStore.test.ts.
+
+B-7   P2 Navigation + UI actions + tests: setView, selectCrew/Pod/Epic,
+      togglePodCollapse, setReGroomOnlyFilter, openModalFor/closeModal.
+      Verification: vitest run; reviewer-style grep confirms no
+      derived state ever set into the store.
+
+B-8   P3 AIEstimator interface + Zod schemas: add the interface to
+      domain/brp.ts (already declared in F3.1); add Zod schemas for
+      FrameResult and AnalysisEvent alongside the estimator (next
+      task). Tests parse valid + invalid event payloads.
+      Verification: vitest run on the Zod parse tests.
+
+B-9   P3 simulatedEstimator + provider + tests: implement
+      createSimulatedEstimator (deterministic hash-seed), implement
+      getEstimator. Tests: same epic ID → same FrameResult; breakdown
+      sums to frameEstimate; confidence inversely tracks breakdown
+      variance; all emitted events pass Zod schema.
+      Verification: vitest run; determinism asserted with 10 reruns.
+
+B-10  P4 brpGitlabService skeleton + mocked tests: write the 4
+      function signatures with the GitLab → BRP mapping, but only
+      using vi.mock'd gitlabClient. Tests assert: returned Epic has
+      analysisStatus 'raw' and frameResult null; Pod has CapacityInputs
+      with sensible defaults; never-throws on expected GitLab errors.
+      Verification: vitest run on brpGitlabService.test.ts.
+
+B-11  P4 brpGitlabService live smoke (optional, gated): integration
+      test under .skip by default; runs only when VITE_BRP_LIVE_SMOKE=1
+      against the user's real UBS GitLab. Documents the manual run
+      and pastes one-shot output into the journal.
+      Verification: skipped-by-default vitest run; live run manual.
+
+[CHECKPOINT B: 5-agent deep-review per docs/runbooks/deep-review-a10.md.
+ Must conclude with zero critical findings before proceeding to B-12.]
+
+B-12  Knowledge-base docs: one markdown per new module under
+      docs/knowledge/{domain,stores,services/brp}/. Per existing
+      pattern from docs/knowledge/components/issueRefinery/.
+      Verification: docs/knowledge/README.md updated with the new
+      links; manual rendering check.
+
+B-13  Devlog entry + ADR-0003 + final commit: append
+      docs/devlog/<date>-brp-headless.md describing what shipped;
+      write docs/adr/0003-brp-pure-model-no-derived-state.md;
+      commit per Conventional Commits; mark branch ready for PR
+      (NOT opened yet — user decides).
+      Verification: ADR template followed; devlog cross-linked from
+      docs/devlog/README.md.
+
+Each task follows the standing protocol per .claude/STANDING_PROTOCOL.md:
+  next_task → set_task_status: in_progress → implement →
+  invoke superpowers:verification-before-completion (paste actual
+  command output) → append journal entry to .powerstack4/task_plan.md
+  → set_task_status: completed → commit per Conventional Commits
+  (scope = brp).
+
+========================================================================
+11. ACCEPTANCE CRITERIA
+========================================================================
+AC1.  `npx tsc -b --noEmit` exits 0 from the worktree root.
+AC2.  `npm run test:run -- src/domain/brp.test.ts` exits 0.
+AC3.  `npm run test:run -- src/stores/brpStore.test.ts` exits 0.
+AC4.  `npm run test:run -- src/services/brp/` exits 0 (excluding
+      the .skip'd live smoke unless explicitly enabled).
+AC5.  Grep across new code confirms zero instances of:
+        - `variance:` as a field on Epic/Pod/Crew
+        - `totalCapacity:` as a field on Pod
+        - `delta:` as a field on Epic
+      (The pure functions returning these values are fine. The point
+      is they must never be stored.)
+AC6.  Grep across src/domain/brp.ts confirms zero imports from React,
+      Zustand, or any FRAME service. The pure layer is dependency-free.
+AC7.  Grep across src/stores/brpStore.ts confirms zero imports of
+      simulatedEstimator (only the AIEstimator interface from
+      src/domain/brp.ts).
+AC8.  Grep across src/services/brp/brpGitlabService.ts confirms zero
+      direct fetch() calls. All HTTP goes via gitlabClient.*.
+      Smoke test (when run) returns valid Crew[] shape.
+AC9.  Zero files modified outside the NEW list in §9. (Use
+      `git diff --name-only main...HEAD` to verify before B-13 commit.)
+AC10. No pre-commit hooks were skipped. (No --no-verify in git log.)
+AC11. Deep-review checkpoint passes with zero critical findings.
+AC12. Branch feature/brp builds cleanly: `npm run build` exits 0.
+
+========================================================================
+12. RISKS & MITIGATIONS
+========================================================================
+RK1. The "thin description → flagged" heuristic in F1.5 step (1) is
+     underspecified. p1 says "epic description too thin to estimate".
+     Mitigation: pick a conservative rule at B-3 (e.g., description
+     length < 80 chars OR fewer than 2 sentences) and document it
+     in brp.ts as a TODO for P5 to refine with real data. Surface to
+     user via AskUserQuestion before locking if it changes pure-function
+     behaviour meaningfully.
+
+RK2. ReferenceEpic filtering rule (F4.4) depends on what existing
+     gitlabClient.fetchEpics returns. May need a new optional state
+     filter param.
+     Mitigation: at B-10, read gitlabClient.ts before extending; if a
+     simple post-filter on the response works, use it; if it requires
+     a client change, escalate via AskUserQuestion (gitlabClient.ts is
+     not scope-guarded but is shared and warrants the question).
+
+RK3. Live smoke (B-11) requires the user's GitLab token. May not be
+     possible to verify in this session.
+     Mitigation: skip-by-default; document manual run command in the
+     journal; B-11 verification can be the mocked tests + a recorded
+     smoke output from the user later.
+
+RK4. Zustand 5 testing patterns differ from Zustand 4. The IR work
+     used Zustand 5 (initiativeStore exists); mirror its test patterns.
+     Mitigation: read initiativeStore.test.ts before writing
+     brpStore.test.ts (B-5).
+
+RK5. The simulator's confidence calculation (B-9) is non-obvious.
+     "Confidence moves inversely with breakdown variance" needs a
+     concrete formula.
+     Mitigation: define it as 1 − stdev(breakdown.points)/mean(...)
+     clamped to [0.1, 0.95]. Document in code. Adjust if tests
+     reveal it's unstable on edge cases.
+
+RK6. Hooks (pre-edit-protect-tests.sh) may block edits to brp.test.ts
+     once it exists, because the hook treats *all* test files as
+     protected after creation.
+     Mitigation: per the IR devlog's noted pattern, edits to test files
+     in the same task that created them are done via rm + Write. If
+     a later task needs to add tests to an earlier task's test file,
+     do delete-and-rewrite (the hook accepts this).
+
+========================================================================
+13. ROLLBACK PLAN
+========================================================================
+The headless layer is purely additive — no existing file is modified.
+Rollback options:
+- Worktree-level: `git worktree remove ../FRAME_DEPLOYED-brp` removes
+  the entire worktree. Main is untouched.
+- Branch-level: `git branch -D feature/brp` after the worktree is
+  removed. Wipes all BRP commits.
+- No data migration. No backend. No deployed surface (UI is P5).
+
+========================================================================
+14. SUCCESS METRICS (post-headless, not blocking)
+========================================================================
+M1. Phase 5 components can be built against the locked action list
+    with zero brpStore action signature changes. (Contract held.)
+M2. Phase 6 wiring's first end-to-end Analysis call completes without
+    needing to add any new method to AIEstimator. (Seam held.)
+M3. Phase 7's swap to a real estimator changes only the
+    estimatorProvider.ts return value and adds files under
+    services/brp/ai/ — zero changes elsewhere. (Seam fully isolated.)
+
+========================================================================
+15. APPENDIX: REFERENCES
+========================================================================
+- Phase plans:
+    docs/Brp_plan/p1.md
+    docs/Brp_plan/p2.md
+    docs/Brp_plan/p3.md
+    docs/Brp_plan/p4.md
+- UI reference (visual only, NOT a code shape to copy):
+    docs/Brp_plan/ui_sample_brp/BRP (1).tsx
+    docs/Brp_plan/ui_sample_brp/CapacityDialog.tsx
+    docs/Brp_plan/ui_sample_brp/MetricsModal.tsx
+    docs/Brp_plan/ui_sample_brp/VarianceBadge.tsx
+- Standing instructions:
+    docs/research/Standing Coding-Instructions for Claude Code.md
+- Existing patterns to mirror in style:
+    src/stores/initiativeStore.ts                   (Zustand v5 store)
+    src/services/gitlab/gitlabClient.ts             (Result-shaped errors)
+    src/services/gitlab/initiativeService.ts        (service-layer composition)
+    src/pipeline/issue/runIssuePipeline.ts          (pure orchestrator pattern)
+    src/actions/refineIssueAction.ts                (action-boundary pattern)
+    src/domain/types.ts, src/domain/complexity.ts   (pure domain module shape)
+- Standing protocol:
+    CLAUDE.md
+    .claude/STANDING_PROTOCOL.md
+- Deep-review runbook:
+    docs/runbooks/deep-review-a10.md
+- Hooks to respect:
+    .claude/hooks/pre-edit-protect-paths.sh
+    .claude/hooks/pre-edit-protect-tests.sh
+    .claude/hooks/pre-bash-protect-paths.sh
+    .claude/hooks/stop-typecheck.py  (branch-scoped; will not gate on feature/brp)
