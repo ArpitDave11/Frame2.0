@@ -274,3 +274,33 @@ export interface AIEstimator {
     references: readonly ReferenceEpic[],
   ): AsyncIterable<AnalysisEvent>;
 }
+
+// ─── Pure functions ─────────────────────────────────────────
+
+/**
+ * Compute Pod capacity from its 5 raw inputs. Pure — same input always
+ * yields the same output, no side effects, no `Date.now()`, no randomness.
+ *
+ * Formula (whole-PI basis, 1 day = 1 SP at the SP/resource rate):
+ *   gross             = resources × spPerResource × sprintCount
+ *   holidayDeduction  = holidayDays × resources         // a holiday hits everyone
+ *   leaveDeduction    = leaveDays                       // already a total in person-days
+ *   total             = max(0, gross − holidayDeduction − leaveDeduction)
+ *
+ * Returns the full breakdown so the UI can show each line without recomputing.
+ * `total` clamps at 0 — a Pod cannot have negative usable capacity.
+ *
+ * Worked example (PRD acceptance criterion):
+ *   inputs { resources: 6, spPerResource: 10, sprintCount: 6, holidayDays: 2, leaveDays: 5 }
+ *   gross = 6 × 10 × 6 = 360
+ *   holidayDeduction = 2 × 6 = 12
+ *   leaveDeduction = 5
+ *   total = 360 − 12 − 5 = 343
+ */
+export function computeCapacity(inputs: CapacityInputs): CapacityResult {
+  const gross = inputs.resources * inputs.spPerResource * inputs.sprintCount;
+  const holidayDeduction = inputs.holidayDays * inputs.resources;
+  const leaveDeduction = inputs.leaveDays;
+  const total = Math.max(0, gross - holidayDeduction - leaveDeduction);
+  return { gross, holidayDeduction, leaveDeduction, total };
+}

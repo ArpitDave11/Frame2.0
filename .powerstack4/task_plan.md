@@ -17,8 +17,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | # | Task | Status |
 |---|------|--------|
 | B-0  | Preflight verification | done |
-| B-1  | P1 types + constants | in_progress |
-| B-2  | computeCapacity + tests | pending |
+| B-1  | P1 types + constants | done |
+| B-2  | computeCapacity + tests | in_progress |
 | B-3  | computeDelta + computeVariance + tests | pending |
 | B-4  | computePodMetrics + tests | pending |
 | B-5  | brpStore state + Loading actions | pending |
@@ -158,6 +158,38 @@ $ grep -nE "^import" src/domain/brp.ts src/domain/brp.constants.ts
 src/domain/brp.constants.ts:11:import type { FibonacciPoint } from './brp';
      # Only a type-only import between the two BRP files — no React,
      # no Zustand, no FRAME services. Dependency-free per AC6.
+```
+
+**Status: done**
+
+---
+
+### B-2 — computeCapacity + tests (in_progress → done)
+
+**Date:** 2026-05-24
+**Files touched:**
+- `src/domain/brp.ts` — appended `computeCapacity` after the AIEstimator interface
+- `src/domain/brp.test.ts` (new, 95 lines) — 7 tests for computeCapacity
+
+**Tests written (7):**
+1. PRD worked example (343 total for 6×10×6 − 12 − 5) — the named acceptance gate
+2. Clamps negative total to 0 when leave overwhelms gross
+3. Zero resources → zero gross, zero holiday deduction, zero total
+4. Zero deductions → total equals gross
+5. Holiday × resources rule (3 holidays × 10 people = 30 SP off, not 3)
+6. Leave taken as-is (NOT multiplied by resources)
+7. Determinism — repeated calls with same input are equal
+
+**Verification commands:**
+
+```
+$ npm run test:run -- src/domain/brp.test.ts
+Test Files  1 passed (1)
+Tests       7 passed (7)
+Duration    477ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # unchanged from baseline — no BRP-introduced errors
 ```
 
 **Status: done**
