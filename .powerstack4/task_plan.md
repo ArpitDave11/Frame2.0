@@ -16,8 +16,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 
 | # | Task | Status |
 |---|------|--------|
-| B-0  | Preflight verification | in_progress |
-| B-1  | P1 types + constants | pending |
+| B-0  | Preflight verification | done |
+| B-1  | P1 types + constants | in_progress |
 | B-2  | computeCapacity + tests | pending |
 | B-3  | computeDelta + computeVariance + tests | pending |
 | B-4  | computePodMetrics + tests | pending |
@@ -74,12 +74,15 @@ $ npm install
 added 388 packages, audited 389 in 5s
 13 vulnerabilities (pre-existing on main — not BRP's concern)
 
-$ npx tsc -b --noEmit
-23 errors in 4 pre-existing test files (uiStore.test.ts, crossFeature.test.ts,
-gitlabFlow.test.ts, pipelineFlow.test.ts) — all TS2532/TS2345 strict-null
-violations and a missing `totalDuration` property on PipelineResult fixture.
+$ npx tsc -b --noEmit | grep -c "error TS"
+55 errors total — pre-existing across many test files (uiStore, chatStore,
+configStore, gitlabStore, ai/aiClient/azureClient/openaiClient/throttler,
+gitlabClient, templateLoader, pipelineFlow/gitlabFlow/crossFeature, etc.) —
+mostly TS2532/TS2345 strict-null violations + a missing `totalDuration`
+field on PipelineResult fixture and a couple TS6133 unused-var lints.
 Exit code 0 (tsc -b doesn't fail on these in build mode).
-NOT caused by BRP. Baseline must remain at 23 errors.
+NOT caused by BRP. Baseline must remain ≤ 55 errors. (Earlier note said
+"23" — that was a tail-truncated count, corrected here.)
 
 $ npm run test:run
 Test Files  2 failed | 70 passed (72)
@@ -92,8 +95,8 @@ NOT caused by BRP. Baseline must remain at 11 failures.
 ```
 
 **Baseline locked:**
-- tsc errors: 23 (pre-existing)
-- test failures: 11 (pre-existing)
+- tsc errors: 55 (pre-existing across ~12 files)
+- test failures: 11 (pre-existing — Welcome* AuthProvider)
 - BRP work must keep both numbers ≤ current (no regressions, fix nothing outside scope).
 
 **Notes:**
@@ -106,5 +109,55 @@ NOT caused by BRP. Baseline must remain at 11 failures.
 
 **Verification:** all 5 PRD steps for B-0 confirmed (worktree exists, branch
 correct, npm install clean, tsc baseline captured, test baseline captured).
+
+**Status: done**
+
+---
+
+### B-1 — P1 Types and Constants Module (in_progress → done)
+
+**Date:** 2026-05-24
+**Files created:**
+- `src/domain/brp.ts` (227 lines) — 14 types + 1 interface (AIEstimator)
+- `src/domain/brp.constants.ts` (47 lines) — 6 constants
+
+**Type inventory (matches PRD §F1.1):**
+- Scales/enums: `FibonacciPoint` (literal union), `AnalysisStatus`, `VarianceBand`
+- Capacity: `CapacityInputs` (5 inputs), `CapacityResult`
+- FRAME blocks: `BreakdownItem`, `ReferenceEpic`, `GeneratedStory`, `FrameResult`
+- Entities: `Epic`, `Pod`, `Crew`, `PI`
+- Derived (return-type-only): `PodMetrics`
+- AI seam: `AnalysisEvent` (discriminated union), `AIEstimator` interface
+
+**Constants (matches PRD §F1.2):**
+- `FIBONACCI_POINTS`, `DEFAULT_SP_PER_RESOURCE` (10),
+  `VARIANCE_AGREE_THRESHOLD` (0.20), `VARIANCE_CAUTION_THRESHOLD` (0.50),
+  `CONFIDENCE_BUMP_THRESHOLD` (0.40), `FLAGGED_DESCRIPTION_MIN_CHARS` (80)
+
+**Architectural decisions made during implementation:**
+- Added `description: string` to `Epic` (PRD §F1.5 step 1 references it for the
+  'flagged' heuristic but the B-1 spec didn't list it explicitly). Normalize at
+  the GitLab service boundary (null → '').
+- Added `FLAGGED_DESCRIPTION_MIN_CHARS = 80` to constants (B-3 will use it).
+  PRD called it out in RK1 as needing to be made concrete; locking it now.
+- `AIEstimator.analyzeEpic` takes `readonly ReferenceEpic[]` (immutable).
+- `Epic.id` is `string` (not `number`) for safety across GitLab number ranges.
+- `Epic.source` is the literal union `'gitlab'` (room to extend later
+  without a model change).
+
+**Verification commands:**
+
+```
+$ npx tsc -b --noEmit | grep -c "error TS"
+55   # unchanged from B-0 baseline — zero BRP-introduced errors
+
+$ npx tsc -b --noEmit 2>&1 | grep "src/domain/brp" | wc -l
+0    # zero errors in the new files specifically
+
+$ grep -nE "^import" src/domain/brp.ts src/domain/brp.constants.ts
+src/domain/brp.constants.ts:11:import type { FibonacciPoint } from './brp';
+     # Only a type-only import between the two BRP files — no React,
+     # no Zustand, no FRAME services. Dependency-free per AC6.
+```
 
 **Status: done**
