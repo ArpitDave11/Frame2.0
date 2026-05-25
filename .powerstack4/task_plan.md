@@ -24,8 +24,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-5  | brpStore state + Loading actions | done |
 | B-6  | brpStore Capacity + Estimates + Analysis actions | done |
 | B-7  | brpStore Navigation + UI actions | done |
-| B-8  | AIEstimator + Zod schemas | in_progress |
-| B-9  | simulatedEstimator + provider | pending |
+| B-8  | AIEstimator + Zod schemas | done |
+| B-9  | simulatedEstimator + provider | in_progress |
 | B-10 | brpGitlabService skeleton + mocked tests | pending |
 | B-11 | brpGitlabService live smoke (gated) | pending |
 | —    | 5-agent deep-review checkpoint | pending |
@@ -543,5 +543,82 @@ $ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
 $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
 0
 ```
+
+**Status: done**
+
+---
+
+### B-9 — simulatedEstimator + provider (in_progress → done) — **P3 COMPLETE**
+
+**Date:** 2026-05-25
+**Files created:**
+- `src/services/brp/ai/simulatedEstimator.ts` (~200 lines) — deterministic AIEstimator
+- `src/services/brp/ai/estimatorProvider.ts` (~25 lines) — the one-line swap seam for P7
+- `src/services/brp/ai/simulatedEstimator.test.ts` (~280 lines) — 20 tests
+
+**Simulator design:**
+- **Seed:** `hashCode(epic.id)` — Java-style string hash. Same id → same seed across reruns/processes.
+- **PRNG:** Mulberry32 (small fast deterministic). Used to pick frameEstimate, breakdown template, confidence jitter.
+- **frameEstimate:** 80% chance to sample from FIBONACCI_POINTS[1..7] (2..40) — the realistic middle of the scale; 20% chance for any of the 9 values.
+- **breakdown:** precomputed lookup table per Fibonacci point value. Each template sums to within ±1 of the key. Avoids the constraint-satisfaction work that greedy splits need for 40 and 100 (large Fibonacci gaps).
+- **confidence:** single-item → ~0.92 ± 0.03; multi-item → `0.85 − 0.5 × cv + ±0.05` where `cv = stdev/mean` (coefficient of variation). Clamped to [0.1, 0.95].
+- **rationale:** templated; quotes the epic title (truncated at 60 chars); two phrasings depending on whether refs were supplied.
+- **references:** passes through up to 3 caller-supplied refs.
+- **modelVersion:** constant `'brp-simulator-v1'`.
+- **analyzedAt:** `new Date().toISOString()` — the ONE non-deterministic field, intentional, so the UI can render "last analyzed N seconds ago" sensibly. Determinism tests strip it before comparison.
+
+**Event sequence emitted per analyzeEpic call:**
+1. `started` (epicId)
+2. `progress` (epicId, pct=0.5)  — one mid-flight tick to exercise consumers
+3. `done` (epicId, FrameResult)
+
+**Provider:**
+- `getEstimator(): AIEstimator` — returns `createSimulatedEstimator()` today.
+  Single-line body. P7's job is to replace this body with the real estimator.
+  The "drop-in equivalence" test in simulatedEstimator.test.ts is the
+  signpost: when P7 swaps, that test fails — intentionally — telling the
+  P7 engineer they're crossing the seam.
+
+**Tests (20):**
+- Determinism (3): same id → same content across 10 reruns; different ids
+  → varied frameEstimates (≥ 3 distinct in 25 samples); same content across
+  two fresh estimator instances
+- Event sequence (3): started → progress → done order; epicId carried; pct ∈ [0,1]
+- Schema compliance (1): all events from 30 different ids pass AnalysisEventSchema
+- Breakdown (3): sum within ±1 of frameEstimate for 50 ids; every breakdown
+  item has a Fibonacci-valid points value (30 ids); breakdown is never empty
+- Confidence (2): always in [0.1, 0.95] for 50 ids; **mean(single-item conf)
+  > mean(3+ item conf)** across 200 samples — the "inversely tracks variance"
+  assertion
+- References (2): passes through up to 3; empty refs case mentions "no
+  closed reference" in rationale
+- Metadata (3): modelVersion is the constant; generatedStories is null;
+  analyzedAt parses as ISO-8601
+- Provider (3): returns an AIEstimator; produces a valid FrameResult;
+  drop-in equivalence with simulator today
+
+**Verification:**
+
+```
+$ npm run test:run -- src/services/brp/ai/simulatedEstimator.test.ts
+Test Files  1 passed (1)
+Tests       20 passed (20)
+Duration    438ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged (caught a TS6133 unused-param warning mid-task,
+     # fixed by using the epic.title in the rationale)
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
+0
+```
+
+**Phase 3 complete:**
+- `src/services/brp/ai/schemas.ts` — runtime Zod schemas for FrameResult + AnalysisEvent
+- `src/services/brp/ai/simulatedEstimator.ts` — deterministic AIEstimator
+- `src/services/brp/ai/estimatorProvider.ts` — one-line swap seam for P7
+- 58 tests across 2 test files (schemas 38 + simulator 20)
+- The store imports only AIEstimator from domain/brp — no implementation dep.
+- brpStore.runAnalysis tests already exercise this seam via DI (B-6).
 
 **Status: done**
