@@ -8,6 +8,7 @@ import type {
   Crew,
   Epic,
   FrameResult,
+  PI,
   Pod,
   ReferenceEpic,
 } from '../domain/brp';
@@ -71,11 +72,6 @@ function buildFrameResult(overrides: Partial<FrameResult> = {}): FrameResult {
   };
 }
 
-/**
- * Build a mock AIEstimator that emits the supplied event sequence for
- * every epic it analyzes. Useful for asserting how the store reacts to
- * 'done' / 'error' / 'started' events without a real simulator.
- */
 function buildEstimator(
   eventsFor: (epic: Epic) => readonly AnalysisEvent[],
 ): AIEstimator {
@@ -115,7 +111,7 @@ describe('brpStore — initial state', () => {
   });
 });
 
-// ─── Loading — loadCrew ─────────────────────────────────────
+// ─── Loading ────────────────────────────────────────────────
 
 describe('brpStore — loadCrew', () => {
   it('appends a single crew', () => {
@@ -148,8 +144,6 @@ describe('brpStore — loadCrew', () => {
     expect(crews.map((c) => c.name)).toEqual(['first', 'second']);
   });
 });
-
-// ─── Loading — loadPods ─────────────────────────────────────
 
 describe('brpStore — loadPods', () => {
   it('sets pods on the targeted crew, leaves others untouched', () => {
@@ -185,8 +179,6 @@ describe('brpStore — loadPods', () => {
     expect(crews[0]!.pods).toEqual([]);
   });
 });
-
-// ─── Loading — loadEpicsIntoPod ─────────────────────────────
 
 describe('brpStore — loadEpicsIntoPod', () => {
   it('sets epics on the targeted pod across any crew', () => {
@@ -237,6 +229,9 @@ describe('brpStore — reset', () => {
     const s = useBrpStore.getState();
     s.loadCrew(buildCrew({ id: 'crew-A', pods: [buildPod({ id: 'pod-X' })] }));
     s.loadEpicsIntoPod('pod-X', [buildEpic()]);
+    s.selectCrew('crew-A');
+    s.setReGroomOnlyFilter(true);
+    s.openModalFor('capacity', { podId: 'pod-X' });
     expect(useBrpStore.getState().crews).toHaveLength(1);
 
     useBrpStore.getState().reset();
@@ -245,6 +240,9 @@ describe('brpStore — reset', () => {
     expect(after.crews).toEqual([]);
     expect(after.collapsedPods.size).toBe(0);
     expect(after.openModal).toBeNull();
+    expect(after.modalContext).toBeNull();
+    expect(after.selectedCrewId).toBeNull();
+    expect(after.reGroomOnlyFilter).toBe(false);
     expect(after.analysisStatus).toBe('idle');
   });
 
@@ -259,7 +257,7 @@ describe('brpStore — reset', () => {
   });
 });
 
-// ─── Capacity — updatePodCapacity ───────────────────────────
+// ─── Capacity ───────────────────────────────────────────────
 
 describe('brpStore — updatePodCapacity', () => {
   it('writes the 5 raw inputs to the target pod', () => {
@@ -277,8 +275,6 @@ describe('brpStore — updatePodCapacity', () => {
 
     const pod = useBrpStore.getState().crews[0]!.pods[0]!;
     expect(pod.capacity).toEqual(inputs);
-    // Architectural assertion: the inputs round-trip through computeCapacity
-    // to the PRD's named example (343). The store does NOT store this total.
     expect(computeCapacity(pod.capacity).total).toBe(343);
   });
 
@@ -331,13 +327,12 @@ describe('brpStore — updatePodCapacity', () => {
         leaveDays: 0,
       }),
     ).not.toThrow();
-    // Original pod-X unchanged
     const pod = useBrpStore.getState().crews[0]!.pods[0]!;
     expect(pod.capacity.resources).toBe(4);
   });
 });
 
-// ─── Estimates — setHumanEstimate ───────────────────────────
+// ─── Estimates ──────────────────────────────────────────────
 
 describe('brpStore — setHumanEstimate', () => {
   it('sets a value on the target epic; variance derives correctly', () => {
@@ -360,11 +355,9 @@ describe('brpStore — setHumanEstimate', () => {
       }),
     );
 
-    // Before setting: epic is analyzed but no human estimate → 'pending'
     let epic = useBrpStore.getState().crews[0]!.pods[0]!.epics[0]!;
     expect(computeVariance(epic)).toBe('pending');
 
-    // Set human=8 to match frame=8 → 'agree'
     useBrpStore.getState().setHumanEstimate('E1', 8);
     epic = useBrpStore.getState().crews[0]!.pods[0]!.epics[0]!;
     expect(epic.humanEstimate).toBe(8);
@@ -376,10 +369,7 @@ describe('brpStore — setHumanEstimate', () => {
       buildCrew({
         id: 'crew-A',
         pods: [
-          buildPod({
-            id: 'pod-X',
-            epics: [buildEpic({ id: 'E1', humanEstimate: 13 })],
-          }),
+          buildPod({ id: 'pod-X', epics: [buildEpic({ id: 'E1', humanEstimate: 13 })] }),
         ],
       }),
     );
@@ -416,7 +406,7 @@ describe('brpStore — setHumanEstimate', () => {
   });
 });
 
-// ─── Analysis — direct setters ──────────────────────────────
+// ─── Analysis ───────────────────────────────────────────────
 
 describe('brpStore — setEpicAnalysisStatus', () => {
   it('sets per-epic status without touching frameResult', () => {
@@ -433,7 +423,6 @@ describe('brpStore — setEpicAnalysisStatus', () => {
   });
 
   it('does not clear a prior frameResult when transitioning back to "analyzing"', () => {
-    // Re-runs should preserve the prior result until the new one arrives.
     useBrpStore.getState().loadCrew(
       buildCrew({
         id: 'crew-A',
@@ -479,8 +468,6 @@ describe('brpStore — setEpicFrameResult', () => {
   });
 });
 
-// ─── Analysis — runAnalysis ─────────────────────────────────
-
 describe('brpStore — runAnalysis', () => {
   it('walks every epic across crews/pods; transitions idle → running → done', async () => {
     useBrpStore.getState().loadCrew(
@@ -512,7 +499,6 @@ describe('brpStore — runAnalysis', () => {
     expect(useBrpStore.getState().analysisStatus).toBe('done');
     expect(analyzed.sort()).toEqual(['E1', 'E2', 'E3']);
 
-    // Every epic ended in 'done' with a frameResult set.
     for (const id of ['E1', 'E2', 'E3']) {
       const e = useBrpStore
         .getState()
@@ -534,7 +520,6 @@ describe('brpStore — runAnalysis', () => {
     let observedStatusAtStart: string | undefined;
     const estimator: AIEstimator = {
       async *analyzeEpic(epic) {
-        // Read the store state AT the moment the estimator was called.
         observedStatusAtStart = useBrpStore
           .getState()
           .crews.flatMap((c) => c.pods.flatMap((p) => p.epics))
@@ -575,7 +560,6 @@ describe('brpStore — runAnalysis', () => {
         ],
       }),
     );
-    // E1 throws; E2 succeeds. The run should not abort on E1.
     const estimator: AIEstimator = {
       async *analyzeEpic(epic) {
         if (epic.id === 'E1') throw new Error('estimator died');
@@ -583,7 +567,6 @@ describe('brpStore — runAnalysis', () => {
       },
     };
 
-    // Suppress the expected console.error from the action's error handler.
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await useBrpStore.getState().runAnalysis(estimator);
     consoleSpy.mockRestore();
@@ -602,7 +585,7 @@ describe('brpStore — runAnalysis', () => {
     expect(useBrpStore.getState().analysisStatus).toBe('done');
   });
 
-  it("invokes getReferences once per epic and passes the result to the estimator", async () => {
+  it('invokes getReferences once per epic and passes the result to the estimator', async () => {
     useBrpStore.getState().loadCrew(
       buildCrew({
         id: 'crew-A',
@@ -622,6 +605,130 @@ describe('brpStore — runAnalysis', () => {
     await useBrpStore.getState().runAnalysis(estimator, () => refs);
     expect(seen).toHaveLength(1);
     expect(seen[0]!.refs).toEqual(refs);
+  });
+});
+
+// ─── Navigation, UI, Modals ─────────────────────────────────
+
+describe('brpStore — setView', () => {
+  it("toggles view between 'portfolio' and 'pod'", () => {
+    expect(useBrpStore.getState().view).toBe('portfolio');
+    useBrpStore.getState().setView('pod');
+    expect(useBrpStore.getState().view).toBe('pod');
+    useBrpStore.getState().setView('portfolio');
+    expect(useBrpStore.getState().view).toBe('portfolio');
+  });
+});
+
+describe('brpStore — selectCrew / selectPod / selectEpic', () => {
+  it('selectCrew sets and clears', () => {
+    useBrpStore.getState().selectCrew('crew-A');
+    expect(useBrpStore.getState().selectedCrewId).toBe('crew-A');
+    useBrpStore.getState().selectCrew(null);
+    expect(useBrpStore.getState().selectedCrewId).toBeNull();
+  });
+
+  it('selectPod sets and clears independently of crew', () => {
+    useBrpStore.getState().selectCrew('crew-A');
+    useBrpStore.getState().selectPod('pod-X');
+    expect(useBrpStore.getState().selectedCrewId).toBe('crew-A');
+    expect(useBrpStore.getState().selectedPodId).toBe('pod-X');
+    useBrpStore.getState().selectPod(null);
+    expect(useBrpStore.getState().selectedPodId).toBeNull();
+    // Crew selection persists
+    expect(useBrpStore.getState().selectedCrewId).toBe('crew-A');
+  });
+
+  it('selectEpic sets and clears', () => {
+    useBrpStore.getState().selectEpic('E1');
+    expect(useBrpStore.getState().selectedEpicId).toBe('E1');
+    useBrpStore.getState().selectEpic(null);
+    expect(useBrpStore.getState().selectedEpicId).toBeNull();
+  });
+});
+
+describe('brpStore — togglePodCollapse', () => {
+  it('adds podId when not present', () => {
+    useBrpStore.getState().togglePodCollapse('pod-X');
+    expect(useBrpStore.getState().collapsedPods.has('pod-X')).toBe(true);
+  });
+
+  it('removes podId when present (idempotent on second call)', () => {
+    useBrpStore.getState().togglePodCollapse('pod-X');
+    useBrpStore.getState().togglePodCollapse('pod-X');
+    expect(useBrpStore.getState().collapsedPods.has('pod-X')).toBe(false);
+  });
+
+  it('returns a NEW Set instance per toggle (identity changes for selectors)', () => {
+    const before = useBrpStore.getState().collapsedPods;
+    useBrpStore.getState().togglePodCollapse('pod-X');
+    const after = useBrpStore.getState().collapsedPods;
+    expect(after).not.toBe(before);
+  });
+
+  it('handles multiple pods independently', () => {
+    useBrpStore.getState().togglePodCollapse('pod-X');
+    useBrpStore.getState().togglePodCollapse('pod-Y');
+    useBrpStore.getState().togglePodCollapse('pod-Z');
+    useBrpStore.getState().togglePodCollapse('pod-Y'); // remove Y
+    const collapsed = useBrpStore.getState().collapsedPods;
+    expect(collapsed.has('pod-X')).toBe(true);
+    expect(collapsed.has('pod-Y')).toBe(false);
+    expect(collapsed.has('pod-Z')).toBe(true);
+  });
+});
+
+describe('brpStore — setReGroomOnlyFilter', () => {
+  it('toggles the flag', () => {
+    expect(useBrpStore.getState().reGroomOnlyFilter).toBe(false);
+    useBrpStore.getState().setReGroomOnlyFilter(true);
+    expect(useBrpStore.getState().reGroomOnlyFilter).toBe(true);
+    useBrpStore.getState().setReGroomOnlyFilter(false);
+    expect(useBrpStore.getState().reGroomOnlyFilter).toBe(false);
+  });
+});
+
+describe('brpStore — openModalFor / closeModal', () => {
+  it('opens a modal with no context', () => {
+    useBrpStore.getState().openModalFor('metrics');
+    expect(useBrpStore.getState().openModal).toBe('metrics');
+    expect(useBrpStore.getState().modalContext).toBeNull();
+  });
+
+  it('opens a modal with podId context', () => {
+    useBrpStore.getState().openModalFor('capacity', { podId: 'pod-X' });
+    expect(useBrpStore.getState().openModal).toBe('capacity');
+    expect(useBrpStore.getState().modalContext).toEqual({ podId: 'pod-X' });
+  });
+
+  it('replaces the previous modal+context wholesale on a new open', () => {
+    useBrpStore.getState().openModalFor('capacity', { podId: 'pod-X' });
+    useBrpStore.getState().openModalFor('metrics');
+    expect(useBrpStore.getState().openModal).toBe('metrics');
+    expect(useBrpStore.getState().modalContext).toBeNull();
+  });
+
+  it('closeModal clears both openModal and modalContext', () => {
+    useBrpStore.getState().openModalFor('capacity', { podId: 'pod-X' });
+    useBrpStore.getState().closeModal();
+    expect(useBrpStore.getState().openModal).toBeNull();
+    expect(useBrpStore.getState().modalContext).toBeNull();
+  });
+});
+
+describe('brpStore — setCurrentPI', () => {
+  it('sets and clears the active PI', () => {
+    const pi: PI = {
+      id: 'PI-2026-Q3',
+      name: 'PI 2026 Q3',
+      startDate: '2026-07-01',
+      endDate: '2026-09-30',
+      sprintCount: 6,
+    };
+    useBrpStore.getState().setCurrentPI(pi);
+    expect(useBrpStore.getState().currentPI).toEqual(pi);
+    useBrpStore.getState().setCurrentPI(null);
+    expect(useBrpStore.getState().currentPI).toBeNull();
   });
 });
 

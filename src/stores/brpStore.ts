@@ -97,6 +97,17 @@ interface BrpActions {
   runAnalysis: (estimator: AIEstimator, getReferences?: GetReferencesFn) => Promise<void>;
   setEpicAnalysisStatus: (epicId: string, status: AnalysisStatus) => void;
   setEpicFrameResult: (epicId: string, result: FrameResult) => void;
+
+  // Group 5 — Navigation, UI, Modals (B-7)
+  setView: (view: BrpView) => void;
+  selectCrew: (id: string | null) => void;
+  selectPod: (id: string | null) => void;
+  selectEpic: (id: string | null) => void;
+  togglePodCollapse: (podId: string) => void;
+  setReGroomOnlyFilter: (enabled: boolean) => void;
+  openModalFor: (modal: Exclude<BrpModal, null>, context?: BrpModalContext) => void;
+  closeModal: () => void;
+  setCurrentPI: (pi: PI | null) => void;
 }
 
 export type BrpStore = BrpState & BrpActions;
@@ -314,6 +325,49 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
         })),
       })),
     })),
+
+  // Group 5 — Navigation, UI, Modals ---------------------------------
+
+  /** Switch the workspace view: portfolio (cross-crew) ↔ pod (drill-in). */
+  setView: (view) => set({ view }),
+
+  /** Set the active crew, or pass null to clear the selection. */
+  selectCrew: (id) => set({ selectedCrewId: id }),
+
+  /** Set the active pod, or pass null to clear the selection. */
+  selectPod: (id) => set({ selectedPodId: id }),
+
+  /** Set the active epic, or pass null to clear the selection. */
+  selectEpic: (id) => set({ selectedEpicId: id }),
+
+  /**
+   * Toggle whether a pod's epic list is collapsed in the portfolio view.
+   * Returns a fresh Set instance per toggle so React re-renders see a
+   * new reference (Sets compare by identity in selectors).
+   */
+  togglePodCollapse: (podId) =>
+    set((s) => {
+      const next = new Set(s.collapsedPods);
+      if (next.has(podId)) next.delete(podId);
+      else next.add(podId);
+      return { collapsedPods: next };
+    }),
+
+  /** Toggle the "show only re-groom" filter on the portfolio. */
+  setReGroomOnlyFilter: (enabled) => set({ reGroomOnlyFilter: enabled }),
+
+  /**
+   * Open a modal with optional context. `modalContext` is replaced
+   * wholesale on each open — there is no merge semantics.
+   */
+  openModalFor: (modal, context) =>
+    set({ openModal: modal, modalContext: context ?? null }),
+
+  /** Close any open modal and clear its context in the same update. */
+  closeModal: () => set({ openModal: null, modalContext: null }),
+
+  /** Set the active Planning Increment (or clear with null). */
+  setCurrentPI: (pi) => set({ currentPI: pi }),
 }));
 
 // ─── Internal helpers ───────────────────────────────────────

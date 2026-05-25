@@ -22,8 +22,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-3  | computeDelta + computeVariance + tests | done |
 | B-4  | computePodMetrics + tests | done |
 | B-5  | brpStore state + Loading actions | done |
-| B-6  | brpStore Capacity + Estimates + Analysis actions | in_progress |
-| B-7  | brpStore Navigation + UI actions | pending |
+| B-6  | brpStore Capacity + Estimates + Analysis actions | done |
+| B-7  | brpStore Navigation + UI actions | in_progress |
 | B-8  | AIEstimator + Zod schemas | pending |
 | B-9  | simulatedEstimator + provider | pending |
 | B-10 | brpGitlabService skeleton + mocked tests | pending |
@@ -353,7 +353,7 @@ $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp)" | wc -l
 0
 ```
 
-**Status: done**
+**Status: done — P2 complete (see B-7 entry below).**
 
 ---
 
@@ -413,5 +413,71 @@ $ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
 $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp)" | wc -l
 0
 ```
+
+**Status: done**
+
+---
+
+### B-7 — Navigation, UI, Modal actions (in_progress → done) — **P2 COMPLETE**
+
+**Date:** 2026-05-25
+**Files touched:**
+- `src/stores/brpStore.ts` — added 9 actions (8 from PRD §F2.2 + setCurrentPI)
+- `src/stores/brpStore.test.ts` — rm + Write; now 44 tests (13 + 17 + 14)
+
+**Actions added (9):**
+- **setView** — 'portfolio' ↔ 'pod'
+- **selectCrew / selectPod / selectEpic** — string | null setters
+- **togglePodCollapse** — Set add/remove with a FRESH Set instance per
+  toggle (so React selectors that compare by reference re-render correctly)
+- **setReGroomOnlyFilter** — boolean toggle
+- **openModalFor(modal, context?)** — modalContext defaults to null;
+  REPLACES the previous modal+context wholesale (no merge)
+- **closeModal** — clears openModal AND modalContext atomically
+- **setCurrentPI** — set the active PI (or null). Not in p2's explicit
+  action list but needed by P5 (the portfolio-view top bar shows the PI
+  name); pulling it forward is trivial here.
+
+**Design decisions:**
+- `togglePodCollapse` returns a new Set per toggle. Otherwise React's
+  `useShallow` / identity-based selectors would miss the change.
+- Modal opens REPLACE context entirely. Avoids subtle merge bugs where
+  a stale podId from a prior open leaks into a new modal.
+- `BrpModal` is `'capacity' | ... | null`. `openModalFor` parameter is
+  typed `Exclude<BrpModal, null>` so the caller can't open the "null
+  modal" (closeModal exists for that).
+
+**Tests added (14):**
+- setView toggle
+- select* setters: each sets and clears, independent of others
+- togglePodCollapse: add, remove, fresh Set identity, multi-pod independence
+- setReGroomOnlyFilter: on/off
+- openModalFor: no context, with context, replace semantics, close clears both
+- setCurrentPI: set + clear
+- reset also clears modal state (added one extra assertion to the existing
+  reset test for B-7 fields)
+
+**Verification:**
+
+```
+$ npm run test:run -- src/stores/brpStore.test.ts
+Test Files  1 passed (1)
+Tests       44 passed (44)
+Duration    499ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp)" | wc -l
+0
+```
+
+**Phase 2 complete:**
+- `src/stores/brpStore.ts` — 13 state fields + 14 actions (4 Loading + 1
+  Capacity + 1 Estimates + 3 Analysis + 5 Navigation/UI/Modal + reset)
+- `src/stores/brpStore.test.ts` — 44 tests
+- AIEstimator interface imported but no implementation — Phase 3's job.
+- Action contract FROZEN — components in Phase 5 can be written against
+  this surface without fear of signature churn.
 
 **Status: done**
