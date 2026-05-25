@@ -26,7 +26,17 @@
  */
 
 import { create } from 'zustand';
-import type { Crew, Epic, PI, Pod } from '../domain/brp';
+import type {
+  AIEstimator,
+  AnalysisStatus,
+  CapacityInputs,
+  Crew,
+  Epic,
+  FrameResult,
+  PI,
+  Pod,
+  ReferenceEpic,
+} from '../domain/brp';
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -61,12 +71,32 @@ interface BrpState {
   analysisStatus: BrpAnalysisStatus;
 }
 
+/**
+ * Caller-supplied reference resolver for `runAnalysis`. Given an epic, the
+ * resolver returns the historical reference epics FRAME should consider.
+ * The default (empty array) lets headless tests run without wiring P4's
+ * GitLab service; Phase 6 supplies a real implementation that queries the
+ * pod's closed epics.
+ */
+export type GetReferencesFn = (epic: Epic) => readonly ReferenceEpic[];
+
 interface BrpActions {
   // Group 1 — Loading (B-5)
   loadCrew: (crew: Crew) => void;
   loadPods: (crewId: string, pods: Pod[]) => void;
   loadEpicsIntoPod: (podId: string, epics: Epic[]) => void;
   reset: () => void;
+
+  // Group 2 — Capacity (B-6)
+  updatePodCapacity: (podId: string, inputs: CapacityInputs) => void;
+
+  // Group 3 — Estimates (B-6)
+  setHumanEstimate: (epicId: string, value: number | null) => void;
+
+  // Group 4 — Analysis (B-6)
+  runAnalysis: (estimator: AIEstimator, getReferences?: GetReferencesFn) => Promise<void>;
+  setEpicAnalysisStatus: (epicId: string, status: AnalysisStatus) => void;
+  setEpicFrameResult: (epicId: string, result: FrameResult) => void;
 }
 
 export type BrpStore = BrpState & BrpActions;
@@ -96,7 +126,7 @@ function initialState(): BrpState {
 
 // ─── Store ─────────────────────────────────────────────────
 
-export const useBrpStore = create<BrpStore>()((set) => ({
+export const useBrpStore = create<BrpStore>()((set, get) => ({
   ...initialState(),
 
   // Group 1 — Loading -------------------------------------------------
@@ -141,4 +171,160 @@ export const useBrpStore = create<BrpStore>()((set) => ({
    * never re-uses references from a prior session.
    */
   reset: () => set(initialState()),
+
+  // Group 2 — Capacity ------------------------------------------------
+
+  /**
+   * Write the 5 raw capacity inputs to a pod. Silently no-ops if the pod
+   * is not found. Crucially — this writes inputs, NOT `totalCapacity`.
+   * The total is always `computeCapacity(inputs).total` at the call site,
+   * which is the architectural invariant from Phase 1.
+   */
+  updatePodCapacity: (podId, inputs) =>
+    set((s) => ({
+      crews: s.crews.map((c) => ({
+        ...c,
+        pods: c.pods.map((p) => (p.id === podId ? { ...p, capacity: inputs } : p)),
+      })),
+    })),
+
+  // Group 3 — Estimates -----------------------------------------------
+
+  /**
+   * Set the planner's estimate on an Epic, or clear it with `null`.
+   * Searches across all crews' pods. Silently no-ops if the epic is not
+   * found. Setting this does NOT touch any other field — variance and
+   * delta re-derive on the next render because `computeVariance` reads
+   * `humanEstimate` live.
+   */
+  setHumanEstimate: (epicId, value) =>
+    set((s) => ({
+      crews: s.crews.map((c) => ({
+        ...c,
+        pods: c.pods.map((p) => ({
+          ...p,
+          epics: p.epics.map((e) =>
+            e.id === epicId ? { ...e, humanEstimate: value } : e,
+          ),
+        })),
+      })),
+    })),
+
+  // Group 4 — Analysis ------------------------------------------------
+
+  /**
+   * Walk every epic loaded into the store and analyze it through the
+   * supplied estimator. The estimator is dependency-injected (the store
+   * imports only the AIEstimator interface, never an implementation)
+   * which is what keeps Phase 2 swappable between simulator (Phase 3)
+   * and a real LLM (Phase 7).
+   *
+   * Scope (v1): every epic across every crew/pod. Phase 6 wiring may
+   * pre-filter the loaded state if the planner wants to analyze a
+   * subset; we keep the action signature minimal here to avoid leaking
+   * UI-scope decisions into the store.
+   *
+   * Per-epic lifecycle:
+   *   raw → analyzing (set immediately before the estimator call)
+   *   → done with frameResult (on 'done' event)
+   *   → error (on 'error' event — frameResult stays null)
+   *
+   * Whole-pipeline lifecycle:
+   *   idle → running (at start)
+   *   → done (after every epic finishes, success or error)
+   *
+   * `getReferences` defaults to returning [] so headless tests don't need
+   * a GitLab integration. Phase 6 wires a real per-epic reference resolver.
+   */
+  runAnalysis: async (estimator, getReferences = () => []) => {
+    set({ analysisStatus: 'running' });
+
+    // Snapshot the epic IDs at start. Walking the live store would risk
+    // missing newly-loaded epics or revisiting analyzed ones — neither
+    // is desirable. v1 semantics: "analyze whatever was loaded at kickoff".
+    const epicIds = get().crews.flatMap((c) =>
+      c.pods.flatMap((p) => p.epics.map((e) => e.id)),
+    );
+
+    for (const epicId of epicIds) {
+      // Re-read the epic each iteration in case prior actions mutated it.
+      const epic = findEpic(get().crews, epicId);
+      if (!epic) continue;
+
+      get().setEpicAnalysisStatus(epicId, 'analyzing');
+      try {
+        for await (const event of estimator.analyzeEpic(epic, getReferences(epic))) {
+          if (event.kind === 'done') {
+            get().setEpicFrameResult(event.epicId, event.result);
+          } else if (event.kind === 'error') {
+            get().setEpicAnalysisStatus(event.epicId, 'error');
+          }
+          // 'started' / 'progress' are observability-only in v1.
+        }
+      } catch (err) {
+        // Estimator threw outside the event stream — mark this epic
+        // errored, surface the error in the console for the dev, and
+        // continue with the rest of the run. Phase 7 may want to bubble
+        // this up to a UI toast instead.
+        // eslint-disable-next-line no-console
+        console.error(`[brpStore] runAnalysis: epic ${epicId} threw`, err);
+        get().setEpicAnalysisStatus(epicId, 'error');
+      }
+    }
+
+    set({ analysisStatus: 'done' });
+  },
+
+  /**
+   * Set an epic's lifecycle status. Used by `runAnalysis` internally and
+   * exposed for tests / Phase 6 manual flows. Does NOT clear `frameResult`
+   * — that's a deliberate choice so re-setting to 'analyzing' for a
+   * re-run keeps the previous result visible until the new one lands.
+   */
+  setEpicAnalysisStatus: (epicId, status) =>
+    set((s) => ({
+      crews: s.crews.map((c) => ({
+        ...c,
+        pods: c.pods.map((p) => ({
+          ...p,
+          epics: p.epics.map((e) =>
+            e.id === epicId ? { ...e, analysisStatus: status } : e,
+          ),
+        })),
+      })),
+    })),
+
+  /**
+   * Set an epic's FrameResult AND transition status to 'done' in one
+   * atomic update. The two go together — a 'done' status without a
+   * frameResult is a category violation, so the action enforces them
+   * as a pair.
+   */
+  setEpicFrameResult: (epicId, result) =>
+    set((s) => ({
+      crews: s.crews.map((c) => ({
+        ...c,
+        pods: c.pods.map((p) => ({
+          ...p,
+          epics: p.epics.map((e) =>
+            e.id === epicId
+              ? { ...e, frameResult: result, analysisStatus: 'done' as const }
+              : e,
+          ),
+        })),
+      })),
+    })),
 }));
+
+// ─── Internal helpers ───────────────────────────────────────
+
+/** Walk crews → pods → epics looking for an id. Returns undefined if not found. */
+function findEpic(crews: Crew[], epicId: string): Epic | undefined {
+  for (const c of crews) {
+    for (const p of c.pods) {
+      const e = p.epics.find((ep) => ep.id === epicId);
+      if (e) return e;
+    }
+  }
+  return undefined;
+}

@@ -21,8 +21,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-2  | computeCapacity + tests | done |
 | B-3  | computeDelta + computeVariance + tests | done |
 | B-4  | computePodMetrics + tests | done |
-| B-5  | brpStore state + Loading actions | in_progress |
-| B-6  | brpStore Capacity + Estimates + Analysis actions | pending |
+| B-5  | brpStore state + Loading actions | done |
+| B-6  | brpStore Capacity + Estimates + Analysis actions | in_progress |
 | B-7  | brpStore Navigation + UI actions | pending |
 | B-8  | AIEstimator + Zod schemas | pending |
 | B-9  | simulatedEstimator + provider | pending |
@@ -345,6 +345,67 @@ $ npm run test:run -- src/stores/brpStore.test.ts
 Test Files  1 passed (1)
 Tests       13 passed (13)
 Duration    640ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp)" | wc -l
+0
+```
+
+**Status: done**
+
+---
+
+### B-6 — Capacity + Estimates + Analysis actions (in_progress → done)
+
+**Date:** 2026-05-25
+**Files touched:**
+- `src/stores/brpStore.ts` — added 5 actions (+ `findEpic` helper) and the
+  remaining type imports (CapacityInputs, FrameResult, AnalysisStatus,
+  AIEstimator, ReferenceEpic)
+- `src/stores/brpStore.test.ts` — rm + Write; now 30 tests (13 from B-5 + 17 from B-6)
+
+**Actions added (5):**
+- **updatePodCapacity(podId, inputs)** — writes 5 raw inputs only; no totalCapacity field added; no-op on unknown pod
+- **setHumanEstimate(epicId, value | null)** — touches only humanEstimate; variance re-derives via computeVariance at read; no-op on unknown
+- **runAnalysis(estimator, getReferences?)** — async; walks every epic across crews/pods at kickoff; per-epic: status → 'analyzing' → 'done'+frameResult or 'error'; whole-pipeline: 'idle' → 'running' → 'done'; estimator throw caught → epic 'error', run continues; getReferences defaults to () => []
+- **setEpicAnalysisStatus(epicId, status)** — direct setter; does NOT clear frameResult (so re-runs preserve prior result until new one lands)
+- **setEpicFrameResult(epicId, result)** — sets result AND status='done' atomically (a 'done' without a result is a category violation)
+
+**Design decisions:**
+- `runAnalysis` scope = all loaded epics. Phase 6 wiring decides scope by
+  pre-loading only what should be analyzed; this keeps UI-scope concerns
+  out of the store.
+- `runAnalysis` snapshots epic IDs at kickoff (`get().crews.flatMap...`),
+  then re-reads each epic per iteration. Walking the live store would risk
+  missing newly-loaded epics or revisiting analyzed ones.
+- `runAnalysis` catches thrown estimator errors per-epic and continues —
+  one bad epic shouldn't kill the whole run. Logs via `console.error`;
+  Phase 7 may want toast UX.
+- `findEpic` helper at module scope (not in the store closure) so the
+  store value is small and the helper is testable in isolation if needed.
+
+**Tests added (17):**
+- updatePodCapacity (4): writes inputs, no totalCapacity field added,
+  doesn't touch other pods, no-op on unknown
+- setHumanEstimate (4): value set + variance derives correctly, null clears,
+  cross-pod isolation, no-op on unknown
+- setEpicAnalysisStatus (2): basic set, does NOT clear frameResult on
+  re-analyzing transition
+- setEpicFrameResult (1): atomic set of result + status='done'
+- runAnalysis (6): walks all epics + idle→running→done, sets 'analyzing'
+  before each call, 'error' event → epic 'error' + null frameResult,
+  thrown estimator continues run, empty store still transitions cleanly,
+  getReferences passed through to estimator
+
+**Verification:**
+
+```
+$ npm run test:run -- src/stores/brpStore.test.ts
+Test Files  1 passed (1)
+Tests       30 passed (30)
+Duration    1.00s
 
 $ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
 55   # baseline unchanged
