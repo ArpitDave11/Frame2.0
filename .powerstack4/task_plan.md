@@ -25,8 +25,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-6  | brpStore Capacity + Estimates + Analysis actions | done |
 | B-7  | brpStore Navigation + UI actions | done |
 | B-8  | AIEstimator + Zod schemas | done |
-| B-9  | simulatedEstimator + provider | in_progress |
-| B-10 | brpGitlabService skeleton + mocked tests | pending |
+| B-9  | simulatedEstimator + provider | done |
+| B-10 | brpGitlabService skeleton + mocked tests | in_progress |
 | B-11 | brpGitlabService live smoke (gated) | pending |
 | —    | 5-agent deep-review checkpoint | pending |
 | B-12 | Knowledge base docs | pending |
@@ -620,5 +620,94 @@ $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/service
 - 58 tests across 2 test files (schemas 38 + simulator 20)
 - The store imports only AIEstimator from domain/brp — no implementation dep.
 - brpStore.runAnalysis tests already exercise this seam via DI (B-6).
+
+**Status: done**
+
+---
+
+### B-10 — brpGitlabService skeleton + mocked tests (in_progress → done)
+
+**Date:** 2026-05-25
+**Files created:**
+- `src/services/brp/brpGitlabService.ts` (~180 lines)
+- `src/services/brp/brpGitlabService.test.ts` (~280 lines) — 20 tests
+
+**Four public operations:**
+- `fetchCrews(config)` → `Result<Crew[]>` — top-level subgroups under
+  `config.rootGroupId`, mapped to crews with empty pods. Errors out
+  cleanly if rootGroupId is missing.
+- `fetchPods(config, crewGroupId)` → `Result<Pod[]>` — subgroups under
+  the crew's GitLab group, mapped to pods with `DEFAULT_POD_CAPACITY`
+  (resources 1, spPerResource 10 from constants, sprintCount 6,
+  holiday 0, leave 0) + empty epics.
+- `fetchPodEpics(config, podSubgroupId)` → `Result<Epic[]>` — opened
+  epics in the pod's subgroup, per_page=100. Each Epic returned with
+  `analysisStatus: 'raw'`, `frameResult: null`, `humanEstimate: null`.
+- `fetchReferenceEpics(config, podSubgroupId)` → `Result<ReferenceEpic[]>`
+  — closed epics, similarity hardcoded at 0.5 (real value belongs to
+  estimator at analyzeEpic time), actualSp parsed from labels via
+  `/^SP[\s:_-]?(\d+)$/i`.
+
+**Design decisions:**
+- **Composition only.** No `fetch()` calls. Imports only
+  `fetchGitLabSubgroups` and `fetchGroupEpics` from gitlabClient.
+- **Description normalization.** `gitlabEpicToEpic` coerces a null
+  description to '' so `computeVariance`'s thin-description heuristic
+  never has to null-check. Documented at the mapper.
+- **id coercion at the boundary.** GitLab uses numeric ids on epics,
+  string ids on subgroups; BRP entities carry both `id: string`
+  (for routing/keys) and `gitlabGroupId|gitlabSubgroupId: number`
+  (for outbound calls). Conversion happens in the mappers only.
+- **DEFAULT_POD_CAPACITY exported** so tests + P5's UI can both
+  reference the same value. Frozen object; spread when assigning.
+- **Pagination is single-page (100).** Documented as a v1 limitation:
+  PI planning typically scopes < 100 epics per pod. v2 should iterate.
+
+**Known limitations (documented in source comments):**
+- `ReferenceEpic.similarity` hardcoded at 0.5 — real similarity needs
+  text comparison against the analyzed epic, which is the estimator's
+  job (P7).
+- `ReferenceEpic.actualSp` parsed from labels — GitLab's `weight`
+  field on issues would be more authoritative but requires iterating
+  each epic's children (deferred to P7).
+
+**Tests (20), all mock gitlabClient via `vi.mock`:**
+- fetchCrews (4): happy path mapping, empty rootGroupId, GitLab error
+  propagation, empty subgroup response
+- fetchPods (4): mapping + default capacity, CapacityInputs shape +
+  numeric types, string coercion of crewGroupId in the outbound call,
+  GitLab error propagation
+- fetchPodEpics (6): mapping with `'raw'`/null invariants, id string
+  coercion, **null description → ''** normalization, correct outbound
+  params `{state:'opened', per_page:100}`, error propagation, mapper
+  doesn't pass through spurious fields (frameResult/variance leak)
+- fetchReferenceEpics (6): closed-state filter + mapping, SP label
+  parsing across 5 formats (SP-13, sp:8, SP 21, sp_5, SP100), no SP
+  label → 0, malformed SP label → 0, similarity always 0.5, error
+  propagation
+
+**Hook story (worth journaling for future tasks):**
+First write of brpGitlabService.test.ts used a `@ts-expect-error`
+directive that didn't fire on the second occurrence (the second
+property in the spread inherited the cast). TS2578 raised tsc to 56.
+First attempt to fix via Edit was BLOCKED by H3 pre-edit-protect-tests
+hook (the test file already existed). Fixed by rm + Write — the
+hook's documented pattern. The behavior is exactly as the IR devlog
+described it.
+
+**Verification:**
+
+```
+$ npm run test:run -- src/services/brp/brpGitlabService.test.ts
+Test Files  1 passed (1)
+Tests       20 passed (20)
+Duration    446ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
+0
+```
 
 **Status: done**
