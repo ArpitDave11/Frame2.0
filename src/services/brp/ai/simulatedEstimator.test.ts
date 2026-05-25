@@ -6,12 +6,8 @@ import {
 import { getEstimator } from './estimatorProvider';
 import { AnalysisEventSchema } from './schemas';
 import { FIBONACCI_POINTS } from '../../../domain/brp.constants';
-import type {
-  AnalysisEvent,
-  Epic,
-  FrameResult,
-  ReferenceEpic,
-} from '../../../domain/brp';
+import type { Epic, FrameResult, ReferenceEpic } from '../../../domain/brp';
+import type { AnalysisEvent } from './types';
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -73,21 +69,18 @@ describe('createSimulatedEstimator — determinism', () => {
   });
 
   it('different epic.id values typically produce different frameEstimates', async () => {
-    // Not a strict guarantee (any two ids could collide on frameEstimate
-    // by chance — there are only 9 possible values), so we sample 25 ids
-    // and assert at least 3 distinct frameEstimates appear. That's the
-    // weakest claim that still rules out "all ids return the same value".
+    // Sample 25 ids and assert at least 5 distinct frameEstimates appear.
+    // (Bumped from ≥ 3 per deep-review nice-to-have TQ #10 — middle-bias
+    // covers 7+ buckets so < 5 distinct is negligible probability.)
     const estimates = new Set<number>();
     for (let i = 0; i < 25; i++) {
       const result = await runAndExtractResult(buildEpic({ id: `gl:sample-${i}` }));
       estimates.add(result.frameEstimate);
     }
-    expect(estimates.size).toBeGreaterThanOrEqual(3);
+    expect(estimates.size).toBeGreaterThanOrEqual(5);
   });
 
   it('determinism is stable across fresh estimator instances', async () => {
-    // The instance carries no state; PRNG seeding is per-call from
-    // epic.id. So two different estimator instances must agree.
     const epic = buildEpic({ id: 'gl:stable-instance' });
     const a = createSimulatedEstimator();
     const b = createSimulatedEstimator();
@@ -115,9 +108,7 @@ describe('createSimulatedEstimator — event sequence', () => {
     );
     expect(events[0]?.kind).toBe('started');
     expect(events[events.length - 1]?.kind).toBe('done');
-    // No 'error' in the happy path
     expect(events.find((e) => e.kind === 'error')).toBeUndefined();
-    // At least one progress between start and done
     expect(events.some((e) => e.kind === 'progress')).toBe(true);
   });
 
@@ -163,8 +154,6 @@ describe('createSimulatedEstimator — schema compliance', () => {
 
 describe('createSimulatedEstimator — breakdown', () => {
   it('breakdown sums to within ±1 of frameEstimate for every epic id sampled', async () => {
-    // Try 50 different ids so we exercise all frameEstimate values and
-    // all template variants per value.
     for (let i = 0; i < 50; i++) {
       const epic = buildEpic({ id: `gl:breakdown-${i}` });
       const result = await runAndExtractResult(epic);
@@ -205,10 +194,10 @@ describe('createSimulatedEstimator — confidence', () => {
     }
   });
 
-  it('single-item breakdowns typically have HIGHER confidence than multi-item ones', async () => {
-    // Sample many ids; partition by breakdown size; assert the mean
-    // confidence of single-item breakdowns exceeds the mean of 3+ item
-    // breakdowns. This is the "inversely tracks variance" assertion.
+  it('single-item breakdowns have higher mean confidence than 3+ item ones (with buffer)', async () => {
+    // Deep-review C2: prior version had no statistical buffer. Confidence
+    // formulas: singles ~0.92 ± 0.03; multi ~0.85 − 0.5·cv ± 0.05. The
+    // real-world gap is typically 0.15–0.30, so a 0.05 buffer is safe.
     const singles: number[] = [];
     const multi: number[] = [];
     for (let i = 0; i < 200; i++) {
@@ -217,13 +206,11 @@ describe('createSimulatedEstimator — confidence', () => {
       if (result.breakdown.length === 1) singles.push(result.confidence);
       else if (result.breakdown.length >= 3) multi.push(result.confidence);
     }
-    // We need enough samples on both sides for the assertion to mean
-    // anything. If the simulator picks distributions such that we don't
-    // get either bucket populated, this would be a sampling problem.
     expect(singles.length).toBeGreaterThan(5);
     expect(multi.length).toBeGreaterThan(5);
     const mean = (arr: number[]) => arr.reduce((s, n) => s + n, 0) / arr.length;
-    expect(mean(singles)).toBeGreaterThan(mean(multi));
+    // Buffer: at least 0.05 separation, well below the expected 0.15–0.30 gap.
+    expect(mean(singles)).toBeGreaterThan(mean(multi) + 0.05);
   });
 });
 
@@ -267,9 +254,56 @@ describe('createSimulatedEstimator — metadata', () => {
     expect(result.generatedStories).toBeNull();
   });
 
-  it('analyzedAt is a parseable ISO-8601 timestamp', async () => {
+  it('analyzedAt is a parseable ISO-8601 timestamp within ~5s of now', async () => {
+    // Deep-review nice-to-have TQ #17: the prior "parseable" check was
+    // too weak (Date.parse('2026') succeeds). Tighten to "fresh".
+    const before = Date.now();
     const result = await runAndExtractResult(buildEpic());
-    expect(Number.isNaN(Date.parse(result.analyzedAt))).toBe(false);
+    const after = Date.now();
+    const parsed = Date.parse(result.analyzedAt);
+    expect(Number.isNaN(parsed)).toBe(false);
+    // Allow 5s slack for slow CI machines.
+    expect(parsed).toBeGreaterThanOrEqual(before - 5_000);
+    expect(parsed).toBeLessThanOrEqual(after + 5_000);
+  });
+});
+
+// ─── AbortSignal handling (deep-review C1 / I2 / I7) ───────
+
+describe('createSimulatedEstimator — AbortSignal handling', () => {
+  it('with a signal that is already aborted: emits no events', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const events = await collectEvents(
+      createSimulatedEstimator().analyzeEpic(buildEpic(), [], controller.signal),
+    );
+    expect(events).toEqual([]);
+  });
+
+  it('signal aborted after start, before done: emits started + progress but no done', async () => {
+    // Pull events one at a time and abort between yields.
+    const controller = new AbortController();
+    const iter = createSimulatedEstimator()
+      .analyzeEpic(buildEpic(), [], controller.signal)
+      [Symbol.asyncIterator]();
+    const first = await iter.next();
+    expect(first.value?.kind).toBe('started');
+    controller.abort();
+    // Collect the rest; the simulator should return early without 'done'.
+    const remainder: AnalysisEvent[] = [];
+    let n = await iter.next();
+    while (!n.done) {
+      remainder.push(n.value);
+      n = await iter.next();
+    }
+    expect(remainder.find((e) => e.kind === 'done')).toBeUndefined();
+  });
+
+  it('with no signal supplied: behaves exactly as before (back-compat)', async () => {
+    const events = await collectEvents(
+      createSimulatedEstimator().analyzeEpic(buildEpic({ id: 'gl:no-signal' }), []),
+    );
+    expect(events.find((e) => e.kind === 'done')).toBeDefined();
   });
 });
 

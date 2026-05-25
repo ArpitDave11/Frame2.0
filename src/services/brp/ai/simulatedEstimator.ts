@@ -17,8 +17,6 @@
  */
 
 import type {
-  AIEstimator,
-  AnalysisEvent,
   BreakdownItem,
   Epic,
   FibonacciPoint,
@@ -26,6 +24,7 @@ import type {
   ReferenceEpic,
 } from '../../../domain/brp';
 import { FIBONACCI_POINTS } from '../../../domain/brp.constants';
+import type { AIEstimator, AnalysisEvent } from './types';
 
 // ─── Deterministic randomness ───────────────────────────────
 
@@ -174,16 +173,26 @@ export function createSimulatedEstimator(): AIEstimator {
     async *analyzeEpic(
       epic: Epic,
       references: readonly ReferenceEpic[],
+      signal?: AbortSignal,
     ): AsyncIterable<AnalysisEvent> {
       const seed = hashCode(epic.id);
       const rng = mulberry32(seed);
 
+      // Honor caller cancellation between every yield. The simulator
+      // has no awaits of its own (synchronous compute), so checking
+      // `signal?.aborted` is the only cooperative cancellation point.
+      // A real Phase 7 estimator would also propagate the signal into
+      // its `fetch()` calls.
+      if (signal?.aborted) return;
+
       // Started — terminal marker for "I've picked this one up".
       yield { kind: 'started', epicId: epic.id };
+      if (signal?.aborted) return;
 
       // One progress tick mid-flight. A real LLM might emit many; for
       // the simulator one is enough to exercise consumer event loops.
       yield { kind: 'progress', epicId: epic.id, pct: 0.5 };
+      if (signal?.aborted) return;
 
       // Compose the result deterministically.
       const frameEstimate = pickFrameEstimate(rng);

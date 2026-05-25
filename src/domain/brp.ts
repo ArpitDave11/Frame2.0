@@ -247,41 +247,12 @@ export interface PodMetrics {
 }
 
 // ─── AI seam ────────────────────────────────────────────────
-
-/**
- * Events emitted by an AIEstimator while analyzing one epic. The shape
- * supports streaming progress without changing the consumer contract
- * when the simulator (Phase 3) is swapped for a real LLM (Phase 7).
- *
- *   started   first event — emitted once per analyzeEpic call
- *   progress  zero-or-more — `pct` in [0, 1]
- *   done      terminal — carries the FrameResult
- *   error     terminal — analyzer failed; carries a human-readable message
- *
- * A consumer should treat 'done' or 'error' as the end of the iterator.
- */
-export type AnalysisEvent =
-  | { kind: 'started'; epicId: string }
-  | { kind: 'progress'; epicId: string; pct: number }
-  | { kind: 'done'; epicId: string; result: FrameResult }
-  | { kind: 'error'; epicId: string; message: string };
-
-/**
- * The seam between BRP and any analysis backend. The brpStore imports
- * ONLY this interface — never an implementation — so the simulator
- * (Phase 3) and the real estimator (Phase 7) are drop-in interchangeable.
- *
- * `analyzeEpic` is async-iterable so streaming progress works without
- * a separate event-emitter contract. References are passed in by the
- * caller (not fetched inside the estimator) to keep the interface
- * dependency-free.
- */
-export interface AIEstimator {
-  analyzeEpic(
-    epic: Epic,
-    references: readonly ReferenceEpic[],
-  ): AsyncIterable<AnalysisEvent>;
-}
+//
+// `AIEstimator` and `AnalysisEvent` USED to live here. The Architecture
+// reviewer (deep-review 2026-05-25, finding I10) correctly noted that a
+// service seam doesn't belong in a module whose own header claims to be
+// "dependency-free of services." They were moved to
+// `src/services/brp/ai/types.ts`. Consumers import them from there.
 
 // ─── Pure functions ─────────────────────────────────────────
 

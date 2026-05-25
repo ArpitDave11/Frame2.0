@@ -22,13 +22,13 @@
 
 import { z } from 'zod';
 import type {
-  AnalysisEvent,
   BreakdownItem,
   FibonacciPoint,
   FrameResult,
   GeneratedStory,
   ReferenceEpic,
 } from '../../../domain/brp';
+import type { AnalysisEvent } from './types';
 
 // ─── FibonacciPoint ─────────────────────────────────────────
 

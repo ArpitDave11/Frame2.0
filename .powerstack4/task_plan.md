@@ -27,8 +27,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-8  | AIEstimator + Zod schemas | done |
 | B-9  | simulatedEstimator + provider | done |
 | B-10 | brpGitlabService skeleton + mocked tests | done |
-| B-11 | brpGitlabService live smoke (gated) | in_progress |
-| —    | 5-agent deep-review checkpoint | pending |
+| B-11 | brpGitlabService live smoke (gated) | done |
+| —    | 5-agent deep-review checkpoint | in_progress (fix loop) |
 | B-12 | Knowledge base docs | pending |
 | B-13 | Devlog + ADR-0003 + final commit | pending |
 
@@ -770,9 +770,79 @@ $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/service
 - `src/services/brp/brpGitlabService.ts` — 4 ops composing gitlabClient
 - `src/services/brp/brpGitlabService.test.ts` — 20 mocked tests
 - `src/services/brp/brpGitlabService.live.test.ts` — gated smoke, 1 test (skipped)
-- Total BRP test count: 79 (35 pure + 44 store + 38 schemas + 20 simulator
-  + 20 service-mocked + 1 service-live, with the live one skipped)
-  Wait — that's actually 35+44+38+20+20+1 = 158 tests across all BRP files.
-  Per-file numbers earlier were per-file totals, not deltas.
+- Total BRP test count post-P4: 158 (35 + 44 + 38 + 20 + 20 + 1 skipped).
 
 **Status: done**
+
+---
+
+### Deep-review checkpoint — 5 agents in parallel
+
+**Date:** 2026-05-25
+**Protocol:** docs/runbooks/deep-review-a10.md
+**Diff target:** main..HEAD on feature/brp
+
+5 reviewers ran in parallel against `/tmp/brp-prod-*.md` + `/tmp/brp-tests-*.md`
+bundles (worktree sandbox blocked direct access; bundles built via Bash from
+the actual worktree files):
+- Correctness
+- Architecture & Idioms
+- Security — **clean, no findings**
+- Production Readiness
+- Test Quality
+
+**Aggregated findings:** 3 critical, 15 important, 10 nice-to-have. Full
+report at `docs/reviews/2026-05-25-brp-headless-deep-review.md`.
+
+**Three acknowledged-deferred** (Phase 5/6 wiring concerns, documented in
+`docs/reviews/acknowledged.md`): I5 (error channel via onError),
+I6 (progress state field), I8 (Result<T> error widening).
+
+---
+
+### Cluster 1 — Interface revision (C1 + I1 + I2 + I7 + I10)
+
+**Files touched:**
+- NEW `src/services/brp/ai/types.ts` (~75 lines) — `AIEstimator` + `AnalysisEvent` moved here from `domain/brp.ts` (I10 — domain claimed to be services-free)
+- `src/domain/brp.ts` — removed AIEstimator + AnalysisEvent; left a comment pointer
+- `src/services/brp/ai/{schemas,simulatedEstimator,estimatorProvider}.ts` — imports updated
+- `src/services/brp/ai/simulatedEstimator.ts` — added `signal?: AbortSignal` to `analyzeEpic`; checks `signal?.aborted` between yields and returns early
+- `src/stores/brpStore.ts`:
+  - Imports `AIEstimator` from new location
+  - New `RunAnalysisOptions { signal?: AbortSignal }`
+  - Module-level `currentRunController: AbortController | null` (tied to store singleton lifecycle)
+  - `runAnalysis`: concurrency guard (early-return if already 'running'); creates internal controller, composes with caller signal; passes signal to estimator; checks `controller.signal.aborted` between epics + between events; on abort, terminal state is `'idle'` (not `'done'`); **defensive `event.epicId !== epic.id` guard** (I1)
+  - `reset`: aborts `currentRunController` before clearing state, preventing zombie writes after the in-flight loop's finally block
+- Tests: rm + Write `brpStore.test.ts` and `simulatedEstimator.test.ts`
+
+**New tests added (8):**
+- `brpStore` runAnalysis cancellation/concurrency (5): mismatched-epicId
+  ignored; concurrent call is no-op; reset() aborts mid-run; options.signal
+  aborts; already-aborted signal → no work
+- `simulatedEstimator` AbortSignal handling (3): already-aborted before
+  start → no events; aborted mid-stream → no 'done' event; no-signal
+  back-compat
+
+**Findings resolved by this cluster:**
+- **C1** (run lifecycle: no cancellation + no concurrency guard) — fixed
+- **I1** (estimator could overwrite wrong epic) — defensive `event.epicId === epic.id` check
+- **I2** (hung iterator) — caller-side abort breaks the for-await; bundled with the AbortSignal contract
+- **I7** (no timeout/AbortSignal in interface) — interface now anticipates it
+- **I10** (AIEstimator should move out of domain) — moved to `services/brp/ai/types.ts`
+
+**Verification:**
+
+```
+$ npm run test:run -- src/domain/brp.test.ts src/stores/brpStore.test.ts src/services/brp/
+Test Files  5 passed | 1 skipped (6)
+Tests       165 passed | 1 skipped (166)
+Duration    1.56s
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
+0
+```
+
+**Status: cluster 1 done. Cluster 2 (test fixes for C2+C3+I11–I15) and Cluster 3 (small fixes I3+I4+I9) pending.**

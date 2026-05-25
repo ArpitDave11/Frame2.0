@@ -27,7 +27,6 @@
 
 import { create } from 'zustand';
 import type {
-  AIEstimator,
   AnalysisStatus,
   CapacityInputs,
   Crew,
@@ -37,6 +36,7 @@ import type {
   Pod,
   ReferenceEpic,
 } from '../domain/brp';
+import type { AIEstimator } from '../services/brp/ai/types';
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -80,6 +80,19 @@ interface BrpState {
  */
 export type GetReferencesFn = (epic: Epic) => readonly ReferenceEpic[];
 
+/**
+ * Optional caller-supplied options for `runAnalysis`. Added post-deep-review
+ * to address Critical finding C1 (no cancellation, no concurrency guard)
+ * and Important findings I2/I7 (hung iterator / no timeout in interface).
+ *
+ * `signal`: caller can abort the run from outside (e.g., a "Cancel"
+ * button). Combined with the store's internal AbortController, this
+ * gives both UI cancellation and lifecycle cancellation (`reset()`).
+ */
+export interface RunAnalysisOptions {
+  signal?: AbortSignal;
+}
+
 interface BrpActions {
   // Group 1 — Loading (B-5)
   loadCrew: (crew: Crew) => void;
@@ -94,7 +107,11 @@ interface BrpActions {
   setHumanEstimate: (epicId: string, value: number | null) => void;
 
   // Group 4 — Analysis (B-6)
-  runAnalysis: (estimator: AIEstimator, getReferences?: GetReferencesFn) => Promise<void>;
+  runAnalysis: (
+    estimator: AIEstimator,
+    getReferences?: GetReferencesFn,
+    options?: RunAnalysisOptions,
+  ) => Promise<void>;
   setEpicAnalysisStatus: (epicId: string, status: AnalysisStatus) => void;
   setEpicFrameResult: (epicId: string, result: FrameResult) => void;
 
@@ -111,6 +128,20 @@ interface BrpActions {
 }
 
 export type BrpStore = BrpState & BrpActions;
+
+// ─── Run-lifecycle controller (module-level, tied to store singleton) ──
+//
+// Hidden from BrpState so subscribers don't re-render on its changes. Tracks
+// the currently-active runAnalysis's AbortController so:
+//   1. `reset()` can abort an in-flight run cleanly.
+//   2. A re-entry guard can be implemented by checking analysisStatus
+//      AND that no controller is live.
+//
+// Zustand stores are module-singletons, so a module-level mutable matches
+// the store's lifecycle. Test isolation comes from calling `reset()` in
+// `beforeEach`, which now also aborts any in-flight run.
+
+let currentRunController: AbortController | null = null;
 
 // ─── Initial State ─────────────────────────────────────────
 
@@ -179,9 +210,17 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
 
   /**
    * Restore the store to its empty initial state. Fresh Set + arrays —
-   * never re-uses references from a prior session.
+   * never re-uses references from a prior session. Also aborts any
+   * in-flight `runAnalysis` so its finally-block lands on the cleared
+   * state without zombie writes (deep-review Critical C1).
    */
-  reset: () => set(initialState()),
+  reset: () => {
+    if (currentRunController) {
+      currentRunController.abort();
+      currentRunController = null;
+    }
+    set(initialState());
+  },
 
   // Group 2 — Capacity ------------------------------------------------
 
@@ -226,9 +265,9 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
   /**
    * Walk every epic loaded into the store and analyze it through the
    * supplied estimator. The estimator is dependency-injected (the store
-   * imports only the AIEstimator interface, never an implementation)
-   * which is what keeps Phase 2 swappable between simulator (Phase 3)
-   * and a real LLM (Phase 7).
+   * imports only the AIEstimator interface from `services/brp/ai/types`,
+   * never an implementation) which is what keeps Phase 2 swappable
+   * between simulator (Phase 3) and a real LLM (Phase 7).
    *
    * Scope (v1): every epic across every crew/pod. Phase 6 wiring may
    * pre-filter the loaded state if the planner wants to analyze a
@@ -242,12 +281,43 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
    *
    * Whole-pipeline lifecycle:
    *   idle → running (at start)
-   *   → done (after every epic finishes, success or error)
+   *   → done (every epic finished, success or error)
+   *   → idle (aborted via `reset()` or `options.signal`)
+   *
+   * Cancellation (deep-review Critical C1, Important I2/I7):
+   *   - Re-entry while already 'running' is a no-op (concurrency guard).
+   *   - `reset()` aborts any in-flight run; the run ends in 'idle' state
+   *     and writes nothing further to the (now-cleared) store.
+   *   - `options.signal` lets a caller (Phase 6 UI) abort the run
+   *     externally. The internal AbortController is composed with it.
+   *   - The estimator is passed `controller.signal` so it can cooperate.
+   *   - Between epics and between events, the loop checks
+   *     `controller.signal.aborted` and short-circuits.
+   *
+   * Defensive: event.epicId MUST match the epic currently being analyzed
+   * (deep-review Important I1). Mismatched events are silently dropped
+   * — never a cross-epic write.
    *
    * `getReferences` defaults to returning [] so headless tests don't need
    * a GitLab integration. Phase 6 wires a real per-epic reference resolver.
    */
-  runAnalysis: async (estimator, getReferences = () => []) => {
+  runAnalysis: async (estimator, getReferences = () => [], options = {}) => {
+    // Concurrency guard (C1): a second call while a first is in flight
+    // is a no-op. Re-entrancy was a real corruption risk before this
+    // guard — two interleaved loops sharing `set()` calls.
+    if (get().analysisStatus === 'running') return;
+
+    // Internal controller composed with optional caller signal.
+    const controller = new AbortController();
+    currentRunController = controller;
+    if (options.signal) {
+      if (options.signal.aborted) {
+        controller.abort();
+      } else {
+        options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
+    }
+
     set({ analysisStatus: 'running' });
 
     // Snapshot the epic IDs at start. Walking the live store would risk
@@ -257,33 +327,60 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
       c.pods.flatMap((p) => p.epics.map((e) => e.id)),
     );
 
-    for (const epicId of epicIds) {
-      // Re-read the epic each iteration in case prior actions mutated it.
-      const epic = findEpic(get().crews, epicId);
-      if (!epic) continue;
+    try {
+      for (const epicId of epicIds) {
+        if (controller.signal.aborted) break;
 
-      get().setEpicAnalysisStatus(epicId, 'analyzing');
-      try {
-        for await (const event of estimator.analyzeEpic(epic, getReferences(epic))) {
-          if (event.kind === 'done') {
-            get().setEpicFrameResult(event.epicId, event.result);
-          } else if (event.kind === 'error') {
-            get().setEpicAnalysisStatus(event.epicId, 'error');
+        // Re-read the epic each iteration in case prior actions mutated it.
+        const epic = findEpic(get().crews, epicId);
+        if (!epic) continue;
+
+        get().setEpicAnalysisStatus(epicId, 'analyzing');
+        try {
+          for await (const event of estimator.analyzeEpic(
+            epic,
+            getReferences(epic),
+            controller.signal,
+          )) {
+            if (controller.signal.aborted) break;
+            // I1: defensive epicId match. A buggy/malicious estimator
+            // could otherwise overwrite an unrelated epic's state.
+            if (event.epicId !== epic.id) continue;
+            if (event.kind === 'done') {
+              get().setEpicFrameResult(epic.id, event.result);
+            } else if (event.kind === 'error') {
+              get().setEpicAnalysisStatus(epic.id, 'error');
+            }
+            // 'started' / 'progress' are observability-only in v1.
+            // (Phase 5/6 will wire progress state — see acknowledged.md I6.)
           }
-          // 'started' / 'progress' are observability-only in v1.
+        } catch (err) {
+          if (controller.signal.aborted) break;
+          // Estimator threw outside the event stream — mark this epic
+          // errored, surface in the console for the dev, and continue
+          // with the rest of the run. Phase 5/6 may inject an onError
+          // callback to surface to UI (see acknowledged.md I5).
+          // eslint-disable-next-line no-console
+          console.error(`[brpStore] runAnalysis: epic ${epicId} threw`, err);
+          get().setEpicAnalysisStatus(epicId, 'error');
         }
-      } catch (err) {
-        // Estimator threw outside the event stream — mark this epic
-        // errored, surface the error in the console for the dev, and
-        // continue with the rest of the run. Phase 7 may want to bubble
-        // this up to a UI toast instead.
-        // eslint-disable-next-line no-console
-        console.error(`[brpStore] runAnalysis: epic ${epicId} threw`, err);
-        get().setEpicAnalysisStatus(epicId, 'error');
+      }
+    } finally {
+      // Clear the module controller only if it's still ours (defensive
+      // against unexpected re-entry; the concurrency guard should make
+      // this impossible).
+      if (currentRunController === controller) {
+        currentRunController = null;
+      }
+      // Terminal state: aborted → 'idle' (caller cancelled, no result);
+      // otherwise → 'done'. If reset() already cleared state to 'idle'
+      // via initialState(), this set is a no-op equivalent.
+      if (controller.signal.aborted) {
+        set({ analysisStatus: 'idle' });
+      } else {
+        set({ analysisStatus: 'done' });
       }
     }
-
-    set({ analysisStatus: 'done' });
   },
 
   /**

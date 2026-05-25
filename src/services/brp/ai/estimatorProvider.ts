@@ -8,7 +8,7 @@
  * a one-line change here; nothing else moves.
  */
 
-import type { AIEstimator } from '../../../domain/brp';
+import type { AIEstimator } from './types';
 import { createSimulatedEstimator } from './simulatedEstimator';
 
 /**

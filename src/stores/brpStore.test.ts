@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBrpStore } from './brpStore';
 import { computeCapacity, computeVariance } from '../domain/brp';
 import type {
-  AIEstimator,
-  AnalysisEvent,
   CapacityInputs,
   Crew,
   Epic,
@@ -12,6 +10,7 @@ import type {
   Pod,
   ReferenceEpic,
 } from '../domain/brp';
+import type { AIEstimator, AnalysisEvent } from '../services/brp/ai/types';
 
 // ─── Fixtures ───────────────────────────────────────────────
 
@@ -72,6 +71,12 @@ function buildFrameResult(overrides: Partial<FrameResult> = {}): FrameResult {
   };
 }
 
+/**
+ * Build a mock AIEstimator that emits the supplied event sequence for
+ * every epic it analyzes. Ignores the signal param (its handling is the
+ * store's responsibility in these tests — and tested separately in the
+ * simulator's own suite).
+ */
 function buildEstimator(
   eventsFor: (epic: Epic) => readonly AnalysisEvent[],
 ): AIEstimator {
@@ -79,6 +84,7 @@ function buildEstimator(
     async *analyzeEpic(
       epic: Epic,
       _refs: readonly ReferenceEpic[],
+      _signal?: AbortSignal,
     ): AsyncIterable<AnalysisEvent> {
       for (const ev of eventsFor(epic)) {
         yield ev;
@@ -608,6 +614,193 @@ describe('brpStore — runAnalysis', () => {
   });
 });
 
+// ─── runAnalysis — cancellation & concurrency (deep-review C1, I1, I2, I7) ──
+
+describe('brpStore — runAnalysis cancellation & concurrency', () => {
+  it('event with mismatched epicId is silently ignored (I1)', async () => {
+    // A buggy/malicious estimator emits a 'done' for an epicId we are not
+    // currently analyzing. The store MUST NOT cross-write.
+    useBrpStore.getState().loadCrew(
+      buildCrew({
+        id: 'crew-A',
+        pods: [
+          buildPod({
+            id: 'pod-X',
+            epics: [
+              buildEpic({ id: 'E1' }),
+              buildEpic({ id: 'E2' }),
+            ],
+          }),
+        ],
+      }),
+    );
+    // While analyzing E1, claim a 'done' for E2 instead. Then yield a real
+    // 'done' for E1 so the per-epic transition completes.
+    const estimator: AIEstimator = {
+      async *analyzeEpic(epic) {
+        yield {
+          kind: 'done',
+          epicId: 'WRONG-ID',
+          result: buildFrameResult({ frameEstimate: 100 }),
+        };
+        yield {
+          kind: 'done',
+          epicId: epic.id,
+          result: buildFrameResult({ frameEstimate: 5 }),
+        };
+      },
+    };
+
+    await useBrpStore.getState().runAnalysis(estimator);
+    const epics = useBrpStore.getState().crews[0]!.pods[0]!.epics;
+    // E1 receives only the matching event's result (5), not 100.
+    expect(epics.find((e) => e.id === 'E1')!.frameResult?.frameEstimate).toBe(5);
+    expect(epics.find((e) => e.id === 'E2')!.frameResult?.frameEstimate).toBe(5);
+  });
+
+  it('concurrent runAnalysis call is a no-op (C1 concurrency guard)', async () => {
+    useBrpStore.getState().loadCrew(
+      buildCrew({
+        id: 'crew-A',
+        pods: [buildPod({ id: 'pod-X', epics: [buildEpic({ id: 'E1' })] })],
+      }),
+    );
+
+    // First estimator pauses inside the loop so the second call lands while
+    // the first is mid-run.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    let firstInvocations = 0;
+    const slowEstimator: AIEstimator = {
+      async *analyzeEpic(epic) {
+        firstInvocations++;
+        yield { kind: 'started', epicId: epic.id };
+        await gate;
+        yield { kind: 'done', epicId: epic.id, result: buildFrameResult() };
+      },
+    };
+
+    // Second estimator should never be invoked because the first call is still 'running'.
+    let secondInvocations = 0;
+    const eagerEstimator = buildEstimator((epic) => {
+      secondInvocations++;
+      return [{ kind: 'done', epicId: epic.id, result: buildFrameResult() }];
+    });
+
+    const firstPromise = useBrpStore.getState().runAnalysis(slowEstimator);
+    // Wait a tick so the first call enters 'running'.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(useBrpStore.getState().analysisStatus).toBe('running');
+
+    // Second call must be a no-op (early-return because already running).
+    await useBrpStore.getState().runAnalysis(eagerEstimator);
+    expect(secondInvocations).toBe(0);
+
+    release();
+    await firstPromise;
+    expect(firstInvocations).toBe(1);
+    expect(useBrpStore.getState().analysisStatus).toBe('done');
+  });
+
+  it('reset() during runAnalysis aborts the loop; status ends in idle', async () => {
+    useBrpStore.getState().loadCrew(
+      buildCrew({
+        id: 'crew-A',
+        pods: [
+          buildPod({
+            id: 'pod-X',
+            epics: [
+              buildEpic({ id: 'E1' }),
+              buildEpic({ id: 'E2' }),
+              buildEpic({ id: 'E3' }),
+            ],
+          }),
+        ],
+      }),
+    );
+
+    let analyzed = 0;
+    const slowEstimator: AIEstimator = {
+      async *analyzeEpic(epic, _refs, signal) {
+        analyzed++;
+        yield { kind: 'started', epicId: epic.id };
+        // Yield to the event loop so the test can call reset() between epics.
+        await new Promise((r) => setTimeout(r, 0));
+        if (signal?.aborted) return;
+        yield { kind: 'done', epicId: epic.id, result: buildFrameResult() };
+      },
+    };
+
+    const promise = useBrpStore.getState().runAnalysis(slowEstimator);
+    // Let one or two epics start, then reset.
+    await new Promise((r) => setTimeout(r, 5));
+    useBrpStore.getState().reset();
+
+    await promise;
+    // After reset + abort: status idle, no epics in store.
+    expect(useBrpStore.getState().analysisStatus).toBe('idle');
+    expect(useBrpStore.getState().crews).toEqual([]);
+    // Estimator was invoked for at least one epic but not all three
+    // (the abort broke the outer loop).
+    expect(analyzed).toBeGreaterThanOrEqual(1);
+    expect(analyzed).toBeLessThan(3);
+  });
+
+  it('options.signal aborts the run; status ends in idle', async () => {
+    useBrpStore.getState().loadCrew(
+      buildCrew({
+        id: 'crew-A',
+        pods: [
+          buildPod({
+            id: 'pod-X',
+            epics: [buildEpic({ id: 'E1' }), buildEpic({ id: 'E2' })],
+          }),
+        ],
+      }),
+    );
+    const controller = new AbortController();
+    const estimator: AIEstimator = {
+      async *analyzeEpic(epic, _refs, signal) {
+        yield { kind: 'started', epicId: epic.id };
+        await new Promise((r) => setTimeout(r, 0));
+        if (signal?.aborted) return;
+        yield { kind: 'done', epicId: epic.id, result: buildFrameResult() };
+      },
+    };
+    const promise = useBrpStore
+      .getState()
+      .runAnalysis(estimator, undefined, { signal: controller.signal });
+    await new Promise((r) => setTimeout(r, 5));
+    controller.abort();
+    await promise;
+    expect(useBrpStore.getState().analysisStatus).toBe('idle');
+  });
+
+  it('signal that is ALREADY aborted: no work, status returns to idle', async () => {
+    useBrpStore.getState().loadCrew(
+      buildCrew({
+        id: 'crew-A',
+        pods: [buildPod({ id: 'pod-X', epics: [buildEpic({ id: 'E1' })] })],
+      }),
+    );
+    let invoked = 0;
+    const estimator = buildEstimator((epic) => {
+      invoked++;
+      return [{ kind: 'done', epicId: epic.id, result: buildFrameResult() }];
+    });
+    const controller = new AbortController();
+    controller.abort();
+    await useBrpStore
+      .getState()
+      .runAnalysis(estimator, undefined, { signal: controller.signal });
+    expect(invoked).toBe(0);
+    expect(useBrpStore.getState().analysisStatus).toBe('idle');
+  });
+});
+
 // ─── Navigation, UI, Modals ─────────────────────────────────
 
 describe('brpStore — setView', () => {
@@ -635,7 +828,6 @@ describe('brpStore — selectCrew / selectPod / selectEpic', () => {
     expect(useBrpStore.getState().selectedPodId).toBe('pod-X');
     useBrpStore.getState().selectPod(null);
     expect(useBrpStore.getState().selectedPodId).toBeNull();
-    // Crew selection persists
     expect(useBrpStore.getState().selectedCrewId).toBe('crew-A');
   });
 
