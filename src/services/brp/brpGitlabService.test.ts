@@ -233,10 +233,7 @@ describe('fetchPodEpics', () => {
   it('normalizes a missing description to empty string (so variance heuristic does not null-check)', async () => {
     mockedFetchGroupEpics.mockResolvedValueOnce({
       success: true,
-      data: [
-        // GitLab can return null for description; the mapper must coerce to ''.
-        buildGitLabEpic({ description: null as unknown as string }),
-      ],
+      data: [buildGitLabEpic({ description: null as unknown as string })],
       totalCount: 1,
     });
     const result = await fetchPodEpics(buildConfig(), 101);
@@ -271,8 +268,6 @@ describe('fetchPodEpics', () => {
   });
 
   it('never pre-fills frameResult, even if GitLab response includes spurious fields', async () => {
-    // GitLab won't actually send frameResult, but this asserts our mapper
-    // doesn't accidentally spread arbitrary properties through.
     const spurious = {
       ...buildGitLabEpic({ id: 9001 }),
       frameResult: { frameEstimate: 13, leakage: true },
@@ -352,7 +347,7 @@ describe('fetchReferenceEpics', () => {
       success: true,
       data: [
         buildGitLabEpic({ id: 1, labels: ['SP-abc'] }),
-        buildGitLabEpic({ id: 2, labels: ['Story Points 13'] }), // wrong prefix
+        buildGitLabEpic({ id: 2, labels: ['Story Points 13'] }),
       ],
       totalCount: 2,
     });

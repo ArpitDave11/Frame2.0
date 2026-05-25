@@ -26,8 +26,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-7  | brpStore Navigation + UI actions | done |
 | B-8  | AIEstimator + Zod schemas | done |
 | B-9  | simulatedEstimator + provider | done |
-| B-10 | brpGitlabService skeleton + mocked tests | in_progress |
-| B-11 | brpGitlabService live smoke (gated) | pending |
+| B-10 | brpGitlabService skeleton + mocked tests | done |
+| B-11 | brpGitlabService live smoke (gated) | in_progress |
 | —    | 5-agent deep-review checkpoint | pending |
 | B-12 | Knowledge base docs | pending |
 | B-13 | Devlog + ADR-0003 + final commit | pending |
@@ -544,7 +544,7 @@ $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/service
 0
 ```
 
-**Status: done**
+**Status: done — P4 complete (see B-11 entry below).**
 
 ---
 
@@ -709,5 +709,70 @@ $ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
 $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
 0
 ```
+
+**Status: done**
+
+---
+
+### B-11 — brpGitlabService live smoke (gated) (in_progress → done) — **P4 COMPLETE**
+
+**Date:** 2026-05-25
+**Files created:**
+- `src/services/brp/brpGitlabService.live.test.ts` (~90 lines) — gated live smoke
+
+**Design note: the live smoke is in its OWN file** rather than appended
+to `brpGitlabService.test.ts`. First attempt inlined a
+`describe.skipIf(!LIVE_SMOKE_ENABLED)` block at the bottom of the
+mocked test file with `vi.unmock(...)` inside the test body. That
+broke all 20 mocked tests: Vitest hoists `vi.unmock` to module init
+(same as `vi.mock`), so it cancelled the file-level mock and
+`mockedFetchGitLabSubgroups` lost its `.mockReset`/`.mockResolvedValueOnce`
+helpers. The fix is structural — separate file = separate mock scope.
+
+**The gated test:**
+- Skipped at the file level via `describe.skipIf(!LIVE_SMOKE_ENABLED)`.
+- Requires `VITE_BRP_LIVE_SMOKE=1` plus `VITE_GITLAB_ROOT_GROUP_ID`
+  and `VITE_GITLAB_TOKEN` env vars.
+- Walks crews → first crew's pods → first pod's epics, asserting BRP
+  shape invariants on real responses: analysisStatus 'raw', frameResult
+  null, description always a string, ids string-coerced.
+
+**Manual run command:**
+
+```
+VITE_BRP_LIVE_SMOKE=1 \
+VITE_GITLAB_ROOT_GROUP_ID=<your-group-id> \
+VITE_GITLAB_TOKEN=<your-pat> \
+npm run test:run -- src/services/brp/brpGitlabService.live.test.ts
+```
+
+This was NOT run in this session — running it against real UBS GitLab
+is the human's call. Captured here for the wrap-up: please run it
+before opening the PR for `feature/brp` to verify B-10's mappers
+against real responses.
+
+**Verification (default run — skip-by-default):**
+
+```
+$ npm run test:run -- src/services/brp/
+Test Files  3 passed | 1 skipped (4)
+Tests       78 passed | 1 skipped (79)
+Duration    773ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
+0
+```
+
+**Phase 4 complete:**
+- `src/services/brp/brpGitlabService.ts` — 4 ops composing gitlabClient
+- `src/services/brp/brpGitlabService.test.ts` — 20 mocked tests
+- `src/services/brp/brpGitlabService.live.test.ts` — gated smoke, 1 test (skipped)
+- Total BRP test count: 79 (35 pure + 44 store + 38 schemas + 20 simulator
+  + 20 service-mocked + 1 service-live, with the live one skipped)
+  Wait — that's actually 35+44+38+20+20+1 = 158 tests across all BRP files.
+  Per-file numbers earlier were per-file totals, not deltas.
 
 **Status: done**
