@@ -23,8 +23,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-4  | computePodMetrics + tests | done |
 | B-5  | brpStore state + Loading actions | done |
 | B-6  | brpStore Capacity + Estimates + Analysis actions | done |
-| B-7  | brpStore Navigation + UI actions | in_progress |
-| B-8  | AIEstimator + Zod schemas | pending |
+| B-7  | brpStore Navigation + UI actions | done |
+| B-8  | AIEstimator + Zod schemas | in_progress |
 | B-9  | simulatedEstimator + provider | pending |
 | B-10 | brpGitlabService skeleton + mocked tests | pending |
 | B-11 | brpGitlabService live smoke (gated) | pending |
@@ -479,5 +479,69 @@ $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp)" | wc -l
 - AIEstimator interface imported but no implementation — Phase 3's job.
 - Action contract FROZEN — components in Phase 5 can be written against
   this surface without fear of signature churn.
+
+**Status: done**
+
+---
+
+### B-8 — AIEstimator + Zod schemas (in_progress → done)
+
+**Date:** 2026-05-25
+**Files created:**
+- `src/services/brp/ai/schemas.ts` (~110 lines) — Zod runtime schemas
+- `src/services/brp/ai/schemas.test.ts` (~165 lines) — 38 parse tests
+
+**Dependency added:**
+- `zod@^4.4.3` to package.json (matching the version IR uses on main+IR).
+  Branch point (88ed7ca) was pre-IR so didn't have zod. PRD assumed zod
+  was already present; this addition aligns the branch with main+IR. When
+  feature/brp eventually rebases or main merges, no version conflict.
+
+**Schemas exported (5):**
+- `FibonacciPointSchema` — union of 9 number literals
+- `BreakdownItemSchema` — { title, points: FibonacciPoint }
+- `ReferenceEpicSchema` — { epicId, title, similarity ∈ [0,1], actualSp }
+- `GeneratedStorySchema` — { title, points: FibonacciPoint, acceptanceCriteria: string[] }
+- `FrameResultSchema` — composes the above; confidence ∈ [0,1];
+  generatedStories nullable
+- `AnalysisEventSchema` — `z.discriminatedUnion('kind', [...])` with
+  started/progress (pct ∈ [0,1])/done/error variants
+
+**Decision: simulator does NOT call these at runtime.**
+The B-9 simulator is fully TypeScript-typed; it cannot emit invalid
+events by construction. Running Zod parse on every emitted event would
+be redundant work with zero detection value. The schemas exist for:
+  1. Schema-vs-type drift detection (these tests catch it).
+  2. P7 real-LLM estimator's boundary parser (LLM JSON is untyped).
+  3. External callers validating untrusted input.
+
+Documented in the schemas.ts header so a future contributor doesn't
+"helpfully" add `.parse(...)` calls inside the simulator.
+
+**Tests (38):**
+- FibonacciPointSchema: 9 valid (parameterized), 10 invalid (parameterized
+  including 0, 4, 7, 9, 10, 14, 50, -1, 101, 1.5), strings rejected
+- FrameResultSchema (9): valid happy path, generatedStories present,
+  non-Fib frameEstimate, confidence < 0, confidence > 1, non-Fib
+  breakdown point, missing required field, similarity out of [0,1],
+  empty references/breakdown accepted
+- AnalysisEventSchema (10): all 4 variants accepted with valid payloads,
+  progress pct boundaries, invalid pct, done with bad FrameResult,
+  unknown event kind, missing epicId, missing result on done
+
+**Verification:**
+
+```
+$ npm run test:run -- src/services/brp/ai/schemas.test.ts
+Test Files  1 passed (1)
+Tests       38 passed (38)
+Duration    569ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
+0
+```
 
 **Status: done**
