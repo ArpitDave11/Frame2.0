@@ -52,18 +52,21 @@ describe('FibonacciPointSchema', () => {
 // ─── FrameResultSchema ──────────────────────────────────────
 
 describe('FrameResultSchema', () => {
-  it('accepts a valid FrameResult', () => {
+  it('accepts a valid FrameResult and parses to an equal object (I15)', () => {
+    // Deep-review I15: prior assertion only checked no-throw. A schema that
+    // silently strips a field would have passed. Add toEqual so any
+    // unintentional transform/drop is caught.
     const fr = buildFrameResult();
-    expect(() => FrameResultSchema.parse(fr)).not.toThrow();
+    expect(FrameResultSchema.parse(fr)).toEqual(fr);
   });
 
-  it('accepts generatedStories present', () => {
+  it('accepts generatedStories present (I15: round-trips equal)', () => {
     const fr = buildFrameResult({
       generatedStories: [
         { title: 's1', points: 3, acceptanceCriteria: ['AC-1', 'AC-2'] },
       ],
     });
-    expect(() => FrameResultSchema.parse(fr)).not.toThrow();
+    expect(FrameResultSchema.parse(fr)).toEqual(fr);
   });
 
   it('rejects when frameEstimate is non-Fibonacci', () => {
@@ -110,29 +113,23 @@ describe('FrameResultSchema', () => {
 
   it('accepts empty references and empty breakdown', () => {
     const fr = buildFrameResult({ references: [], breakdown: [] });
-    expect(() => FrameResultSchema.parse(fr)).not.toThrow();
+    expect(FrameResultSchema.parse(fr)).toEqual(fr);
   });
 });
 
 // ─── AnalysisEventSchema ────────────────────────────────────
 
 describe('AnalysisEventSchema', () => {
-  it("accepts 'started'", () => {
-    expect(() =>
-      AnalysisEventSchema.parse({ kind: 'started', epicId: 'E1' }),
-    ).not.toThrow();
+  it("[I15] accepts 'started' and parses equal", () => {
+    const ev = { kind: 'started' as const, epicId: 'E1' };
+    expect(AnalysisEventSchema.parse(ev)).toEqual(ev);
   });
 
-  it("accepts 'progress' with pct in [0,1]", () => {
-    expect(() =>
-      AnalysisEventSchema.parse({ kind: 'progress', epicId: 'E1', pct: 0 }),
-    ).not.toThrow();
-    expect(() =>
-      AnalysisEventSchema.parse({ kind: 'progress', epicId: 'E1', pct: 0.5 }),
-    ).not.toThrow();
-    expect(() =>
-      AnalysisEventSchema.parse({ kind: 'progress', epicId: 'E1', pct: 1 }),
-    ).not.toThrow();
+  it("[I15] accepts 'progress' boundaries and parses equal", () => {
+    for (const pct of [0, 0.5, 1]) {
+      const ev = { kind: 'progress' as const, epicId: 'E1', pct };
+      expect(AnalysisEventSchema.parse(ev)).toEqual(ev);
+    }
   });
 
   it("rejects 'progress' with pct out of [0,1]", () => {
@@ -144,14 +141,13 @@ describe('AnalysisEventSchema', () => {
     ).toThrow();
   });
 
-  it("accepts 'done' with a valid FrameResult", () => {
-    expect(() =>
-      AnalysisEventSchema.parse({
-        kind: 'done',
-        epicId: 'E1',
-        result: buildFrameResult(),
-      }),
-    ).not.toThrow();
+  it("[I15] accepts 'done' with a valid FrameResult and parses equal", () => {
+    const ev = {
+      kind: 'done' as const,
+      epicId: 'E1',
+      result: buildFrameResult(),
+    };
+    expect(AnalysisEventSchema.parse(ev)).toEqual(ev);
   });
 
   it("rejects 'done' with an invalid FrameResult", () => {
@@ -164,14 +160,9 @@ describe('AnalysisEventSchema', () => {
     ).toThrow();
   });
 
-  it("accepts 'error' with a message", () => {
-    expect(() =>
-      AnalysisEventSchema.parse({
-        kind: 'error',
-        epicId: 'E1',
-        message: 'boom',
-      }),
-    ).not.toThrow();
+  it("[I15] accepts 'error' with a message and parses equal", () => {
+    const ev = { kind: 'error' as const, epicId: 'E1', message: 'boom' };
+    expect(AnalysisEventSchema.parse(ev)).toEqual(ev);
   });
 
   it('rejects an unknown event kind', () => {

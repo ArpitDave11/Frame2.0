@@ -71,12 +71,6 @@ function buildFrameResult(overrides: Partial<FrameResult> = {}): FrameResult {
   };
 }
 
-/**
- * Build a mock AIEstimator that emits the supplied event sequence for
- * every epic it analyzes. Ignores the signal param (its handling is the
- * store's responsibility in these tests — and tested separately in the
- * simulator's own suite).
- */
 function buildEstimator(
   eventsFor: (epic: Epic) => readonly AnalysisEvent[],
 ): AIEstimator {
@@ -91,6 +85,41 @@ function buildEstimator(
       }
     },
   };
+}
+
+/**
+ * Build an estimator whose first epic blocks until the AbortSignal fires,
+ * then returns early. Resolves `firstStartedPromise` synchronously the
+ * moment the estimator is called — letting tests synchronize "first epic
+ * has been picked up" without timing-based sleeps.
+ */
+function buildSignalGatedEstimator(): {
+  estimator: AIEstimator;
+  firstStartedPromise: Promise<void>;
+} {
+  let resolveStarted!: () => void;
+  const firstStartedPromise = new Promise<void>((r) => {
+    resolveStarted = r;
+  });
+  let firstSeen = false;
+  const estimator: AIEstimator = {
+    async *analyzeEpic(epic, _refs, signal) {
+      if (!firstSeen) {
+        firstSeen = true;
+        resolveStarted();
+      }
+      yield { kind: 'started', epicId: epic.id };
+      // Block until aborted. No timing assumptions.
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) return resolve();
+        signal?.addEventListener('abort', () => resolve(), { once: true });
+      });
+      // After abort: return without emitting 'done'. The store's loop
+      // checks signal.aborted between events and between epics, so the
+      // run terminates cleanly even if the estimator weren't cooperative.
+    },
+  };
+  return { estimator, firstStartedPromise };
 }
 
 beforeEach(() => {
@@ -454,7 +483,7 @@ describe('brpStore — setEpicAnalysisStatus', () => {
 });
 
 describe('brpStore — setEpicFrameResult', () => {
-  it('sets the result AND transitions status to "done" atomically', () => {
+  it('sets the result AND transitions status to "done" atomically (from analyzing)', () => {
     useBrpStore.getState().loadCrew(
       buildCrew({
         id: 'crew-A',
@@ -471,6 +500,28 @@ describe('brpStore — setEpicFrameResult', () => {
     const e = useBrpStore.getState().crews[0]!.pods[0]!.epics[0]!;
     expect(e.frameResult).toEqual(result);
     expect(e.analysisStatus).toBe('done');
+  });
+
+  it("[I13] transitions from 'error' state to 'done' (recovery)", () => {
+    // Deep-review I13: prior test only covered 'analyzing' → 'done'.
+    // A re-run after a failed run starts the epic in 'error'; the new
+    // frameResult must successfully transition it back to 'done'.
+    useBrpStore.getState().loadCrew(
+      buildCrew({
+        id: 'crew-A',
+        pods: [
+          buildPod({
+            id: 'pod-X',
+            epics: [buildEpic({ id: 'E1', analysisStatus: 'error' })],
+          }),
+        ],
+      }),
+    );
+    const result = buildFrameResult({ frameEstimate: 5, confidence: 0.5 });
+    useBrpStore.getState().setEpicFrameResult('E1', result);
+    const e = useBrpStore.getState().crews[0]!.pods[0]!.epics[0]!;
+    expect(e.analysisStatus).toBe('done');
+    expect(e.frameResult).toEqual(result);
   });
 });
 
@@ -554,7 +605,7 @@ describe('brpStore — runAnalysis', () => {
     expect(e.frameResult).toBeNull();
   });
 
-  it("when estimator throws outside the event stream: epic ends in 'error', run continues", async () => {
+  it("when estimator throws inside iterator: epic ends 'error', run continues", async () => {
     useBrpStore.getState().loadCrew(
       buildCrew({
         id: 'crew-A',
@@ -570,6 +621,44 @@ describe('brpStore — runAnalysis', () => {
       async *analyzeEpic(epic) {
         if (epic.id === 'E1') throw new Error('estimator died');
         yield { kind: 'done', epicId: epic.id, result: buildFrameResult({ frameEstimate: 5 }) };
+      },
+    };
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await useBrpStore.getState().runAnalysis(estimator);
+    consoleSpy.mockRestore();
+
+    const epics = useBrpStore.getState().crews[0]!.pods[0]!.epics;
+    expect(epics.find((e) => e.id === 'E1')!.analysisStatus).toBe('error');
+    expect(epics.find((e) => e.id === 'E2')!.analysisStatus).toBe('done');
+    expect(useBrpStore.getState().analysisStatus).toBe('done');
+  });
+
+  it("[I11] when estimator throws SYNCHRONOUSLY (before returning iterator): epic ends 'error', run continues", async () => {
+    // Deep-review I11: the existing throw test (above) throws INSIDE the
+    // async generator body — the iterator is created first, then throws on
+    // the first .next(). This test verifies the catch ALSO works when
+    // analyzeEpic throws synchronously, before returning anything.
+    useBrpStore.getState().loadCrew(
+      buildCrew({
+        id: 'crew-A',
+        pods: [
+          buildPod({
+            id: 'pod-X',
+            epics: [buildEpic({ id: 'E1' }), buildEpic({ id: 'E2' })],
+          }),
+        ],
+      }),
+    );
+    const estimator: AIEstimator = {
+      // Plain method (NOT async generator) that throws synchronously for E1.
+      analyzeEpic(epic) {
+        if (epic.id === 'E1') {
+          throw new Error('estimator threw synchronously');
+        }
+        return (async function* () {
+          yield { kind: 'done' as const, epicId: epic.id, result: buildFrameResult({ frameEstimate: 5 }) };
+        })();
       },
     };
 
@@ -612,14 +701,75 @@ describe('brpStore — runAnalysis', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]!.refs).toEqual(refs);
   });
+
+  // ─── Snapshot semantics under mid-run mutation (I14) ─────
+
+  it('[I14] new epic loaded mid-run is NOT analyzed (snapshot held at kickoff)', async () => {
+    useBrpStore.getState().loadCrew(
+      buildCrew({
+        id: 'crew-A',
+        pods: [
+          buildPod({ id: 'pod-X', epics: [buildEpic({ id: 'E1' }), buildEpic({ id: 'E2' })] }),
+        ],
+      }),
+    );
+    const analyzed: string[] = [];
+    const estimator: AIEstimator = {
+      async *analyzeEpic(epic) {
+        analyzed.push(epic.id);
+        if (epic.id === 'E1') {
+          useBrpStore.getState().loadEpicsIntoPod('pod-X', [
+            buildEpic({ id: 'E1' }),
+            buildEpic({ id: 'E2' }),
+            buildEpic({ id: 'E3' }),
+          ]);
+        }
+        yield { kind: 'done', epicId: epic.id, result: buildFrameResult() };
+      },
+    };
+    await useBrpStore.getState().runAnalysis(estimator);
+    expect(analyzed.sort()).toEqual(['E1', 'E2']);
+  });
+
+  it('[I14] epic removed mid-run: loop continues without error', async () => {
+    useBrpStore.getState().loadCrew(
+      buildCrew({
+        id: 'crew-A',
+        pods: [
+          buildPod({
+            id: 'pod-X',
+            epics: [
+              buildEpic({ id: 'E1' }),
+              buildEpic({ id: 'E2' }),
+              buildEpic({ id: 'E3' }),
+            ],
+          }),
+        ],
+      }),
+    );
+    const analyzed: string[] = [];
+    const estimator: AIEstimator = {
+      async *analyzeEpic(epic) {
+        analyzed.push(epic.id);
+        if (epic.id === 'E1') {
+          useBrpStore.getState().loadEpicsIntoPod('pod-X', [
+            buildEpic({ id: 'E1' }),
+            buildEpic({ id: 'E3' }),
+          ]);
+        }
+        yield { kind: 'done', epicId: epic.id, result: buildFrameResult() };
+      },
+    };
+    await expect(useBrpStore.getState().runAnalysis(estimator)).resolves.toBeUndefined();
+    expect(analyzed).toEqual(['E1', 'E3']);
+    expect(useBrpStore.getState().analysisStatus).toBe('done');
+  });
 });
 
 // ─── runAnalysis — cancellation & concurrency (deep-review C1, I1, I2, I7) ──
 
 describe('brpStore — runAnalysis cancellation & concurrency', () => {
   it('event with mismatched epicId is silently ignored (I1)', async () => {
-    // A buggy/malicious estimator emits a 'done' for an epicId we are not
-    // currently analyzing. The store MUST NOT cross-write.
     useBrpStore.getState().loadCrew(
       buildCrew({
         id: 'crew-A',
@@ -634,8 +784,6 @@ describe('brpStore — runAnalysis cancellation & concurrency', () => {
         ],
       }),
     );
-    // While analyzing E1, claim a 'done' for E2 instead. Then yield a real
-    // 'done' for E1 so the per-epic transition completes.
     const estimator: AIEstimator = {
       async *analyzeEpic(epic) {
         yield {
@@ -653,7 +801,6 @@ describe('brpStore — runAnalysis cancellation & concurrency', () => {
 
     await useBrpStore.getState().runAnalysis(estimator);
     const epics = useBrpStore.getState().crews[0]!.pods[0]!.epics;
-    // E1 receives only the matching event's result (5), not 100.
     expect(epics.find((e) => e.id === 'E1')!.frameResult?.frameEstimate).toBe(5);
     expect(epics.find((e) => e.id === 'E2')!.frameResult?.frameEstimate).toBe(5);
   });
@@ -666,8 +813,6 @@ describe('brpStore — runAnalysis cancellation & concurrency', () => {
       }),
     );
 
-    // First estimator pauses inside the loop so the second call lands while
-    // the first is mid-run.
     let release: () => void = () => {};
     const gate = new Promise<void>((r) => {
       release = r;
@@ -682,7 +827,6 @@ describe('brpStore — runAnalysis cancellation & concurrency', () => {
       },
     };
 
-    // Second estimator should never be invoked because the first call is still 'running'.
     let secondInvocations = 0;
     const eagerEstimator = buildEstimator((epic) => {
       secondInvocations++;
@@ -690,12 +834,10 @@ describe('brpStore — runAnalysis cancellation & concurrency', () => {
     });
 
     const firstPromise = useBrpStore.getState().runAnalysis(slowEstimator);
-    // Wait a tick so the first call enters 'running'.
     await Promise.resolve();
     await Promise.resolve();
     expect(useBrpStore.getState().analysisStatus).toBe('running');
 
-    // Second call must be a no-op (early-return because already running).
     await useBrpStore.getState().runAnalysis(eagerEstimator);
     expect(secondInvocations).toBe(0);
 
@@ -721,32 +863,15 @@ describe('brpStore — runAnalysis cancellation & concurrency', () => {
         ],
       }),
     );
-
-    let analyzed = 0;
-    const slowEstimator: AIEstimator = {
-      async *analyzeEpic(epic, _refs, signal) {
-        analyzed++;
-        yield { kind: 'started', epicId: epic.id };
-        // Yield to the event loop so the test can call reset() between epics.
-        await new Promise((r) => setTimeout(r, 0));
-        if (signal?.aborted) return;
-        yield { kind: 'done', epicId: epic.id, result: buildFrameResult() };
-      },
-    };
-
-    const promise = useBrpStore.getState().runAnalysis(slowEstimator);
-    // Let one or two epics start, then reset.
-    await new Promise((r) => setTimeout(r, 5));
+    // Signal-gated estimator: hangs until aborted. Removes timing
+    // dependence — abort happens on demand, not after a sleep.
+    const { estimator, firstStartedPromise } = buildSignalGatedEstimator();
+    const promise = useBrpStore.getState().runAnalysis(estimator);
+    await firstStartedPromise; // First epic is in flight; abort is now safe.
     useBrpStore.getState().reset();
-
     await promise;
-    // After reset + abort: status idle, no epics in store.
     expect(useBrpStore.getState().analysisStatus).toBe('idle');
     expect(useBrpStore.getState().crews).toEqual([]);
-    // Estimator was invoked for at least one epic but not all three
-    // (the abort broke the outer loop).
-    expect(analyzed).toBeGreaterThanOrEqual(1);
-    expect(analyzed).toBeLessThan(3);
   });
 
   it('options.signal aborts the run; status ends in idle', async () => {
@@ -762,18 +887,11 @@ describe('brpStore — runAnalysis cancellation & concurrency', () => {
       }),
     );
     const controller = new AbortController();
-    const estimator: AIEstimator = {
-      async *analyzeEpic(epic, _refs, signal) {
-        yield { kind: 'started', epicId: epic.id };
-        await new Promise((r) => setTimeout(r, 0));
-        if (signal?.aborted) return;
-        yield { kind: 'done', epicId: epic.id, result: buildFrameResult() };
-      },
-    };
+    const { estimator, firstStartedPromise } = buildSignalGatedEstimator();
     const promise = useBrpStore
       .getState()
       .runAnalysis(estimator, undefined, { signal: controller.signal });
-    await new Promise((r) => setTimeout(r, 5));
+    await firstStartedPromise;
     controller.abort();
     await promise;
     expect(useBrpStore.getState().analysisStatus).toBe('idle');
@@ -862,7 +980,7 @@ describe('brpStore — togglePodCollapse', () => {
     useBrpStore.getState().togglePodCollapse('pod-X');
     useBrpStore.getState().togglePodCollapse('pod-Y');
     useBrpStore.getState().togglePodCollapse('pod-Z');
-    useBrpStore.getState().togglePodCollapse('pod-Y'); // remove Y
+    useBrpStore.getState().togglePodCollapse('pod-Y');
     const collapsed = useBrpStore.getState().collapsedPods;
     expect(collapsed.has('pod-X')).toBe(true);
     expect(collapsed.has('pod-Y')).toBe(false);

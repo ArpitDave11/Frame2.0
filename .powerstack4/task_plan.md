@@ -846,3 +846,89 @@ $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/service
 ```
 
 **Status: cluster 1 done. Cluster 2 (test fixes for C2+C3+I11–I15) and Cluster 3 (small fixes I3+I4+I9) pending.**
+
+---
+
+### Cluster 2 — Test corrections + additions (C3 + I11 + I12 + I13 + I14 + I15)
+
+**Note:** C2 (probabilistic flake) was already fixed in Cluster 1 when
+`simulatedEstimator.test.ts` was rewritten — the `+ 0.05` statistical
+buffer landed there.
+
+**Files touched (all rm + Write per H3 hook):**
+- `src/domain/brp.test.ts` — +3 tests (35 → 38)
+- `src/stores/brpStore.test.ts` — +4 tests (49 → 53); also refactored
+  two timing-fragile cancel tests to use a signal-gated estimator
+  helper that synchronizes via a Promise resolver (not sleep)
+- `src/services/brp/ai/schemas.test.ts` — modified 5 existing tests
+  to add `toEqual(input)` assertions (I15); no count change (38 → 38)
+
+**C3 — split "raw → pending" into two arm-specific tests:**
+- `[C3 arm A]` status 'analyzing' + **valid** frameResult + fat desc → 'pending'
+- `[C3 arm B]` status 'done' + frameResult **null** + fat desc → 'pending'
+
+Each test holds one OR-arm constant, so the production `status !== 'done'
+|| frameResult === null` check cannot pass for the wrong reason. Replaces
+the prior "treats 'analyzing' the same as 'raw'" test which overrode
+both arms.
+
+**I11 — estimator throws SYNCHRONOUSLY:**
+Plain `analyzeEpic(epic)` method that throws before returning an iterator
+(vs. throwing inside an async generator's body). Verifies the store's
+catch block handles both paths. E1 throws sync, E2 succeeds — run
+continues.
+
+**I12 — tight boundary tests:**
+- ratio ≈ 0.2157 (h=51, f=40) → 'caution' (just above the 0.20 boundary)
+- ratio ≈ 0.5061 (h=81, f=40) → 're-groom' (just above the 0.50 boundary)
+
+Kept the looser 0.375 and 0.625 tests as broader-band sanity checks.
+
+**I13 — `setEpicFrameResult` from 'error' state:**
+Re-run recovery: an epic in `analysisStatus: 'error'` plus a new
+`setEpicFrameResult` call must transition to 'done' atomically.
+
+**I14 — snapshot semantics under mid-run mutation (2 tests):**
+- New epic loaded mid-run is NOT analyzed (snapshot held at kickoff).
+- Epic removed mid-run: `findEpic` returns undefined, loop `continue`s
+  without error, status ends 'done' cleanly.
+
+**I15 — schema equality assertions:**
+Happy-path schema parses now assert `.parse(input).toEqual(input)` rather
+than just no-throw. A schema that silently strips a field would have
+passed the old check; now it can't.
+
+**Timing fragility caught + fixed mid-cluster:**
+First write of the cancel-via-reset() and cancel-via-options.signal tests
+used `setTimeout(0)` inside the estimator + `setTimeout(5)` in the test.
+Vitest's fast scheduler completed all 3 epics inside the 5ms window. The
+fix was structural: a `buildSignalGatedEstimator()` helper that returns
+both the estimator (hangs until aborted) and a `firstStartedPromise` that
+resolves the moment the estimator is first invoked. The test awaits the
+promise (no sleeping), then aborts — guaranteed timing.
+
+**Verification:**
+
+```
+$ npm run test:run -- src/domain/brp.test.ts src/stores/brpStore.test.ts \\
+    src/services/brp/
+Test Files  5 passed | 1 skipped (6)
+Tests       172 passed | 1 skipped (173)
+Duration    1.05s
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
+0
+```
+
+**Findings resolved by cluster 2:**
+- **C3** (wrong-reason pending test) — split into two arm-specific tests
+- **I11** (estimator throws synchronously) — added test
+- **I12** (loose boundary tests) — added tight just-above-0.20 and 0.50 tests
+- **I13** (setEpicFrameResult from 'error') — added recovery test
+- **I14** (mid-run mutation snapshot semantics) — added 2 tests
+- **I15** (schema toEqual assertions) — added to 5 existing tests
+
+**Status: cluster 2 done. Cluster 3 (small production fixes I3+I4+I9) pending.**

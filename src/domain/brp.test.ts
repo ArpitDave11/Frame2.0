@@ -205,7 +205,7 @@ describe('computeDelta', () => {
 // ─── computeVariance ────────────────────────────────────────
 
 describe('computeVariance — step 1 (status not done OR no frameResult)', () => {
-  it("returns 'pending' for a raw epic with a normal-length description", () => {
+  it("returns 'pending' for a raw epic (no frameResult) with normal-length description", () => {
     const epic = buildEpic({ analysisStatus: 'raw', frameResult: null });
     expect(computeVariance(epic)).toBe('pending');
   });
@@ -228,12 +228,32 @@ describe('computeVariance — step 1 (status not done OR no frameResult)', () =>
     expect(computeVariance(epic)).toBe('flagged');
   });
 
-  it("treats 'analyzing' status the same as 'raw' (frameResult still null)", () => {
-    const epic = buildEpic({ analysisStatus: 'analyzing', frameResult: null });
+  // Deep-review C3: the step-1 check is `status !== 'done' || frameResult ===
+  // null` — an OR. Each arm must be independently testable. The tests below
+  // hold one arm constant so we know WHICH check fired.
+
+  it("[C3 arm A] status 'analyzing' + valid frameResult + fat desc → 'pending'", () => {
+    // frameResult is non-null, but status is not 'done' → first OR arm fires.
+    // If production accidentally checked frameResult === null only, this
+    // would fail (the FR is valid).
+    const epic = buildEpic({
+      analysisStatus: 'analyzing',
+      frameResult: buildFrameResult({ frameEstimate: 8 }),
+    });
     expect(computeVariance(epic)).toBe('pending');
   });
 
-  it("treats 'error' status as pending (with fat desc) or flagged (with thin)", () => {
+  it("[C3 arm B] status 'done' + frameResult null + fat desc → 'pending'", () => {
+    // frameResult is null, but status IS 'done' → second OR arm fires.
+    // If production accidentally checked status only, this would fail.
+    const epic = buildEpic({
+      analysisStatus: 'done',
+      frameResult: null,
+    });
+    expect(computeVariance(epic)).toBe('pending');
+  });
+
+  it("treats 'error' status as pending (fat desc) or flagged (thin)", () => {
     const fat = buildEpic({ analysisStatus: 'error', frameResult: null });
     expect(computeVariance(fat)).toBe('pending');
     const thin = buildEpic({
@@ -261,8 +281,20 @@ describe('computeVariance — step 3 (threshold boundaries)', () => {
     expect(computeVariance(epic)).toBe('agree');
   });
 
-  it("ratio just above 0.20 → 'caution'", () => {
-    // human=8, frame=5 → 3/8 = 0.375
+  // Deep-review I12: tightened boundary tests. Earlier "just above 0.20"
+  // used ratio 0.375 — comfortably above the boundary but not tight.
+  // We pin tight just-above cases here using Fibonacci-safe frame values.
+  it("[I12] ratio just above 0.20 (≈ 0.2157) → 'caution'", () => {
+    // human=51, frame=40 → |51-40|/51 = 11/51 = 0.2157...
+    const epic = buildEpic({
+      humanEstimate: 51,
+      frameResult: buildFrameResult({ frameEstimate: 40 }),
+    });
+    expect(computeVariance(epic)).toBe('caution');
+  });
+
+  it("loose ratio 0.375 (well above 0.20) → 'caution'", () => {
+    // Kept as a broader-band sanity check; not a boundary test.
     const epic = buildEpic({
       humanEstimate: 8,
       frameResult: buildFrameResult({ frameEstimate: 5 }),
@@ -271,7 +303,7 @@ describe('computeVariance — step 3 (threshold boundaries)', () => {
   });
 
   it("ratio exactly 0.50 → 'caution' (inclusive)", () => {
-    // human=10, frame=5 → 5/10 = 0.50
+    // human=10, frame=5 → 0.50
     const epic = buildEpic({
       humanEstimate: 10,
       frameResult: buildFrameResult({ frameEstimate: 5 }),
@@ -279,8 +311,17 @@ describe('computeVariance — step 3 (threshold boundaries)', () => {
     expect(computeVariance(epic)).toBe('caution');
   });
 
-  it("ratio just above 0.50 → 're-groom'", () => {
-    // human=8, frame=3 → 5/8 = 0.625
+  it("[I12] ratio just above 0.50 (≈ 0.5061) → 're-groom'", () => {
+    // human=81, frame=40 → 41/81 = 0.5061...
+    const epic = buildEpic({
+      humanEstimate: 81,
+      frameResult: buildFrameResult({ frameEstimate: 40 }),
+    });
+    expect(computeVariance(epic)).toBe('re-groom');
+  });
+
+  it("loose ratio 0.625 (well above 0.50) → 're-groom'", () => {
+    // Kept as a broader-band sanity check.
     const epic = buildEpic({
       humanEstimate: 8,
       frameResult: buildFrameResult({ frameEstimate: 3 }),
@@ -341,25 +382,20 @@ describe('computeVariance — step 4 (confidence bump)', () => {
 // ─── computePodMetrics ──────────────────────────────────────
 
 describe('computePodMetrics', () => {
-  it('empty pod: all-zero loads, zero avgConfidence, correct totalCapacity', () => {
-    const pod = buildPod(); // 4 × 10 × 5 = 200 gross, no deductions
+  it('empty pod: all-zero loads, zero avgConfidence (NOT NaN), correct totalCapacity', () => {
+    const pod = buildPod();
     const metrics = computePodMetrics(pod);
     expect(metrics.totalCapacity).toBe(200);
     expect(metrics.humanLoad).toBe(0);
     expect(metrics.frameLoad).toBe(0);
-    expect(metrics.balance).toBe(200); // 200 - 0
-    expect(metrics.avgConfidence).toBe(0); // not NaN
+    expect(metrics.balance).toBe(200);
+    expect(metrics.avgConfidence).toBe(0);
     expect(metrics.epicCount).toBe(0);
     expect(metrics.flaggedCount).toBe(0);
     expect(metrics.reGroomCount).toBe(0);
   });
 
   it('normal pod with mixed bands: loads sum non-flagged epics only', () => {
-    // 4 epics:
-    //   E1 (agree)    human=8,  frame=8  conf=0.9  → load
-    //   E2 (caution)  human=8,  frame=5  conf=0.8  → load
-    //   E3 (re-groom) human=8,  frame=3  conf=0.7  → load (+ reGroomCount++)
-    //   E4 (flagged)  human=21 (raw, thin desc)   → EXCLUDED from loads
     const pod = buildPod({
       epics: [
         buildEpic({
@@ -382,30 +418,27 @@ describe('computePodMetrics', () => {
           humanEstimate: 21,
           analysisStatus: 'raw',
           frameResult: null,
-          description: 'thin', // forces flagged
+          description: 'thin',
         }),
       ],
     });
     const metrics = computePodMetrics(pod);
-    expect(metrics.humanLoad).toBe(24); // 8 + 8 + 8 (E4's 21 EXCLUDED)
-    expect(metrics.frameLoad).toBe(16); // 8 + 5 + 3
-    expect(metrics.balance).toBe(200 - 16); // 184
+    expect(metrics.humanLoad).toBe(24);
+    expect(metrics.frameLoad).toBe(16);
+    expect(metrics.balance).toBe(200 - 16);
     expect(metrics.epicCount).toBe(4);
     expect(metrics.flaggedCount).toBe(1);
     expect(metrics.reGroomCount).toBe(1);
-    // avgConfidence over non-flagged analyzed epics: (0.9 + 0.8 + 0.7) / 3 = 0.8
     expect(metrics.avgConfidence).toBeCloseTo(0.8, 10);
   });
 
   it('regression guard: flagged epic with humanEstimate is NOT added to humanLoad', () => {
-    // The bug p1.md called out: a flagged epic silently inflating humanLoad.
-    // 1 normal epic + 1 flagged epic; humanLoad must reflect only the normal one.
     const pod = buildPod({
       epics: [
         buildEpic({ id: 'normal', humanEstimate: 13 }),
         buildEpic({
           id: 'flagged',
-          humanEstimate: 100, // would dominate humanLoad if not excluded
+          humanEstimate: 100,
           analysisStatus: 'raw',
           frameResult: null,
           description: 'x',
@@ -413,7 +446,7 @@ describe('computePodMetrics', () => {
       ],
     });
     const metrics = computePodMetrics(pod);
-    expect(metrics.humanLoad).toBe(13); // NOT 113
+    expect(metrics.humanLoad).toBe(13);
     expect(metrics.flaggedCount).toBe(1);
   });
 
@@ -447,9 +480,6 @@ describe('computePodMetrics', () => {
   });
 
   it('pending epic (FRAME done, no human estimate): humanLoad excludes it, frameLoad includes it', () => {
-    // A 'pending' epic — analyzed but planner hasn't typed an estimate.
-    // Not flagged, so it IS included in frameLoad. humanEstimate=null so
-    // it contributes nothing to humanLoad. avgConfidence INCLUDES it.
     const pod = buildPod({
       epics: [
         buildEpic({
@@ -467,7 +497,6 @@ describe('computePodMetrics', () => {
   });
 
   it('over-committed pod has negative balance', () => {
-    // tiny capacity, big frame load
     const pod = buildPod({
       capacity: {
         resources: 1,
@@ -487,7 +516,7 @@ describe('computePodMetrics', () => {
     const metrics = computePodMetrics(pod);
     expect(metrics.totalCapacity).toBe(10);
     expect(metrics.frameLoad).toBe(100);
-    expect(metrics.balance).toBe(-90); // negative = over-committed
+    expect(metrics.balance).toBe(-90);
   });
 
   it('is pure — repeated calls return equal results', () => {
