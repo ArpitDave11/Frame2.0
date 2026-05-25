@@ -126,6 +126,36 @@ describe('fetchCrews', () => {
     if (!result.success) return;
     expect(result.data).toEqual([]);
   });
+
+  it('[live-smoke regression] coerces NUMERIC subgroup id from GitLab to BRP string id', async () => {
+    // The live smoke against gitlab.com (2026-05-25) caught real drift:
+    // GitLab returns subgroup.id as a number, but
+    // src/services/gitlab/types.ts declares it as string. The mocked
+    // tests above happened to pass because the fixtures used strings
+    // (matching the WRONG type, not reality). This regression test
+    // pins the boundary coercion so the drift cannot recur silently.
+    const subgroupWithNumericId = {
+      id: 131025594,
+      name: 'Crew-Alpha',
+      full_path: 'wma-test-stream/crew-alpha',
+    } as unknown as GitLabSubgroup;
+
+    mockedFetchGitLabSubgroups.mockResolvedValueOnce({
+      success: true,
+      data: [subgroupWithNumericId],
+    });
+    const result = await fetchCrews(buildConfig());
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data[0]).toEqual({
+      id: '131025594', // string, not the number 131025594
+      name: 'Crew-Alpha',
+      gitlabGroupId: 131025594, // number for outbound calls
+      pods: [],
+    });
+    expect(typeof result.data[0]!.id).toBe('string');
+    expect(typeof result.data[0]!.gitlabGroupId).toBe('number');
+  });
 });
 
 // ─── fetchPods ──────────────────────────────────────────────
@@ -190,6 +220,30 @@ describe('fetchPods', () => {
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error).toBe('network timeout');
+  });
+
+  it('[live-smoke regression] coerces NUMERIC subgroup id from GitLab to BRP string id', async () => {
+    // Same drift as fetchCrews. Pin it for pods too.
+    const podSubgroup = {
+      id: 131025595,
+      name: 'Pod-A1',
+      full_path: 'wma-test-stream/crew-alpha/pod-a1',
+    } as unknown as GitLabSubgroup;
+    mockedFetchGitLabSubgroups.mockResolvedValueOnce({
+      success: true,
+      data: [podSubgroup],
+    });
+    const result = await fetchPods(buildConfig(), 131025594);
+    if (!result.success) throw new Error('expected success');
+    expect(result.data[0]).toEqual({
+      id: '131025595',
+      name: 'Pod-A1',
+      gitlabSubgroupId: 131025595,
+      capacity: { ...DEFAULT_POD_CAPACITY },
+      epics: [],
+    });
+    expect(typeof result.data[0]!.id).toBe('string');
+    expect(typeof result.data[0]!.gitlabSubgroupId).toBe('number');
   });
 });
 

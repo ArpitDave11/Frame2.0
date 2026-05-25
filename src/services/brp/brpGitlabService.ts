@@ -80,13 +80,23 @@ export const DEFAULT_POD_CAPACITY: Readonly<CapacityInputs> = Object.freeze({
 // ─── Helpers ────────────────────────────────────────────────
 
 /**
- * Parse a subgroup's GitLab-string id into a number. GitLab returns
- * subgroup ids as numbers but the response type uses strings; we keep
- * both representations on BRP entities (`id: string` for routing,
- * `gitlabGroupId: number` for API calls).
+ * Coerce a GitLab subgroup id into BRP's two representations: string for
+ * routing/keys, number for outbound API calls.
+ *
+ * Why both coercions are needed: `GitLabSubgroup.id` is typed as `string`
+ * in `src/services/gitlab/types.ts`, but the live GitLab API actually
+ * returns it as a `number`. The live smoke against gitlab.com caught
+ * this drift (2026-05-25 — see the deep-review post-fix journal).
+ * Coercing at the boundary makes the mapper robust to either runtime
+ * shape, without modifying shared types outside BRP scope.
  */
-function toNumericId(stringId: string): number {
-  const n = parseInt(stringId, 10);
+function toIdString(id: string | number): string {
+  return typeof id === 'string' ? id : String(id);
+}
+
+function toNumericId(id: string | number): number {
+  if (typeof id === 'number') return Number.isFinite(id) ? id : 0;
+  const n = parseInt(id, 10);
   return Number.isNaN(n) ? 0 : n;
 }
 
@@ -110,7 +120,7 @@ function extractSpFromLabels(labels: readonly string[]): number {
 /** Map a GitLab subgroup → BRP Crew (with empty pods to be filled later). */
 function subgroupToCrew(sg: GitLabSubgroup): Crew {
   return {
-    id: sg.id,
+    id: toIdString(sg.id),
     name: sg.name,
     gitlabGroupId: toNumericId(sg.id),
     pods: [],
@@ -120,7 +130,7 @@ function subgroupToCrew(sg: GitLabSubgroup): Crew {
 /** Map a GitLab subgroup → BRP Pod (with default capacity + empty epics). */
 function subgroupToPod(sg: GitLabSubgroup): Pod {
   return {
-    id: sg.id,
+    id: toIdString(sg.id),
     name: sg.name,
     gitlabSubgroupId: toNumericId(sg.id),
     capacity: { ...DEFAULT_POD_CAPACITY },

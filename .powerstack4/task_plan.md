@@ -1004,3 +1004,83 @@ Per `docs/runbooks/deep-review-a10.md` exit criteria:
     - 10 items listed in the deep-review report under "Nice-to-have"
 
 **Checkpoint passed. Resuming kit-runner loop at B-12.**
+
+---
+
+### Post-checkpoint emergent finding L1 — live smoke caught real GitLab type drift
+
+**Date:** 2026-05-25 (during user-run of live smoke against gitlab.com)
+**Severity:** Important (would have shipped a runtime type lie)
+
+**Discovery:** The user ran the gated live smoke against gitlab.com with
+a fresh PAT and a dedicated test fixture (`wma-test-stream/crew-alpha`,
+`crew-beta`, each with two pods). First run failed at:
+
+```
+expect(typeof crew.id).toBe('string')
+  Expected: "string"
+  Received: "number"
+```
+
+**Root cause:** `src/services/gitlab/types.ts` declares
+`GitLabSubgroup.id` as `string`, but the live GitLab API actually
+returns it as a `number`. The original mappers (`subgroupToCrew`,
+`subgroupToPod`) passed `sg.id` through unchanged, so `Crew.id` and
+`Pod.id` were numbers at runtime despite being typed `string`. The
+mocked tests passed because every fixture used string IDs (matching
+the WRONG declared type, not the real runtime shape).
+
+This is precisely the class of bug the live smoke exists to catch —
+the deep-review's Test Quality reviewer (#13) flagged "no test of
+description: undefined vs null" but missed this drift because no
+review could detect it without a real-network call.
+
+**Fix:** In `src/services/brp/brpGitlabService.ts`, replaced the
+old `toNumericId(stringId: string)` with two helpers that accept
+`string | number` and coerce at the boundary:
+- `toIdString(id)` → string (BRP routing/key shape)
+- `toNumericId(id)` → number (outbound API shape)
+
+Both mappers (`subgroupToCrew`, `subgroupToPod`) now use these. The
+shared `types.ts` file is NOT modified (out of BRP scope; the IR
+branch also depends on it). The runtime coercion makes brpGitlabService
+robust to either shape regardless of what the type declaration says.
+
+**Regression guards added (mocked tests):**
+- `[live-smoke regression] coerces NUMERIC subgroup id from GitLab to
+  BRP string id` — in both `fetchCrews` and `fetchPods` describe blocks.
+- Each test passes a fixture with `id: 131025594` (a number) cast via
+  `as unknown as GitLabSubgroup`, then asserts the BRP output has
+  `id: '131025594'` (string) and `gitlabGroupId: 131025594` (number).
+- If the live smoke had been written against a fixture using the real
+  numeric shape from the start, the deep-review would have caught this
+  without needing a network call. Lesson: mocked fixtures should match
+  the actual runtime shape, not the declared type.
+
+**Verification:**
+
+```
+$ npm run test:run -- src/domain/brp.test.ts src/stores/brpStore.test.ts \\
+    src/services/brp/
+Test Files  5 passed | 1 skipped (6)
+Tests       176 passed | 1 skipped (177)
+Duration    1.04s
+
+$ VITE_BRP_LIVE_SMOKE=1 VITE_GITLAB_BASE_URL=https://gitlab.com/api/v4 \\
+  VITE_GITLAB_ROOT_GROUP_ID=131024666 \\
+  VITE_GITLAB_TOKEN=<rotated-after> \\
+  npm run test:run -- src/services/brp/brpGitlabService.live.test.ts
+Test Files  1 passed (1)
+Tests       1 passed (1)
+Duration    1.33s
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55
+```
+
+**Live smoke target used:** `wma-test-stream` root group on gitlab.com
+(id 131024666), with `crew-alpha` (id 131025594) + `crew-beta` (id
+131025603) as visible crews. The token used has been recommended for
+rotation since it was pasted in chat.
+
+**Status: emergent finding L1 fixed. Live smoke run complete.**
