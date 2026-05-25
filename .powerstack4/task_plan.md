@@ -28,7 +28,7 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-9  | simulatedEstimator + provider | done |
 | B-10 | brpGitlabService skeleton + mocked tests | done |
 | B-11 | brpGitlabService live smoke (gated) | done |
-| —    | 5-agent deep-review checkpoint | in_progress (fix loop) |
+| —    | 5-agent deep-review checkpoint | done (3 critical + 12 important fixed, 3 acked) |
 | B-12 | Knowledge base docs | pending |
 | B-13 | Devlog + ADR-0003 + final commit | pending |
 
@@ -932,3 +932,75 @@ $ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/service
 - **I15** (schema toEqual assertions) — added to 5 existing tests
 
 **Status: cluster 2 done. Cluster 3 (small production fixes I3+I4+I9) pending.**
+
+---
+
+### Cluster 3 — Small targeted production fixes (I3 + I4 + I9)
+
+**Files touched:**
+- `src/stores/brpStore.ts` — I3: `updatePodCapacity` now stores
+  `{ ...inputs }` (defensive clone) so a caller's post-call mutation
+  cannot leak into the stored capacity object
+- `src/domain/brp.ts` — I4: `computePodMetrics` confidence + frameLoad
+  aggregation now requires `epic.analysisStatus === 'done'` in addition
+  to `frameResult !== null`. Prevents a stale FrameResult (preserved
+  during a re-run) from skewing aggregate metrics. `humanLoad` is
+  intentionally NOT status-gated — the planner's number is valid
+  regardless of analysis lifecycle.
+- `src/domain/brp.ts` — I9: the comment on `Epic.source` no longer
+  claims a "union shape that reserves room"; the field is a single
+  literal `'gitlab'` and the comment now reflects that honestly.
+
+**Test additions (rm + Write on both files):**
+- `brp.test.ts` — `[I4] re-run epic ('analyzing' + stale frameResult)
+  excluded from frameLoad + avgConfidence`: pod with one fresh 'done'
+  epic (frameEstimate=8, conf=0.9) and one re-run 'analyzing' epic
+  with stale frameResult (100, 0.1). Asserts frameLoad=8 (NOT 108),
+  avgConfidence=0.9 (NOT 0.5), humanLoad=16 (both planner numbers
+  count regardless of status).
+- `brpStore.test.ts` — `[I3] mutating the inputs object after the call
+  does NOT affect stored capacity`: caller passes `inputs` to
+  `updatePodCapacity`, mutates `inputs.resources = 999` afterward,
+  asserts stored pod.capacity.resources is still 6 AND that
+  `pod.capacity !== inputs` (reference inequality).
+
+**Findings resolved by cluster 3:**
+- **I3** (defensive clone in updatePodCapacity)
+- **I4** (stale frameResult in confidence aggregation during re-runs)
+- **I9** (misleading "union shape" comment on Epic.source)
+
+**Verification:**
+
+```
+$ npm run test:run -- src/domain/brp.test.ts src/stores/brpStore.test.ts \\
+    src/services/brp/
+Test Files  5 passed | 1 skipped (6)
+Tests       174 passed | 1 skipped (175)
+Duration    1.00s
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
+0
+```
+
+---
+
+### Deep-review checkpoint — exit criteria
+
+Per `docs/runbooks/deep-review-a10.md` exit criteria:
+
+- ✅ **Zero critical findings unresolved**
+    - C1 (run lifecycle): fixed in cluster 1
+    - C2 (probabilistic flake): fixed in cluster 1 (folded into simulator test rewrite)
+    - C3 (wrong-reason pass): fixed in cluster 2
+- ✅ **Every important finding fixed OR explicitly acknowledged**
+    - Fixed: I1, I2, I7, I10 (cluster 1); I11, I12, I13, I14, I15 (cluster 2); I3, I4, I9 (cluster 3)
+    - Acknowledged with justification in `docs/reviews/acknowledged.md`: I5, I6, I8 (Phase 5/6 wiring concerns)
+- ✅ **Tests green after fixes**
+    - 174 passed, 1 skipped (live smoke, gated), 0 BRP-introduced tsc errors
+- ✅ **Nice-to-have logged but not auto-fixed**
+    - 10 items listed in the deep-review report under "Nice-to-have"
+
+**Checkpoint passed. Resuming kit-runner loop at B-12.**

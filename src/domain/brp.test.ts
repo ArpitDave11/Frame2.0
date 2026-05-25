@@ -14,7 +14,6 @@ import type {
 
 // ─── Test fixtures ──────────────────────────────────────────
 
-/** Build a baseline FrameResult; override any field you care about. */
 function buildFrameResult(overrides: Partial<FrameResult> = {}): FrameResult {
   return {
     frameEstimate: 8,
@@ -29,13 +28,11 @@ function buildFrameResult(overrides: Partial<FrameResult> = {}): FrameResult {
   };
 }
 
-/** Build a baseline Epic; override any field you care about. */
 function buildEpic(overrides: Partial<Epic> = {}): Epic {
   return {
     id: 'gl:1',
     iid: 1,
     title: 'Sample epic',
-    // 100 chars — comfortably above FLAGGED_DESCRIPTION_MIN_CHARS (80)
     description:
       'A reasonably-fleshed-out epic body that comfortably exceeds the thin-description threshold.',
     gitlabWebUrl: 'https://gitlab.example/epic/1',
@@ -48,7 +45,6 @@ function buildEpic(overrides: Partial<Epic> = {}): Epic {
   };
 }
 
-/** Build a baseline Pod with default capacity (4 × 10 × 5 = 200 gross). */
 function buildPod(overrides: Partial<Pod> = {}): Pod {
   return {
     id: 'pod-1',
@@ -228,14 +224,7 @@ describe('computeVariance — step 1 (status not done OR no frameResult)', () =>
     expect(computeVariance(epic)).toBe('flagged');
   });
 
-  // Deep-review C3: the step-1 check is `status !== 'done' || frameResult ===
-  // null` — an OR. Each arm must be independently testable. The tests below
-  // hold one arm constant so we know WHICH check fired.
-
   it("[C3 arm A] status 'analyzing' + valid frameResult + fat desc → 'pending'", () => {
-    // frameResult is non-null, but status is not 'done' → first OR arm fires.
-    // If production accidentally checked frameResult === null only, this
-    // would fail (the FR is valid).
     const epic = buildEpic({
       analysisStatus: 'analyzing',
       frameResult: buildFrameResult({ frameEstimate: 8 }),
@@ -244,8 +233,6 @@ describe('computeVariance — step 1 (status not done OR no frameResult)', () =>
   });
 
   it("[C3 arm B] status 'done' + frameResult null + fat desc → 'pending'", () => {
-    // frameResult is null, but status IS 'done' → second OR arm fires.
-    // If production accidentally checked status only, this would fail.
     const epic = buildEpic({
       analysisStatus: 'done',
       frameResult: null,
@@ -273,7 +260,6 @@ describe('computeVariance — step 2 (analyzed but no humanEstimate)', () => {
 
 describe('computeVariance — step 3 (threshold boundaries)', () => {
   it("ratio exactly 0.20 → 'agree' (inclusive)", () => {
-    // human=10, frame=8 → |10-8|/10 = 0.20
     const epic = buildEpic({
       humanEstimate: 10,
       frameResult: buildFrameResult({ frameEstimate: 8 }),
@@ -281,11 +267,7 @@ describe('computeVariance — step 3 (threshold boundaries)', () => {
     expect(computeVariance(epic)).toBe('agree');
   });
 
-  // Deep-review I12: tightened boundary tests. Earlier "just above 0.20"
-  // used ratio 0.375 — comfortably above the boundary but not tight.
-  // We pin tight just-above cases here using Fibonacci-safe frame values.
   it("[I12] ratio just above 0.20 (≈ 0.2157) → 'caution'", () => {
-    // human=51, frame=40 → |51-40|/51 = 11/51 = 0.2157...
     const epic = buildEpic({
       humanEstimate: 51,
       frameResult: buildFrameResult({ frameEstimate: 40 }),
@@ -294,7 +276,6 @@ describe('computeVariance — step 3 (threshold boundaries)', () => {
   });
 
   it("loose ratio 0.375 (well above 0.20) → 'caution'", () => {
-    // Kept as a broader-band sanity check; not a boundary test.
     const epic = buildEpic({
       humanEstimate: 8,
       frameResult: buildFrameResult({ frameEstimate: 5 }),
@@ -303,7 +284,6 @@ describe('computeVariance — step 3 (threshold boundaries)', () => {
   });
 
   it("ratio exactly 0.50 → 'caution' (inclusive)", () => {
-    // human=10, frame=5 → 0.50
     const epic = buildEpic({
       humanEstimate: 10,
       frameResult: buildFrameResult({ frameEstimate: 5 }),
@@ -312,7 +292,6 @@ describe('computeVariance — step 3 (threshold boundaries)', () => {
   });
 
   it("[I12] ratio just above 0.50 (≈ 0.5061) → 're-groom'", () => {
-    // human=81, frame=40 → 41/81 = 0.5061...
     const epic = buildEpic({
       humanEstimate: 81,
       frameResult: buildFrameResult({ frameEstimate: 40 }),
@@ -321,7 +300,6 @@ describe('computeVariance — step 3 (threshold boundaries)', () => {
   });
 
   it("loose ratio 0.625 (well above 0.50) → 're-groom'", () => {
-    // Kept as a broader-band sanity check.
     const epic = buildEpic({
       humanEstimate: 8,
       frameResult: buildFrameResult({ frameEstimate: 3 }),
@@ -330,7 +308,6 @@ describe('computeVariance — step 3 (threshold boundaries)', () => {
   });
 
   it('works symmetrically when FRAME is higher (denom = frame)', () => {
-    // human=3, frame=8 → 5/8 = 0.625
     const epic = buildEpic({
       humanEstimate: 3,
       frameResult: buildFrameResult({ frameEstimate: 8 }),
@@ -493,6 +470,40 @@ describe('computePodMetrics', () => {
     expect(metrics.humanLoad).toBe(0);
     expect(metrics.frameLoad).toBe(13);
     expect(metrics.avgConfidence).toBeCloseTo(0.7, 10);
+    expect(metrics.flaggedCount).toBe(0);
+  });
+
+  it("[I4] re-run epic ('analyzing' + stale frameResult) excluded from frameLoad + avgConfidence", () => {
+    // Deep-review I4: when an epic is re-analyzed, its status flips back
+    // to 'analyzing' but its prior frameResult is deliberately preserved
+    // (per setEpicAnalysisStatus's "does not clear frameResult" rule).
+    // Without the status filter, the stale value would skew metrics for
+    // the duration of every re-run.
+    const pod = buildPod({
+      epics: [
+        buildEpic({
+          id: 'fresh',
+          humanEstimate: 8,
+          analysisStatus: 'done',
+          frameResult: buildFrameResult({ frameEstimate: 8, confidence: 0.9 }),
+        }),
+        buildEpic({
+          id: 'rerun',
+          humanEstimate: 8,
+          analysisStatus: 'analyzing',
+          // Stale prior result attached — should NOT be counted.
+          frameResult: buildFrameResult({ frameEstimate: 100, confidence: 0.1 }),
+        }),
+      ],
+    });
+    const metrics = computePodMetrics(pod);
+    // frameLoad: only the fresh 'done' epic's 8, NOT the stale 100.
+    expect(metrics.frameLoad).toBe(8);
+    // avgConfidence: only the fresh 0.9, NOT averaged with stale 0.1.
+    expect(metrics.avgConfidence).toBeCloseTo(0.9, 10);
+    // humanLoad is NOT status-gated — planner committed both numbers.
+    expect(metrics.humanLoad).toBe(16);
+    // Neither epic is flagged.
     expect(metrics.flaggedCount).toBe(0);
   });
 

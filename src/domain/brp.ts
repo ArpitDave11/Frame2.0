@@ -171,9 +171,12 @@ export interface Epic {
   /** ID of the Pod this epic is assigned to. */
   podId: string;
   /**
-   * Where the epic came from. Only 'gitlab' is supported today; the
-   * union shape reserves room for future sources (e.g., manual seed)
-   * without a model change.
+   * Where the epic came from. Today only `'gitlab'` exists; the type is
+   * a single literal, not a union. If a future source (e.g., a manual
+   * seed) is added, widen this to a union here and update consumers
+   * (the variance/metrics functions don't depend on it). Deep-review
+   * I9: the previous comment claimed a "union shape" that didn't exist
+   * — corrected to avoid promising polymorphism that isn't there.
    */
   source: 'gitlab';
   /**
@@ -397,7 +400,15 @@ export function computePodMetrics(pod: Pod): PodMetrics {
     if (epic.humanEstimate !== null) {
       humanLoad += epic.humanEstimate;
     }
-    if (epic.frameResult !== null) {
+    // I4 (deep-review): only count epics whose analysis is CURRENT
+    // (status === 'done') in frameLoad + avgConfidence. A re-run sets
+    // an epic back to 'analyzing' but deliberately preserves the prior
+    // `frameResult` until the new one lands (per `setEpicAnalysisStatus`
+    // — see its docstring). Without this filter, the stale value would
+    // contribute to `frameLoad` and skew `avgConfidence` for the duration
+    // of every re-run. `humanLoad` is intentionally NOT status-gated:
+    // the planner's number is valid regardless of analysis lifecycle.
+    if (epic.frameResult !== null && epic.analysisStatus === 'done') {
       frameLoad += epic.frameResult.frameEstimate;
       confidenceSum += epic.frameResult.confidence;
       confidenceCount++;

@@ -229,12 +229,19 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
    * is not found. Crucially — this writes inputs, NOT `totalCapacity`.
    * The total is always `computeCapacity(inputs).total` at the call site,
    * which is the architectural invariant from Phase 1.
+   *
+   * Defensive: clones `inputs` via spread so a Phase 6 component holding
+   * the same reference cannot mutate the stored capacity out from under
+   * Zustand (deep-review I3). Without the clone, a post-call mutation
+   * desyncs selectors because `Object.is(prev, next)` still holds.
    */
   updatePodCapacity: (podId, inputs) =>
     set((s) => ({
       crews: s.crews.map((c) => ({
         ...c,
-        pods: c.pods.map((p) => (p.id === podId ? { ...p, capacity: inputs } : p)),
+        pods: c.pods.map((p) =>
+          p.id === podId ? { ...p, capacity: { ...inputs } } : p,
+        ),
       })),
     })),
 

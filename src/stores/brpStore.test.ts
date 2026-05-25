@@ -87,12 +87,6 @@ function buildEstimator(
   };
 }
 
-/**
- * Build an estimator whose first epic blocks until the AbortSignal fires,
- * then returns early. Resolves `firstStartedPromise` synchronously the
- * moment the estimator is called — letting tests synchronize "first epic
- * has been picked up" without timing-based sleeps.
- */
 function buildSignalGatedEstimator(): {
   estimator: AIEstimator;
   firstStartedPromise: Promise<void>;
@@ -109,14 +103,10 @@ function buildSignalGatedEstimator(): {
         resolveStarted();
       }
       yield { kind: 'started', epicId: epic.id };
-      // Block until aborted. No timing assumptions.
       await new Promise<void>((resolve) => {
         if (signal?.aborted) return resolve();
         signal?.addEventListener('abort', () => resolve(), { once: true });
       });
-      // After abort: return without emitting 'done'. The store's loop
-      // checks signal.aborted between events and between epics, so the
-      // run terminates cleanly even if the estimator weren't cooperative.
     },
   };
   return { estimator, firstStartedPromise };
@@ -365,6 +355,34 @@ describe('brpStore — updatePodCapacity', () => {
     const pod = useBrpStore.getState().crews[0]!.pods[0]!;
     expect(pod.capacity.resources).toBe(4);
   });
+
+  it('[I3] mutating the inputs object after the call does NOT affect stored capacity', () => {
+    // Deep-review I3: without a defensive clone, a Phase 6 component
+    // holding the same reference could mutate the pod's capacity out
+    // from under Zustand. Selectors would not re-render and Object.is
+    // equality would still hold.
+    useBrpStore.getState().loadCrew(
+      buildCrew({ id: 'crew-A', pods: [buildPod({ id: 'pod-X' })] }),
+    );
+    const inputs: CapacityInputs = {
+      resources: 6,
+      spPerResource: 10,
+      sprintCount: 6,
+      holidayDays: 2,
+      leaveDays: 5,
+    };
+    useBrpStore.getState().updatePodCapacity('pod-X', inputs);
+
+    // Post-call mutation of the caller's object — must NOT leak into state.
+    inputs.resources = 999;
+    inputs.holidayDays = 999;
+
+    const pod = useBrpStore.getState().crews[0]!.pods[0]!;
+    expect(pod.capacity.resources).toBe(6);
+    expect(pod.capacity.holidayDays).toBe(2);
+    // The stored object must not be the same reference as the caller's.
+    expect(pod.capacity).not.toBe(inputs);
+  });
 });
 
 // ─── Estimates ──────────────────────────────────────────────
@@ -503,9 +521,6 @@ describe('brpStore — setEpicFrameResult', () => {
   });
 
   it("[I13] transitions from 'error' state to 'done' (recovery)", () => {
-    // Deep-review I13: prior test only covered 'analyzing' → 'done'.
-    // A re-run after a failed run starts the epic in 'error'; the new
-    // frameResult must successfully transition it back to 'done'.
     useBrpStore.getState().loadCrew(
       buildCrew({
         id: 'crew-A',
@@ -635,10 +650,6 @@ describe('brpStore — runAnalysis', () => {
   });
 
   it("[I11] when estimator throws SYNCHRONOUSLY (before returning iterator): epic ends 'error', run continues", async () => {
-    // Deep-review I11: the existing throw test (above) throws INSIDE the
-    // async generator body — the iterator is created first, then throws on
-    // the first .next(). This test verifies the catch ALSO works when
-    // analyzeEpic throws synchronously, before returning anything.
     useBrpStore.getState().loadCrew(
       buildCrew({
         id: 'crew-A',
@@ -651,7 +662,6 @@ describe('brpStore — runAnalysis', () => {
       }),
     );
     const estimator: AIEstimator = {
-      // Plain method (NOT async generator) that throws synchronously for E1.
       analyzeEpic(epic) {
         if (epic.id === 'E1') {
           throw new Error('estimator threw synchronously');
@@ -701,8 +711,6 @@ describe('brpStore — runAnalysis', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]!.refs).toEqual(refs);
   });
-
-  // ─── Snapshot semantics under mid-run mutation (I14) ─────
 
   it('[I14] new epic loaded mid-run is NOT analyzed (snapshot held at kickoff)', async () => {
     useBrpStore.getState().loadCrew(
@@ -765,8 +773,6 @@ describe('brpStore — runAnalysis', () => {
     expect(useBrpStore.getState().analysisStatus).toBe('done');
   });
 });
-
-// ─── runAnalysis — cancellation & concurrency (deep-review C1, I1, I2, I7) ──
 
 describe('brpStore — runAnalysis cancellation & concurrency', () => {
   it('event with mismatched epicId is silently ignored (I1)', async () => {
@@ -863,11 +869,9 @@ describe('brpStore — runAnalysis cancellation & concurrency', () => {
         ],
       }),
     );
-    // Signal-gated estimator: hangs until aborted. Removes timing
-    // dependence — abort happens on demand, not after a sleep.
     const { estimator, firstStartedPromise } = buildSignalGatedEstimator();
     const promise = useBrpStore.getState().runAnalysis(estimator);
-    await firstStartedPromise; // First epic is in flight; abort is now safe.
+    await firstStartedPromise;
     useBrpStore.getState().reset();
     await promise;
     expect(useBrpStore.getState().analysisStatus).toBe('idle');
