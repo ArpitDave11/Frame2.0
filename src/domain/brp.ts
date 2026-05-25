@@ -2,11 +2,12 @@
  * BRP — Breakdown & Re-groom Planning — Phase 1 type model (B-1).
  *
  * This module is the single source of truth for BRP data shapes and (in
- * later B-tasks) the pure derivation functions. It is dependency-free:
- * no React, no Zustand, no FRAME services. It can be unit-tested with
- * zero setup, and the pure functions added by B-2..B-4 must respect the
- * same purity rule (same input → same output, no side effects, no
- * `Date.now()`, no randomness).
+ * later B-tasks) the pure derivation functions. It is dependency-free
+ * except for its own constants file: no React, no Zustand, no FRAME
+ * services. It can be unit-tested with zero setup, and the pure
+ * functions added by B-2..B-4 must respect the same purity rule
+ * (same input → same output, no side effects, no `Date.now()`, no
+ * randomness).
  *
  * Three architectural invariants are enforced by the type shape itself.
  * If you find yourself wanting to add a field that violates one, do
@@ -29,6 +30,13 @@
  * zero instances of `variance:`, `delta:`, or `totalCapacity:` as a
  * field, and `brp.ts` must import nothing outside of `./brp.constants`.
  */
+
+import {
+  CONFIDENCE_BUMP_THRESHOLD,
+  FLAGGED_DESCRIPTION_MIN_CHARS,
+  VARIANCE_AGREE_THRESHOLD,
+  VARIANCE_CAUTION_THRESHOLD,
+} from './brp.constants';
 
 // ─── Scales & enums ─────────────────────────────────────────
 
@@ -303,4 +311,75 @@ export function computeCapacity(inputs: CapacityInputs): CapacityResult {
   const leaveDeduction = inputs.leaveDays;
   const total = Math.max(0, gross - holidayDeduction - leaveDeduction);
   return { gross, holidayDeduction, leaveDeduction, total };
+}
+
+/**
+ * Compute the signed delta between FRAME's estimate and the planner's
+ * estimate (frame − human). Returns `null` whenever either side is missing
+ * — either the epic has not been analyzed yet, or the planner has not
+ * typed a value into the editable cell.
+ *
+ * Sign convention: positive means FRAME estimated higher than the human.
+ * Never stored — derived on every read so it cannot drift.
+ */
+export function computeDelta(epic: Epic): number | null {
+  if (epic.frameResult === null || epic.humanEstimate === null) {
+    return null;
+  }
+  return epic.frameResult.frameEstimate - epic.humanEstimate;
+}
+
+/**
+ * Compute the variance band for an Epic. Single source of truth for the
+ * value — never stored as a field anywhere. Order of checks matters and
+ * is enforced by the test suite at the threshold boundaries:
+ *
+ *   1. If `analysisStatus !== 'done'` OR `frameResult` is null:
+ *      → 'flagged' when the description is too thin to estimate
+ *        (length below `FLAGGED_DESCRIPTION_MIN_CHARS`), otherwise
+ *      → 'pending'.
+ *
+ *   2. If `computeDelta(epic)` is null (planner has not entered an estimate
+ *      despite FRAME having finished) → 'pending'.
+ *
+ *   3. Compute `ratio = |delta| / max(human, frame)` (a relative gap):
+ *        ratio ≤ VARIANCE_AGREE_THRESHOLD   → 'agree'
+ *        ratio ≤ VARIANCE_CAUTION_THRESHOLD → 'caution'
+ *        else                               → 're-groom'
+ *      Both thresholds are inclusive (a ratio of exactly 0.20 is 'agree';
+ *      0.50 is 'caution'). Tests pin the boundary behavior.
+ *
+ *   4. If the band would be 'agree' but `frameResult.confidence` is
+ *      below `CONFIDENCE_BUMP_THRESHOLD`, the band bumps up to 'caution'.
+ *      Low-confidence agreement is not real agreement.
+ */
+export function computeVariance(epic: Epic): VarianceBand {
+  // Step 1: FRAME hasn't produced a usable result for this epic.
+  if (epic.analysisStatus !== 'done' || epic.frameResult === null) {
+    return epic.description.length < FLAGGED_DESCRIPTION_MIN_CHARS
+      ? 'flagged'
+      : 'pending';
+  }
+
+  // Step 2: FRAME estimated but the planner hasn't.
+  const delta = computeDelta(epic);
+  if (delta === null) return 'pending';
+
+  // Step 3: relative gap classification.
+  const human = epic.humanEstimate as number; // non-null guaranteed by delta !== null
+  const frame = epic.frameResult.frameEstimate;
+  const denom = Math.max(human, frame);
+  // Both estimates 0 is degenerate but treat as full agreement.
+  const ratio = denom === 0 ? 0 : Math.abs(delta) / denom;
+  let band: VarianceBand;
+  if (ratio <= VARIANCE_AGREE_THRESHOLD) band = 'agree';
+  else if (ratio <= VARIANCE_CAUTION_THRESHOLD) band = 'caution';
+  else band = 're-groom';
+
+  // Step 4: confidence bump.
+  if (band === 'agree' && epic.frameResult.confidence < CONFIDENCE_BUMP_THRESHOLD) {
+    band = 'caution';
+  }
+
+  return band;
 }

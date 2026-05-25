@@ -18,8 +18,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 |---|------|--------|
 | B-0  | Preflight verification | done |
 | B-1  | P1 types + constants | done |
-| B-2  | computeCapacity + tests | in_progress |
-| B-3  | computeDelta + computeVariance + tests | pending |
+| B-2  | computeCapacity + tests | done |
+| B-3  | computeDelta + computeVariance + tests | in_progress |
 | B-4  | computePodMetrics + tests | pending |
 | B-5  | brpStore state + Loading actions | pending |
 | B-6  | brpStore Capacity + Estimates + Analysis actions | pending |
@@ -190,6 +190,61 @@ Duration    477ms
 
 $ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
 55   # unchanged from baseline — no BRP-introduced errors
+```
+
+**Status: done**
+
+---
+
+### B-3 — computeDelta + computeVariance + tests (in_progress → done)
+
+**Date:** 2026-05-24
+**Files touched:**
+- `src/domain/brp.ts` — appended `computeDelta` and `computeVariance`;
+  added `import` block for the 4 thresholds from `brp.constants.ts`
+- `src/domain/brp.test.ts` — rm + Write (H3 pattern); now 28 tests covering
+  computeCapacity (7) + computeDelta (6) + computeVariance (15)
+
+**Tests added for computeDelta (6):**
+- null when frameResult missing / humanEstimate missing / both
+- positive when FRAME estimates higher
+- negative when FRAME estimates lower
+- zero when estimates match
+
+**Tests added for computeVariance (15), grouped by step:**
+- Step 1 (no analysis): 5 tests — raw + normal desc → pending; raw + thin desc
+  → flagged; raw + empty desc → flagged; analyzing status → pending;
+  error status → pending OR flagged depending on description thickness
+- Step 2 (analyzed, no humanEstimate): 1 test — pending
+- Step 3 (thresholds): 6 tests — ratio exactly 0.20 → agree; just above 0.20
+  → caution; exactly 0.50 → caution; just above 0.50 → re-groom; symmetric
+  when FRAME higher; identical estimates → agree at any magnitude
+- Step 4 (confidence bump): 3 tests — agree at conf=0.40 stays agree; agree
+  at conf=0.39 bumps to caution; caution/re-groom NEVER downgraded by low conf
+
+**Type-system caught a real bug during this task:**
+First test pass used `frameEstimate: 7` and `frameEstimate: 4` in 7 threshold
+tests. tsc rose 55 → 62 with `TS2322: Type '7' is not assignable to type
+'FibonacciPoint'`. The `FibonacciPoint` literal union (1|2|3|5|8|13|21|40|100)
+is doing exactly the job the architectural rule wants — preventing the
+simulator and any other producer from emitting non-Fibonacci values.
+Fixed by rewriting threshold tests with valid Fibonacci pairs that still
+land on the same band boundaries (e.g., human=8, frame=5 → 3/8 = 0.375
+→ caution, replacing the original human=10, frame=7 → 0.30).
+
+**Verification commands:**
+
+```
+$ npm run test:run -- src/domain/brp.test.ts
+Test Files  1 passed (1)
+Tests       28 passed (28)
+Duration    591ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # back to baseline after Fibonacci-safe rewrite
+
+$ npx tsc -b --noEmit 2>&1 | grep "src/domain/brp" | wc -l
+0
 ```
 
 **Status: done**
