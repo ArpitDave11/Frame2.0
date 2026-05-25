@@ -19,8 +19,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-0  | Preflight verification | done |
 | B-1  | P1 types + constants | done |
 | B-2  | computeCapacity + tests | done |
-| B-3  | computeDelta + computeVariance + tests | in_progress |
-| B-4  | computePodMetrics + tests | pending |
+| B-3  | computeDelta + computeVariance + tests | done |
+| B-4  | computePodMetrics + tests | in_progress |
 | B-5  | brpStore state + Loading actions | pending |
 | B-6  | brpStore Capacity + Estimates + Analysis actions | pending |
 | B-7  | brpStore Navigation + UI actions | pending |
@@ -246,5 +246,52 @@ $ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
 $ npx tsc -b --noEmit 2>&1 | grep "src/domain/brp" | wc -l
 0
 ```
+
+**Status: done**
+
+---
+
+### B-4 — computePodMetrics + tests (in_progress → done) — **P1 COMPLETE**
+
+**Date:** 2026-05-25
+**Files touched:**
+- `src/domain/brp.ts` — appended `computePodMetrics`
+- `src/domain/brp.test.ts` — rm + Write (H3 pattern); now 35 tests covering
+  all 4 pure functions
+
+**Tests added for computePodMetrics (7):**
+- Empty pod: all-zero loads, zero avgConfidence (not NaN), totalCapacity from inputs
+- Normal pod, 4 epics mixing agree/caution/re-groom/flagged — verifies
+  humanLoad=24, frameLoad=16 (E4's flagged 21 excluded), avgConfidence=0.8
+- **Regression guard**: flagged epic with humanEstimate=100 is NOT added
+  to humanLoad (p1.md's stated past bug)
+- All-flagged pod: humanLoad=0, frameLoad=0, balance=totalCapacity, no NaN
+- Pending epic (FRAME done, no human est): contributes frameLoad+confidence,
+  NOT humanLoad
+- Over-committed pod: negative balance (totalCapacity 10, frameLoad 100,
+  balance -90)
+- Purity: repeated calls equal
+
+**Verification:**
+
+```
+$ npm run test:run -- src/domain/brp.test.ts
+Test Files  1 passed (1)
+Tests       35 passed (35)
+Duration    465ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55      # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep "src/domain/brp" | wc -l
+0
+```
+
+**Phase 1 complete:**
+- `src/domain/brp.ts` — 14 types + AIEstimator interface + 4 pure functions
+- `src/domain/brp.constants.ts` — 6 constants
+- `src/domain/brp.test.ts` — 35 tests (7 capacity + 6 delta + 15 variance + 7 metrics)
+- All 4 functions are pure, dependency-free, and Fibonacci-safe.
+- Architectural invariants enforced by type shape (no stored variance/delta/totalCapacity).
 
 **Status: done**

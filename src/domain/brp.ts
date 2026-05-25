@@ -383,3 +383,64 @@ export function computeVariance(epic: Epic): VarianceBand {
 
   return band;
 }
+
+/**
+ * Compute the roll-up the dashboards (Phase 5) need for a single Pod.
+ * Pure — no side effects. Reads `pod.capacity`, `pod.epics[*]`, and
+ * delegates band classification to `computeVariance`.
+ *
+ * Critical rule (regression guard from p1.md's stated past bug): epics
+ * with band 'flagged' are EXCLUDED from both `humanLoad` and `frameLoad`.
+ * Including them silently misrepresents the planner-vs-FRAME comparison
+ * — FRAME has nothing to compare against on a flagged epic. They are
+ * counted only in `flaggedCount` and `epicCount`.
+ *
+ *   totalCapacity = computeCapacity(pod.capacity).total
+ *   humanLoad     = Σ epic.humanEstimate  for epics where band ≠ 'flagged'
+ *   frameLoad     = Σ epic.frameResult.frameEstimate  for epics where band ≠ 'flagged'
+ *   balance       = totalCapacity − frameLoad   (negative = over-committed)
+ *   avgConfidence = mean(frameResult.confidence) over epics with frameResult ≠ null
+ *                   AND band ≠ 'flagged'.  0 if there are none.
+ *   epicCount     = pod.epics.length
+ *   flaggedCount  = number of epics whose band is 'flagged'
+ *   reGroomCount  = number of epics whose band is 're-groom'
+ */
+export function computePodMetrics(pod: Pod): PodMetrics {
+  const totalCapacity = computeCapacity(pod.capacity).total;
+
+  let humanLoad = 0;
+  let frameLoad = 0;
+  let confidenceSum = 0;
+  let confidenceCount = 0;
+  let flaggedCount = 0;
+  let reGroomCount = 0;
+
+  for (const epic of pod.epics) {
+    const band = computeVariance(epic);
+    if (band === 'flagged') {
+      flaggedCount++;
+      continue; // exclude from loads — see invariant above
+    }
+    if (band === 're-groom') reGroomCount++;
+
+    if (epic.humanEstimate !== null) {
+      humanLoad += epic.humanEstimate;
+    }
+    if (epic.frameResult !== null) {
+      frameLoad += epic.frameResult.frameEstimate;
+      confidenceSum += epic.frameResult.confidence;
+      confidenceCount++;
+    }
+  }
+
+  return {
+    totalCapacity,
+    humanLoad,
+    frameLoad,
+    balance: totalCapacity - frameLoad,
+    avgConfidence: confidenceCount > 0 ? confidenceSum / confidenceCount : 0,
+    epicCount: pod.epics.length,
+    flaggedCount,
+    reGroomCount,
+  };
+}
