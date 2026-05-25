@@ -20,8 +20,8 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-1  | P1 types + constants | done |
 | B-2  | computeCapacity + tests | done |
 | B-3  | computeDelta + computeVariance + tests | done |
-| B-4  | computePodMetrics + tests | in_progress |
-| B-5  | brpStore state + Loading actions | pending |
+| B-4  | computePodMetrics + tests | done |
+| B-5  | brpStore state + Loading actions | in_progress |
 | B-6  | brpStore Capacity + Estimates + Analysis actions | pending |
 | B-7  | brpStore Navigation + UI actions | pending |
 | B-8  | AIEstimator + Zod schemas | pending |
@@ -293,5 +293,64 @@ $ npx tsc -b --noEmit 2>&1 | grep "src/domain/brp" | wc -l
 - `src/domain/brp.test.ts` — 35 tests (7 capacity + 6 delta + 15 variance + 7 metrics)
 - All 4 functions are pure, dependency-free, and Fibonacci-safe.
 - Architectural invariants enforced by type shape (no stored variance/delta/totalCapacity).
+
+**Status: done**
+
+---
+
+### B-5 — brpStore state + Loading actions (in_progress → done)
+
+**Date:** 2026-05-25
+**Files created:**
+- `src/stores/brpStore.ts` (~145 lines) — Zustand v5 store, patterned on initiativeStore.ts
+- `src/stores/brpStore.test.ts` (~190 lines) — 13 tests
+
+**State shape (12 fields, all inputs/raw):**
+- Domain: `crews`, `currentPI`
+- Navigation: `view`, `selectedCrewId`, `selectedPodId`, `selectedEpicId`
+- UI: `collapsedPods` (Set), `reGroomOnlyFilter`, `openModal`, `modalContext`
+- Process: `analysisStatus` ('idle' | 'running' | 'done')
+
+**Loading actions (4 — B-5 scope):**
+- `loadCrew(crew)` — appends (does NOT dedup; caller's job)
+- `loadPods(crewId, pods)` — REPLACES the crew's pod list (no-op on unknown id)
+- `loadEpicsIntoPod(podId, epics)` — REPLACES the pod's epic list across any crew (no-op on unknown id)
+- `reset()` — fresh Set + arrays via `initialState()` factory
+
+**Design decisions:**
+- `initialState()` is a function (not a frozen constant) so `reset()` always
+  returns a fresh `Set` for collapsedPods. A shared mutable INITIAL is a
+  subtle bug source.
+- Append-on-loadCrew (not upsert) matches p2.md's "a crew enters the board"
+  framing. Dedup is the caller's concern; staging multiple crews intentional.
+- Replace-on-loadPods/loadEpicsIntoPod matches the GitLab-refresh model:
+  re-loading = "what's in there now", not "merge with what was there".
+
+**Tests (13):**
+- Initial-state shape (Set instance, all defaults)
+- loadCrew append, multi-crew order preservation, no-dedup behavior
+- loadPods sets pods on target crew, leaves others alone, REPLACES not
+  merges, no-ops on unknown crew
+- loadEpicsIntoPod sets on target pod across any crew, REPLACES, no-ops
+  on unknown pod
+- reset clears all, returns FRESH Set (not a stale reference)
+- **No-derived-state invariant**: programmatically asserts Crew has only
+  {id,name,gitlabGroupId,pods}; Pod has no totalCapacity field; Epic has
+  no variance/delta/frameEstimate fields.
+
+**Verification:**
+
+```
+$ npm run test:run -- src/stores/brpStore.test.ts
+Test Files  1 passed (1)
+Tests       13 passed (13)
+Duration    640ms
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp)" | wc -l
+0
+```
 
 **Status: done**
