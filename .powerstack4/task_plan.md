@@ -29,7 +29,7 @@ are separate. Land on `feature/brp` branch, mergeable to `main` independently.
 | B-10 | brpGitlabService skeleton + mocked tests | done |
 | B-11 | brpGitlabService live smoke (gated) | done |
 | —    | 5-agent deep-review checkpoint | done (3 critical + 12 important fixed, 3 acked) |
-| B-12 | Knowledge base docs | pending |
+| B-12 | Knowledge base docs | in_progress |
 | B-13 | Devlog + ADR-0003 + final commit | pending |
 
 ## Key Decisions (locked)
@@ -1084,3 +1084,42 @@ $ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
 rotation since it was pasted in chat.
 
 **Status: emergent finding L1 fixed. Live smoke run complete.**
+
+---
+
+### B-12 — Knowledge base docs (in_progress → done)
+
+**Date:** 2026-05-26
+**Files created (5, all under docs/knowledge/):**
+- `domain/brp.md` (~97 lines) — pure types + 4 derivation functions + 3 invariants
+- `stores/brpStore.md` (~93 lines) — state shape + 15 actions + cancellation rules + invariants
+- `services/brp/README.md` (~76 lines) — service-layer index + architecture diagram
+- `services/brp/simulatedEstimator.md` (~93 lines) — AI seam, simulator design, Zod schemas, swap path
+- `services/brp/brpGitlabService.md` (~81 lines) — 4 ops, type-drift fix, live-smoke run command, v1 limitations
+
+**Patterned on the IR knowledge docs** (`docs/knowledge/stores/issueRefineryStore.md` etc. from the IR branch's main checkout): title + source link + 1–2 sentence summary, tables for State/Actions, Invariants section, Consumers section, source-relative `..` paths.
+
+**Architecture diagram** in `services/brp/README.md` makes the layer
+contract visible at a glance: components call pure functions at render
+time + dispatch store actions; the store imports only the AIEstimator
+interface (never an implementation); brpGitlabService and the estimator
+provider sit below the store as injected dependencies.
+
+**Cross-links:** every doc links to its source file(s), to its
+consumers, and to other BRP knowledge files. The README also links to
+the deep-review report and `acknowledged.md`.
+
+**Verification:**
+
+```
+$ find docs/knowledge -type f -name '*.md' | sort
+docs/knowledge/domain/brp.md
+docs/knowledge/services/brp/README.md
+docs/knowledge/services/brp/brpGitlabService.md
+docs/knowledge/services/brp/simulatedEstimator.md
+docs/knowledge/stores/brpStore.md
+```
+
+(5 files, 440 lines total. No tests touched, no production code touched.)
+
+**Status: done**
