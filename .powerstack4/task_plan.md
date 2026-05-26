@@ -1123,3 +1123,64 @@ docs/knowledge/stores/brpStore.md
 (5 files, 440 lines total. No tests touched, no production code touched.)
 
 **Status: done**
+
+---
+
+### B-13 — Devlog + ADR-0003 + final commit (in_progress → done) — **BRANCH COMPLETE**
+
+**Date:** 2026-05-26
+**Files created:**
+- `docs/adr/0003-brp-no-derived-state.md` (~75 lines) — ADR covering the
+  three architectural invariants (no top-level variance/delta on Epic;
+  no totalCapacity on Pod; VarianceBand is a return type only) AND the
+  `AIEstimator`-lives-in-services-not-domain decision (deep-review I10)
+  AND the `AbortSignal`-on-the-interface decision (C1). Format matches
+  the existing `docs/adr/template.md` (id, title, date, status,
+  Context, Decision, Consequences, Alternatives, References).
+- `docs/devlog/2026-05-26-brp-headless.md` (~75 lines) — devlog
+  capturing: what shipped, scale (20 commits, 11 new src files, 1 dep
+  added, 177 tests), process (kit-runner + 5-agent deep-review + L1
+  emergent), 7 lessons learned, what's next (P5/P6/P7), pre-PR checklist.
+
+**Intentionally NOT modified** (to avoid merge-conflict with main+IR's
+edits to the same files; the post-merge user will update):
+- `docs/adr/README.md` — needs an ADR-0003 entry after merge.
+- `docs/devlog/README.md` — needs the BRP entry prepended after merge.
+- Root `CLAUDE.md` — "Active Work: DocMining" still stale; should be
+  updated post-merge to call out BRP Phases 1–4 shipped.
+
+**Build status (corrected — B-0 journal misreported):**
+- `npx tsc -b --noEmit` exits **1** with 55 pre-existing errors (B-0
+  noted "exit 0" — that was wrong; the error count was right). All 55
+  errors are in pre-existing test files (uiStore.test, chatStore.test,
+  pipelineFlow.test, etc.) and not in any BRP code.
+- `npx vite build` standalone exits 0 in 4.18s — the actual bundle is
+  buildable.
+- `npm run build` (= `tsc -b && vite build`) fails at the `tsc -b`
+  step due to the pre-existing errors. This is the SAME baseline that
+  exists on `main` before any BRP work. Not introduced by this branch.
+- The stop-typecheck hook is branch-scoped to `docmining*`/`phase-a*`/
+  `phase-b*` per `.claude/hooks/stop-typecheck.py` — does NOT gate on
+  `feature/brp`. The hook deliberately tolerates pre-existing failures
+  outside the active branch's scope.
+
+**Final verification:**
+
+```
+$ npm run test:run -- src/domain/brp.test.ts src/stores/brpStore.test.ts \\
+    src/services/brp/
+Test Files  5 passed | 1 skipped (6)
+Tests       176 passed | 1 skipped (177)
+Duration    1.01s
+
+$ npx tsc -b --noEmit 2>&1 | grep -c "error TS"
+55   # baseline unchanged
+
+$ npx tsc -b --noEmit 2>&1 | grep -E "(src/domain/brp|src/stores/brp|src/services/brp)" | wc -l
+0    # zero BRP-introduced errors
+
+$ npx vite build
+✓ built in 4.18s
+```
+
+**Status: done. BRP headless branch (Phases 1–4) ready for PR.**
