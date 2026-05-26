@@ -50,6 +50,19 @@ export interface BrpModalContext {
 
 export type BrpAnalysisStatus = 'idle' | 'running' | 'done';
 
+/**
+ * Progress snapshot for the active `runAnalysis` run (B-15, addresses
+ * deep-review I6 acknowledged finding). `null` when no run is in flight.
+ * `completed` increments on every 'done'/'error' event; `currentEpicId`
+ * tracks which epic the estimator is currently working on (updated on
+ * 'started'/'progress' events).
+ */
+export interface BrpProgress {
+  completed: number;
+  total: number;
+  currentEpicId: string | null;
+}
+
 interface BrpState {
   // Domain
   crews: Crew[];
@@ -69,6 +82,7 @@ interface BrpState {
 
   // Process state
   analysisStatus: BrpAnalysisStatus;
+  analysisProgress: BrpProgress | null;
 }
 
 /**
@@ -84,13 +98,22 @@ export type GetReferencesFn = (epic: Epic) => readonly ReferenceEpic[];
  * Optional caller-supplied options for `runAnalysis`. Added post-deep-review
  * to address Critical finding C1 (no cancellation, no concurrency guard)
  * and Important findings I2/I7 (hung iterator / no timeout in interface).
+ * Extended in B-15 with `onError` to address acknowledged finding I5
+ * (the store stays UI-agnostic; the action layer provides a closure that
+ * routes errors to `uiStore.addToast`).
  *
  * `signal`: caller can abort the run from outside (e.g., a "Cancel"
  * button). Combined with the store's internal AbortController, this
  * gives both UI cancellation and lifecycle cancellation (`reset()`).
+ *
+ * `onError`: invoked once per epic that ends in 'error'. Carries both
+ * the epicId (so the caller can identify what failed) and a human-
+ * readable message. Optional; if absent, the store falls back to
+ * `console.error` for visibility during headless tests.
  */
 export interface RunAnalysisOptions {
   signal?: AbortSignal;
+  onError?: (failure: { epicId: string; message: string }) => void;
 }
 
 interface BrpActions {
@@ -114,6 +137,7 @@ interface BrpActions {
   ) => Promise<void>;
   setEpicAnalysisStatus: (epicId: string, status: AnalysisStatus) => void;
   setEpicFrameResult: (epicId: string, result: FrameResult) => void;
+  setProgress: (progress: BrpProgress | null) => void;
 
   // Group 5 — Navigation, UI, Modals (B-7)
   setView: (view: BrpView) => void;
@@ -163,6 +187,7 @@ function initialState(): BrpState {
     openModal: null,
     modalContext: null,
     analysisStatus: 'idle',
+    analysisProgress: null,
   };
 }
 
@@ -325,14 +350,35 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
       }
     }
 
-    set({ analysisStatus: 'running' });
-
     // Snapshot the epic IDs at start. Walking the live store would risk
     // missing newly-loaded epics or revisiting analyzed ones — neither
     // is desirable. v1 semantics: "analyze whatever was loaded at kickoff".
     const epicIds = get().crews.flatMap((c) =>
       c.pods.flatMap((p) => p.epics.map((e) => e.id)),
     );
+
+    // Initialize progress in one set() with running status (B-15 / I6).
+    set({
+      analysisStatus: 'running',
+      analysisProgress: {
+        completed: 0,
+        total: epicIds.length,
+        currentEpicId: null,
+      },
+    });
+
+    // Local helper: surface a failure via the caller's onError, falling
+    // back to console.error when no callback was supplied (keeps headless
+    // tests noisy enough to debug). The store stays UI-agnostic — only
+    // the action layer (Phase 6 brpActions) knows about uiStore.addToast.
+    const reportError = (epicId: string, message: string): void => {
+      if (options.onError) {
+        options.onError({ epicId, message });
+      } else {
+        // eslint-disable-next-line no-console
+        console.error(`[brpStore] runAnalysis: epic ${epicId} failed — ${message}`);
+      }
+    };
 
     try {
       for (const epicId of epicIds) {
@@ -342,7 +388,12 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
         const epic = findEpic(get().crews, epicId);
         if (!epic) continue;
 
+        // Advance progress: this epic is now in flight.
+        const prog = get().analysisProgress;
+        if (prog) get().setProgress({ ...prog, currentEpicId: epic.id });
+
         get().setEpicAnalysisStatus(epicId, 'analyzing');
+        let sawErrorEvent = false;
         try {
           for await (const event of estimator.analyzeEpic(
             epic,
@@ -357,19 +408,39 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
               get().setEpicFrameResult(epic.id, event.result);
             } else if (event.kind === 'error') {
               get().setEpicAnalysisStatus(epic.id, 'error');
+              sawErrorEvent = true;
+              reportError(epic.id, event.message);
             }
-            // 'started' / 'progress' are observability-only in v1.
-            // (Phase 5/6 will wire progress state — see acknowledged.md I6.)
+            // 'started' / 'progress' events are observability-only; the
+            // outer `currentEpicId` already moved when this epic became
+            // the active one. Per-event progress percentage (pct) is not
+            // plumbed into BrpProgress in v1 — adding it would force a
+            // re-render per event with negligible UI value.
           }
         } catch (err) {
           if (controller.signal.aborted) break;
           // Estimator threw outside the event stream — mark this epic
-          // errored, surface in the console for the dev, and continue
-          // with the rest of the run. Phase 5/6 may inject an onError
-          // callback to surface to UI (see acknowledged.md I5).
+          // errored and surface via onError (or console fallback).
+          const message = err instanceof Error ? err.message : String(err);
+          // Keep the console.error too so headless tests don't go silent
+          // when no onError is provided (matches the pre-B-15 contract).
           // eslint-disable-next-line no-console
           console.error(`[brpStore] runAnalysis: epic ${epicId} threw`, err);
           get().setEpicAnalysisStatus(epicId, 'error');
+          if (!sawErrorEvent) reportError(epicId, message);
+        }
+
+        // Increment completed (success OR error — both terminal for this epic).
+        // Skipped only if aborted broke us out of the for-await above.
+        if (!controller.signal.aborted) {
+          const prog2 = get().analysisProgress;
+          if (prog2) {
+            get().setProgress({
+              ...prog2,
+              completed: prog2.completed + 1,
+              currentEpicId: null,
+            });
+          }
         }
       }
     } finally {
@@ -380,12 +451,13 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
         currentRunController = null;
       }
       // Terminal state: aborted → 'idle' (caller cancelled, no result);
-      // otherwise → 'done'. If reset() already cleared state to 'idle'
-      // via initialState(), this set is a no-op equivalent.
+      // otherwise → 'done'. Progress is cleared in both terminal cases
+      // — Phase 5's UI shows the progress banner only while
+      // analysisStatus === 'running' AND analysisProgress !== null.
       if (controller.signal.aborted) {
-        set({ analysisStatus: 'idle' });
+        set({ analysisStatus: 'idle', analysisProgress: null });
       } else {
-        set({ analysisStatus: 'done' });
+        set({ analysisStatus: 'done', analysisProgress: null });
       }
     }
   },
@@ -429,6 +501,17 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
         })),
       })),
     })),
+
+  /**
+   * Direct setter for the BrpProgress snapshot. Used by `runAnalysis`
+   * internally and exposed for the action layer (Phase 6 brpActions
+   * may want to clear progress on a tab change) and tests.
+   *
+   * Pass `null` to clear progress (e.g., after a run ends or aborts).
+   * The Phase 5 progress banner renders only when both
+   * `analysisStatus === 'running'` AND `analysisProgress !== null`.
+   */
+  setProgress: (progress) => set({ analysisProgress: progress }),
 
   // Group 5 — Navigation, UI, Modals ---------------------------------
 
