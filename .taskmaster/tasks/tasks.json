@@ -194,13 +194,399 @@
         "status": "done",
         "subtasks": [],
         "updatedAt": "2026-05-26T05:15:41.571Z"
+      },
+      {
+        "id": "15",
+        "title": "Install Recharts and Verify TSC Baseline",
+        "description": "Add Recharts dependency for chart visualizations in BRP MetricsModal. Verify the dep doesn't break the existing TypeScript baseline (55 pre-existing errors).",
+        "details": "Run `npm install recharts && npm install -D @types/recharts`. After installation, run `npx tsc -b --noEmit` and verify the error count remains at baseline (55 errors). Check that package.json has recharts at ^2.x. Update package-lock.json. No new source code yet — this task purely ensures the dependency is compatible.\n\nPseudo-code:\n```bash\nnpm install recharts\nnpm install -D @types/recharts\nnpx tsc -b --noEmit | grep -c 'error TS' # should be 55\n```",
+        "testStrategy": "Run `npx tsc -b --noEmit` and verify error count matches baseline. Run `npm run build` to ensure vite can still build. Check package.json for recharts version.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-05-26T20:45:42.687Z"
+      },
+      {
+        "id": "16",
+        "title": "Add BrpProgress State and setProgress Action to brpStore",
+        "description": "Extend brpStore with BrpProgress state tracking for the Analysis flow — tracks completed/total epics and currentEpicId during runAnalysis execution.",
+        "details": "Add to BrpState interface:\n```typescript\ninterface BrpProgress {\n  completed: number;\n  total: number;\n  currentEpicId: string | null;\n}\n\n// In BrpState:\nanalysisProgress: BrpProgress | null;\n```\n\nAdd action:\n```typescript\nsetProgress: (progress: BrpProgress | null) => void;\n```\n\nUpdate runAnalysis to call setProgress on each estimator event:\n- On 'progress' event: update currentEpicId\n- On 'done' event: increment completed\n- On completion: set progress to null\n\nAlso add onError callback plumbing so runAnalysis can surface errors to callers.",
+        "testStrategy": "Unit tests: setProgress updates state correctly; runAnalysis updates progress on events; progress resets to null after completion; onError callback receives errors. Test edge cases: empty epic list, abort mid-analysis.",
+        "priority": "high",
+        "dependencies": [
+          "15"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "17",
+        "title": "Widen Result<T> Error Shape in brpGitlabService",
+        "description": "Change brpGitlabService.ts Result type to include structured error with code discriminant for better error handling in the UI layer.",
+        "details": "Update Result<T> type from:\n```typescript\n{ success: false; error: string }\n```\nTo:\n```typescript\n{ success: false; error: { code: 'auth' | 'ratelimit' | 'network' | 'unknown'; message: string; cause?: unknown } }\n```\n\nUpdate all service functions (fetchCrews, fetchPods, fetchPodEpics, etc.) to return the new error shape. Map HTTP status codes:\n- 401 → 'auth'\n- 429 → 'ratelimit'\n- Network errors → 'network'\n- Everything else → 'unknown'\n\nUpdate mocked tests and live smoke to assert error.code on 401 scenario.",
+        "testStrategy": "Unit tests: each error code maps correctly from HTTP status; Result type narrowing works with error.code; live smoke asserts error.code on 401. Integration test: callers can branch on error.code.",
+        "priority": "high",
+        "dependencies": [
+          "15"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "18",
+        "title": "Register BRP Tab in uiStore, ViewRouter, and WorkspaceSidebar",
+        "description": "Add 'brp' to TabId union type, add case in ViewRouter switch, and add sidebar entry with a Phosphor icon for the BRP tab.",
+        "details": "In src/stores/uiStore.ts:\n```typescript\nexport type TabId = 'planner' | 'issues' | 'blueprint' | 'analytics' | 'initiative' | 'docIntel' | 'issueRefinery' | 'brp';\n```\n\nIn src/components/layout/ViewRouter.tsx:\n```typescript\nimport { BrpView } from '@/components/brp/BrpView';\n// In switch:\ncase 'brp':\n  return <ErrorBoundary viewName=\"BRP\"><div data-testid=\"brp-view-wrapper\" style={{ flex: 1, overflow: 'auto' }}><BrpView /></div></ErrorBoundary>;\n```\n\nIn src/components/layout/WorkspaceSidebar.tsx add to NAV_ITEMS:\n```typescript\n{ id: 'brp', icon: ChartBar, label: 'BRP' },\n```\n\nNote: BrpView will be a placeholder initially, replaced in later tasks.",
+        "testStrategy": "Unit tests: clicking BRP nav item sets activeTab to 'brp'; ViewRouter renders BrpView for 'brp' tab; sidebar shows BRP entry. Verify existing tab tests still pass (layout regression).",
+        "priority": "high",
+        "dependencies": [
+          "15"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "19",
+        "title": "Implement VarianceBadge Component with FRAME Design Tokens",
+        "description": "Create VarianceBadge component displaying 5 variance bands using FRAME design tokens — no raw hsl() values, no Phosphor icons.",
+        "details": "Create src/components/brp/VarianceBadge.tsx:\n\n```typescript\nimport { color, radius, fontSize, fontWeight } from '@/theme/tokens';\nimport { CheckCircle, Warning, Flag } from '@phosphor-icons/react';\n\nexport type VarianceBand = 'agree' | 'caution' | 're-groom' | 'flagged' | 'pending';\n\nconst BAND_CONFIG: Record<VarianceBand, { bg: string; text: string; border: string; icon: Icon | null; label: string }> = {\n  agree: { bg: color.pastelII, text: color.grayV, border: color.grayI, icon: CheckCircle, label: 'In tolerance' },\n  caution: { bg: color.pastelI, text: color.grayV, border: color.grayI, icon: Warning, label: 'Discuss' },\n  're-groom': { bg: color.pastelI, text: color.red, border: color.bordeauxI, icon: Warning, label: 'Re-groom' },\n  flagged: { bg: color.pastelI, text: color.grayV, border: color.grayIII, icon: Flag, label: 'Needs detail' },\n  pending: { bg: 'var(--muted)', text: 'var(--muted-foreground)', border: 'var(--border)', icon: null, label: 'Pending' },\n};\n```\n\nUse tokens.ts for all colors. Badge renders inline-flex with icon + text label. ARIA label for accessibility.",
+        "testStrategy": "Unit tests: renders correct label/icon for each band; no hsl() strings in component (grep assertion); keyboard-accessible with proper role. Snapshot tests for visual consistency.",
+        "priority": "medium",
+        "dependencies": [
+          "15"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "20",
+        "title": "Implement CapacityDialog Component with Live Calculation",
+        "description": "Create CapacityDialog modal with 5 capacity inputs (resources, spPerResource, sprintsInPI, holidayDays, leaveDays) and live computeCapacity calculation.",
+        "details": "Create src/components/brp/CapacityDialog.tsx based on ui_sample_brp/CapacityDialog.tsx but using FRAME tokens:\n\n```typescript\ninterface CapacityDialogProps {\n  open: boolean;\n  onClose: () => void;\n  podId: string;\n  podName: string;\n  initialCapacity: CapacityInputs;\n  onSave: (capacity: CapacityInputs) => void;\n}\n```\n\nLive calculation via computeCapacity(inputs) from brp.ts domain. Shows breakdown: gross - holidays - leave = total. Save button calls onSave then onClose.\n\nUse tokens for all styling:\n- radius.lg for dialog corners\n- color.pastelI for calculation box background\n- font.sans for typography\n- No raw hsl() values",
+        "testStrategy": "Unit tests: inputs update live total; Save calls onSave with current values; Cancel closes without saving; keyboard navigation works (Tab, Enter, Escape). Integration: updatePodCapacity receives correct values.",
+        "priority": "medium",
+        "dependencies": [
+          "15",
+          "19"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "21",
+        "title": "Implement MetricsModal Component with Recharts",
+        "description": "Create MetricsModal with Recharts bar chart (human vs FRAME estimates) and capacity donut chart using FRAME design tokens.",
+        "details": "Create src/components/brp/MetricsModal.tsx based on ui_sample_brp/MetricsModal.tsx:\n\n```typescript\nimport { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';\nimport { chart, color, font } from '@/theme/tokens';\n\ninterface MetricsModalProps {\n  open: boolean;\n  onClose: () => void;\n  pod: Pod;\n  metrics: PodMetrics;\n}\n```\n\nTwo tabs: 'Estimate variance' (bar chart) and 'Capacity vs load' (pie/donut chart).\n\nUse tokens.chart array for chart colors instead of inline hsl(). Exclude flagged epics from bar chart. Pie chart shows variance distribution with legend.\n\nAccessibility: aria-labels on interactive elements, keyboard navigation between tabs.",
+        "testStrategy": "Unit tests: renders bar chart with correct data; pie chart shows variance distribution; tab switching works; modal closes on backdrop click; no hsl() in component. Visual regression test.",
+        "priority": "medium",
+        "dependencies": [
+          "15",
+          "19"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "22",
+        "title": "Implement EpicRow Component with Inline Estimate Edit",
+        "description": "Create EpicRow component displaying epic title, humanEstimate input cell, frameEstimate (read-only), and VarianceBadge.",
+        "details": "Create src/components/brp/EpicRow.tsx:\n\n```typescript\ninterface EpicRowProps {\n  epic: Epic;\n  isSelected: boolean;\n  onSelect: (epicId: string) => void;\n  onHumanEstimateChange: (epicId: string, value: number | null) => void;\n}\n```\n\nRow layout:\n- Title (links to GitLab web_url)\n- humanEstimate input (inline edit, number input)\n- frameEstimate (read-only, shows after Analysis)\n- Delta (computed from frame - human)\n- VarianceBadge (shows computed variance)\n\nEdit triggers setHumanEstimate → computeVariance re-derives on render.\n\nAccessibility: row is focusable, Enter/Space selects, input has aria-label.",
+        "testStrategy": "Unit tests: humanEstimate input calls onHumanEstimateChange; clicking row calls onSelect; title links to GitLab URL; variance badge updates when estimates change. Keyboard navigation tests.",
+        "priority": "medium",
+        "dependencies": [
+          "15",
+          "19"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "23",
+        "title": "Implement DetailPanel Component for Epic Analysis Results",
+        "description": "Create DetailPanel component showing FRAME analysis breakdown, rationale, references, and 'Send to Refinement' handoff button.",
+        "details": "Create src/components/brp/DetailPanel.tsx:\n\n```typescript\ninterface DetailPanelProps {\n  epic: Epic | null;\n  onClose: () => void;\n  onSendToRefinement: (epicId: string) => void;\n}\n```\n\nLayout (right-side sliding panel):\n- Header with epic title + close button\n- If frameResult exists:\n  - Breakdown section (story point breakdown)\n  - Rationale section (why FRAME estimated this)\n  - References section (similar epics used)\n- 'Send to Refinement Pipeline' button (enabled for re-groom/flagged bands)\n\nIf no frameResult, show 'Run Analysis to see FRAME estimate' placeholder.\n\nAccessibility: focus trap when open, Escape closes, aria-live for content updates.",
+        "testStrategy": "Unit tests: renders placeholder when no frameResult; renders breakdown/rationale/references when present; Send button enabled for re-groom variance; onClose called on X click or Escape. Integration: onSendToRefinement receives epicId.",
+        "priority": "medium",
+        "dependencies": [
+          "15",
+          "19"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "24",
+        "title": "Implement CrewSelector, PodLoader, and EpicPicker Components",
+        "description": "Create three smaller loading components: CrewSelector (dropdown), PodLoader (modal to fetch pods), EpicPicker (modal to load epics into pod).",
+        "details": "Create src/components/brp/CrewSelector.tsx:\n```typescript\ninterface CrewSelectorProps {\n  crews: Crew[];\n  selectedCrewId: string | null;\n  onSelect: (crewId: string) => void;\n  disabled?: boolean;\n}\n```\nTop-bar dropdown listing loaded crews.\n\nCreate src/components/brp/PodLoader.tsx:\n```typescript\ninterface PodLoaderProps {\n  open: boolean;\n  onClose: () => void;\n  crewGroupId: string;\n  onPodsLoaded: (pods: Pod[]) => void;\n}\n```\nModal that triggers fetchPods and calls loadPods on success.\n\nCreate src/components/brp/EpicPicker.tsx:\n```typescript\ninterface EpicPickerProps {\n  open: boolean;\n  onClose: () => void;\n  podSubgroupId: string;\n  onEpicsSelected: (epics: Epic[]) => void;\n}\n```\nModal with multi-select for GitLab epics, loads via fetchPodEpics.",
+        "testStrategy": "Unit tests for each: CrewSelector shows crews, selection works; PodLoader calls fetchPods and surfaces errors; EpicPicker allows multi-select and loads epics. Integration: components work with store actions.",
+        "priority": "medium",
+        "dependencies": [
+          "15",
+          "17"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "25",
+        "title": "Implement AnalysisProgress Component",
+        "description": "Create AnalysisProgress banner component showing progress during 'running' analysisStatus — displays completed/total epics and progress bar.",
+        "details": "Create src/components/brp/AnalysisProgress.tsx:\n\n```typescript\ninterface AnalysisProgressProps {\n  progress: BrpProgress | null;\n  status: AnalysisStatus;\n}\n```\n\nRendered during analysisStatus === 'running':\n- Banner at top of view area\n- Text: 'Analyzing epic X of Y...'\n- Thin progress bar (width: completed/total %)\n- Current epic title/id displayed\n\nHidden when status !== 'running' or progress is null.\n\nAnimations via CSS transitions for smooth progress bar updates.",
+        "testStrategy": "Unit tests: renders when status is 'running' with valid progress; hidden otherwise; progress bar width matches completed/total ratio; displays currentEpicId. Animation tests for smooth transitions.",
+        "priority": "medium",
+        "dependencies": [
+          "15",
+          "16"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "26",
+        "title": "Implement PortfolioView Component",
+        "description": "Create PortfolioView as the cross-crew dashboard — shows pods as cards with capacity, load, and variance summary, supports re-groom filter.",
+        "details": "Create src/components/brp/PortfolioView.tsx:\n\n```typescript\nexport function PortfolioView() {\n  const crew = useBrpStore(s => s.selectedCrew);\n  const pods = useBrpStore(s => s.pods);\n  const reGroomOnlyFilter = useBrpStore(s => s.reGroomOnlyFilter);\n  // ...\n}\n```\n\nLayout:\n- Top bar: CrewSelector, 'Re-groom only' toggle, 'Run Analysis' button\n- Summary strip: crew totals via computePodMetrics summed\n- Pods grid: cards showing pod name, capacity, load, variance distribution\n- Click pod card → navigates to PodView\n\nStates:\n- Empty: no pods loaded → prompt to load\n- Filtered-empty: filter matches nothing → 'No epics need re-grooming'\n- Loading: skeleton cards during fetch",
+        "testStrategy": "Unit tests: renders pods as cards; filter toggle works; clicking pod navigates to PodView; empty states render correctly. Integration: Run Analysis triggers runAnalysisAction.",
+        "priority": "medium",
+        "dependencies": [
+          "15",
+          "19",
+          "20",
+          "21",
+          "24"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "27",
+        "title": "Implement PodView Component",
+        "description": "Create PodView as the drill-in pod dashboard — shows epics table, capacity section, and sliding DetailPanel for selected epic.",
+        "details": "Create src/components/brp/PodView.tsx:\n\n```typescript\nexport function PodView() {\n  const pod = useBrpStore(s => s.selectedPod);\n  const selectedEpicId = useBrpStore(s => s.selectedEpicId);\n  // ...\n}\n```\n\nLayout:\n- Top bar: back button, pod name, 'Metrics' button, 'Analysis' button\n- Left column:\n  - Epic table (EpicRow components) with editable humanEstimate\n  - Capacity section: formula breakdown, load bar, 'Edit capacity' button\n- Right column: DetailPanel (slides in when epic selected)\n- '+' button above table: opens EpicPicker\n\nCapacity section shows computeCapacity result at render time (no stored totalCapacity field).",
+        "testStrategy": "Unit tests: renders epics in table; selecting epic opens DetailPanel; capacity shows live computation; back button returns to PortfolioView. Integration: humanEstimate edits trigger variance re-derivation.",
+        "priority": "medium",
+        "dependencies": [
+          "15",
+          "22",
+          "23",
+          "24",
+          "25"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "28",
+        "title": "Implement BrpView Tab Root Component",
+        "description": "Create BrpView as the tab root that switches between PortfolioView and PodView based on brpStore.view state.",
+        "details": "Create src/components/brp/BrpView.tsx:\n\n```typescript\nimport { useBrpStore } from '@/stores/brpStore';\nimport { PortfolioView } from './PortfolioView';\nimport { PodView } from './PodView';\n\nexport function BrpView() {\n  const view = useBrpStore(s => s.view);\n  \n  return (\n    <div data-testid=\"brp-view\" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>\n      {view === 'portfolio' ? <PortfolioView /> : <PodView />}\n    </div>\n  );\n}\n```\n\nView state in store: 'portfolio' | 'pod'. Switching happens via store action when user clicks pod card or back button.\n\nUpdate ViewRouter.tsx to import and render actual BrpView (replacing placeholder from B-18).",
+        "testStrategy": "Unit tests: renders PortfolioView when view='portfolio'; renders PodView when view='pod'; view switching works. Integration: full click-through from portfolio to pod and back.",
+        "priority": "medium",
+        "dependencies": [
+          "18",
+          "26",
+          "27"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "29",
+        "title": "Implement brpActions Load, Capacity, and Estimate Flows",
+        "description": "Create brpActions.ts with actions for Load (crews/pods/epics), Capacity update, and Estimate flows following the action-boundary pattern.",
+        "details": "Create src/actions/brpActions.ts:\n\n```typescript\nimport { useBrpStore } from '@/stores/brpStore';\nimport { useConfigStore } from '@/stores/configStore';\nimport { useUiStore } from '@/stores/uiStore';\nimport * as brpService from '@/services/brp/brpGitlabService';\n\nexport async function loadCrewAction(crewGroupId: string): Promise<void> {\n  const gitlabConfig = useConfigStore.getState().config.gitlab;\n  const result = await brpService.fetchCrews(gitlabConfig, crewGroupId);\n  if (!result.success) {\n    // Handle error.code discrimination\n    useUiStore.getState().addToast({ type: 'error', title: result.error.message });\n    return;\n  }\n  useBrpStore.getState().loadCrew(result.data);\n}\n\nexport async function loadCrewPodsAction(crewId: string, crewGroupId: string): Promise<void> { ... }\n\nexport async function loadPodEpicsAction(podId: string, podSubgroupId: string): Promise<void> { ... }\n```\n\nActions follow pattern: read config → call service → handle Result → write to store → surface errors via toast.",
+        "testStrategy": "Unit tests: each action calls correct service; success writes to store; failure surfaces toast with error.message; error.code discrimination works ('auth' vs 'network' messages). Mocked service tests.",
+        "priority": "high",
+        "dependencies": [
+          "16",
+          "17"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "30",
+        "title": "Implement brpActions Analysis Flow with Error and Abort Handling",
+        "description": "Add runAnalysisAction to brpActions with onError callback, AbortSignal support, and handoffEpicToRefinementAction for re-groom handoff.",
+        "details": "Extend src/actions/brpActions.ts:\n\n```typescript\nexport async function runAnalysisAction(abortSignal?: AbortSignal): Promise<void> {\n  const store = useBrpStore.getState();\n  const config = useConfigStore.getState().config;\n  \n  const estimator = getEstimator(config);\n  const onError = (error: Error) => {\n    useUiStore.getState().addToast({ type: 'error', title: error.message });\n  };\n  \n  try {\n    await store.runAnalysis(estimator, {\n      onError,\n      abortSignal,\n      getReferences: (epicId) => brpService.fetchReferenceEpics(config.gitlab, epicId),\n    });\n  } catch (e) {\n    onError(e instanceof Error ? e : new Error(String(e)));\n  }\n}\n\nexport async function handoffEpicToRefinementAction(epicId: string): Promise<void> {\n  const epic = useBrpStore.getState().getEpic(epicId);\n  if (!epic) return;\n  \n  // Write epic body to epicStore\n  useEpicStore.getState().setMarkdown(epic.body);\n  // Switch to planner tab\n  useUiStore.getState().setActiveTab('planner');\n  // Trigger existing pipeline\n  await refinePipelineAction();\n}\n```",
+        "testStrategy": "Unit tests: runAnalysisAction calls estimator with abort signal; onError surfaces toast; abort mid-analysis stops gracefully; handoff writes to epicStore and triggers refinePipelineAction. Integration: full Analysis flow end-to-end.",
+        "priority": "high",
+        "dependencies": [
+          "16",
+          "29"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "31",
+        "title": "Full Integration Test for BRP Flows",
+        "description": "Create comprehensive integration test covering all 5 BRP flows: Load crew → pods → epics → capacity → estimate → analysis → handoff.",
+        "details": "Create src/test/integration/brpFlow.test.tsx:\n\n```typescript\nimport { describe, it, expect, vi, beforeEach } from 'vitest';\nimport { render, screen, fireEvent, waitFor, act } from '@testing-library/react';\nimport { BrpView } from '@/components/brp/BrpView';\nimport { useBrpStore } from '@/stores/brpStore';\nimport * as brpActions from '@/actions/brpActions';\n\ndescribe('BRP Integration Flow', () => {\n  it('complete flow: load → capacity → estimate → analyze → handoff', async () => {\n    // Mock services\n    // Render BrpView\n    // Flow 1: Load crew → pods → epics\n    // Flow 2: Set capacity via dialog\n    // Flow 3: Type human estimates\n    // Flow 4: Run Analysis, watch progress\n    // Flow 5: Select re-groom epic → handoff to refinement\n  });\n});\n```\n\nTests all 5 flows end-to-end with mocked estimator. Asserts variance bands update, progress shows during analysis, handoff writes to epicStore.",
+        "testStrategy": "This IS the test — comprehensive integration coverage. Assert each flow completes successfully, state updates correctly, UI reflects changes. Run with `npm run test:run -- src/test/integration/brpFlow.test.tsx`.",
+        "priority": "high",
+        "dependencies": [
+          "28",
+          "29",
+          "30"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "32",
+        "title": "5-Agent Deep Review Checkpoint (B-31)",
+        "description": "Execute 5-agent deep review pattern after P6 wiring is complete. Zero critical findings required before proceeding to P7.",
+        "details": "Per docs/runbooks/deep-review-a10.md, run 5 parallel review agents:\n\n1. **Architecture Agent**: Verify component → service → action pattern; store never touches estimator directly; no circular deps.\n2. **Test Coverage Agent**: Assert ≥85% line coverage on components, ≥90% on actions/services. Run coverage report.\n3. **Design System Agent**: Grep for raw `hsl(`, font literals, non-token values. Must find zero in src/components/brp/.\n4. **Accessibility Agent**: Audit keyboard nav, ARIA labels, focus management on all interactive elements.\n5. **Contract Agent**: Verify no Phase 1-4 contracts were violated — brp.ts types unchanged, store actions unchanged, estimator interface unchanged.\n\nCreate docs/reviews/<date>-brp-ui-deep-review.md with findings.\n\nGate: zero critical findings to proceed.",
+        "testStrategy": "Each agent produces a findings report. Aggregate into deep-review doc. Any critical finding blocks P7. Medium/low findings documented as acknowledged deferrals or fixed inline.",
+        "priority": "high",
+        "dependencies": [
+          "31"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "33",
+        "title": "Implement AI-Assist: Capacity Pre-fill and Unrealistic Nudge",
+        "description": "Create capacityPrefill and capacityNudge modules — derive initial capacity from GitLab data and warn on unrealistic values.",
+        "details": "Create src/services/brp/ai/capacityPrefill.ts:\n```typescript\nimport { fetchGroupMembers } from '@/services/gitlab/gitlabClient';\n\nexport interface CapacityPrefillResult {\n  resources: number;\n  spPerResource: number;\n  sprintsInPI: number;\n  holidayDays: number;\n  leaveDays: number;\n}\n\nexport async function prefillCapacity(\n  gitlabConfig: GitLabConfig,\n  crewGroupId: string,\n  piConfig?: { sprints: number; holidays: number }\n): Promise<CapacityPrefillResult> {\n  const members = await fetchGroupMembers(gitlabConfig, crewGroupId);\n  return {\n    resources: members.length,\n    spPerResource: 10, // default\n    sprintsInPI: piConfig?.sprints ?? 5,\n    holidayDays: piConfig?.holidays ?? 2,\n    leaveDays: 0,\n  };\n}\n```\n\nCreate src/services/brp/ai/capacityNudge.ts:\n```typescript\nexport function checkUnrealisticCapacity(\n  inputs: CapacityInputs,\n  baseline?: { avgCapacityPerResource: number }\n): string | null {\n  const perResource = inputs.spPerResource * inputs.sprintsInPI;\n  const threshold = (baseline?.avgCapacityPerResource ?? 50) * 1.5;\n  if (perResource >= threshold) {\n    return `Capacity of ${perResource} SP/resource exceeds 1.5× typical (${threshold} SP). Consider reviewing.`;\n  }\n  return null;\n}\n```\n\nIntegrate into CapacityDialog: 'Pre-fill' button calls prefillCapacity; nudge warning shown inline.",
+        "testStrategy": "Unit tests: prefillCapacity returns member count as resources; nudge triggers at 1.5× threshold; nudge returns null for normal values. Integration: CapacityDialog shows pre-fill button and nudge warning.",
+        "priority": "medium",
+        "dependencies": [
+          "32"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "34",
+        "title": "Implement AI-Assist: Variance Interpreter and Duplicate Detection",
+        "description": "Create varianceInterpreter (templated explanation text) and duplicateDetection (token-overlap similarity) modules.",
+        "details": "Create src/services/brp/ai/varianceInterpreter.ts:\n```typescript\nimport type { Epic } from '@/domain/brp';\n\nexport function interpretVariance(epic: Epic): string {\n  if (!epic.frameResult) return 'Run Analysis to see FRAME interpretation.';\n  \n  const delta = (epic.frameEstimate ?? 0) - (epic.humanEstimate ?? 0);\n  const breakdown = epic.frameResult.breakdown;\n  \n  switch (epic.variance) {\n    case 'agree':\n      return `FRAME agrees within tolerance. Breakdown: ${breakdown.join(', ')}.`;\n    case 'caution':\n      return `FRAME estimates ${delta > 0 ? '+' : ''}${delta} SP difference. Consider discussing scope.`;\n    case 're-groom':\n      return `Significant variance (${delta} SP). FRAME found ${breakdown.length} stories totaling ${epic.frameEstimate} SP.`;\n    case 'flagged':\n      return `Insufficient detail for reliable estimate. Add acceptance criteria.`;\n    default:\n      return 'Analysis pending.';\n  }\n}\n```\n\nCreate src/services/brp/ai/duplicateDetection.ts:\n```typescript\nexport function detectDuplicates(epics: Epic[], threshold = 0.7): Array<[string, string]> {\n  const pairs: Array<[string, string]> = [];\n  for (let i = 0; i < epics.length; i++) {\n    for (let j = i + 1; j < epics.length; j++) {\n      const similarity = jaccardSimilarity(tokenize(epics[i].title), tokenize(epics[j].title));\n      if (similarity >= threshold) {\n        pairs.push([epics[i].id, epics[j].id]);\n      }\n    }\n  }\n  return pairs;\n}\n```\n\nPure functions, no LLM. Integrate into DetailPanel (interpretation) and PortfolioView (duplicates collapse).",
+        "testStrategy": "Unit tests: interpreter returns correct text for each band; duplicate detection finds similar titles; threshold tuning works. Integration: DetailPanel shows interpretation; PortfolioView shows duplicate warning.",
+        "priority": "medium",
+        "dependencies": [
+          "32"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "35",
+        "title": "Implement Audit Log Service and brpStore Subscriber",
+        "description": "Create append-only audit log capturing all BRP state mutations with timestamp, actor, and before/after delta.",
+        "details": "Create src/services/brp/auditLog.ts:\n```typescript\nexport interface AuditEntry {\n  timestamp: string;\n  actor: string; // MSAL user.id or 'unknown'\n  action: string;\n  before: unknown;\n  after: unknown;\n}\n\nclass AuditLog {\n  private entries: AuditEntry[] = [];\n  \n  append(entry: Omit<AuditEntry, 'timestamp'>): void {\n    this.entries.push({\n      ...entry,\n      timestamp: new Date().toISOString(),\n    });\n  }\n  \n  export(): AuditEntry[] {\n    return [...this.entries]; // immutable copy\n  }\n  \n  exportJSON(): string {\n    return JSON.stringify(this.entries, null, 2);\n  }\n}\n\nexport const auditLog = new AuditLog();\n```\n\nSubscribe to brpStore (NOT an action — a side-effect subscriber):\n```typescript\nuseBrpStore.subscribe((state, prevState) => {\n  // Capture capacity changes, estimate edits, analysis runs\n  if (state.pods !== prevState.pods) {\n    auditLog.append({ actor: getMsalUserId(), action: 'podUpdate', before: prevState.pods, after: state.pods });\n  }\n});\n```\n\nAdd 'Audit' panel toggle in DetailPanel (collapsed by default).",
+        "testStrategy": "Unit tests: append adds entries with timestamp; export returns immutable copy; subscriber captures pod/estimate/analysis changes. Integration: audit panel shows entries; JSON export is valid.",
+        "priority": "medium",
+        "dependencies": [
+          "32"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "36",
+        "title": "Implement Real LLM Estimator with Azure OpenAI",
+        "description": "Create azureOpenAIEstimator implementing AIEstimator interface, composing existing azureClient.ts with streaming progress events.",
+        "details": "Create src/services/brp/ai/azureOpenAIEstimator.ts:\n```typescript\nimport { callAI } from '@/services/ai/aiClient';\nimport type { AIEstimator, AnalysisEvent, Epic } from '@/domain/brp';\nimport { FrameResultSchema } from './schemas';\n\nexport function createAzureOpenAIEstimator(config: AppConfig): AIEstimator {\n  return {\n    async *analyze(epic: Epic, references: Epic[]): AsyncIterable<AnalysisEvent> {\n      yield { type: 'progress', epicId: epic.id, pct: 0 };\n      \n      try {\n        const response = await callAI(buildConfig(config), {\n          systemPrompt: buildSystemPrompt(),\n          userPrompt: buildUserPrompt(epic, references),\n          maxTokens: 2000,\n        });\n        \n        // Parse and validate response\n        const parsed = JSON.parse(response.content);\n        const validated = FrameResultSchema.parse(parsed);\n        \n        yield { type: 'done', epicId: epic.id, result: validated };\n      } catch (e) {\n        yield { type: 'error', epicId: epic.id, message: e instanceof Error ? e.message : String(e) };\n      }\n    }\n  };\n}\n```\n\nSchema-validates every FrameResult before yielding. Invalid responses become error events. Gated live smoke test.",
+        "testStrategy": "Unit tests: mocked callAI returns valid JSON → done event; invalid JSON → error event; rate limit → error with message. Gated live smoke (.live.test.ts): .skipIf(!VITE_BRP_LIVE_LLM_SMOKE).",
+        "priority": "medium",
+        "dependencies": [
+          "32"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "37",
+        "title": "Update estimatorProvider for Azure/Simulator Swap",
+        "description": "Modify estimatorProvider.ts to select azureOpenAIEstimator vs simulatedEstimator based on isAIEnabled(config).",
+        "details": "Update src/services/brp/ai/estimatorProvider.ts:\n```typescript\nimport { isAIEnabled } from '@/services/ai/aiClient';\nimport { createAzureOpenAIEstimator } from './azureOpenAIEstimator';\nimport { createSimulatedEstimator } from './simulatedEstimator';\nimport type { AppConfig } from '@/domain/configTypes';\nimport type { AIEstimator } from '@/domain/brp';\n\nexport function getEstimator(config: AppConfig): AIEstimator {\n  return isAIEnabled(config)\n    ? createAzureOpenAIEstimator(config)\n    : createSimulatedEstimator();\n}\n```\n\nUpdate simulatedEstimator.test.ts drop-in test to skip when isAIEnabled returns true. Add new test pinning the AzureOpenAI path when enabled.\n\nCreate ADR-0005 documenting the drop-in swap decision.",
+        "testStrategy": "Unit tests: getEstimator returns simulator when AI disabled; returns azure when AI enabled; both implement AIEstimator interface. Integration: runAnalysisAction works with both estimators.",
+        "priority": "medium",
+        "dependencies": [
+          "36"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "38",
+        "title": "Design System and Accessibility Audit",
+        "description": "Final sweep ensuring zero raw hsl() values, no font literals, all components keyboard-operable, ARIA labels present.",
+        "details": "Run automated checks:\n```bash\n# No raw hsl() in BRP components\ngrep -r 'hsl(' src/components/brp/ && exit 1 || echo 'PASS: no hsl()'\n\n# No Frutiger/Helvetica literals (should use font.sans token)\ngrep -rE \"'Frutiger|Helvetica\" src/components/brp/ && exit 1 || echo 'PASS: no font literals'\n\n# Check for aria-label on buttons/inputs\ngrep -rL 'aria-label' src/components/brp/*.tsx | grep -E '(Button|Input)' && echo 'WARN: missing aria-label'\n```\n\nManual checks:\n- Tab through all BRP components\n- Enter/Space activates buttons\n- Escape closes modals\n- Focus visible on all interactive elements\n- Color-alone signals have text/icon alternatives\n\nFix any findings inline.",
+        "testStrategy": "Automated grep assertions pass. Manual keyboard navigation test passes. Accessibility lint (if available) passes. Document any exceptions with justification.",
+        "priority": "medium",
+        "dependencies": [
+          "32"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "39",
+        "title": "Component Empty/Loading/Error/Filtered-Empty States",
+        "description": "Ensure all BRP components have real copy (not placeholder) for empty, loading, error, and filtered-empty states.",
+        "details": "Review each component for state handling:\n\n**PortfolioView:**\n- Empty: 'No crews loaded. Select a GitLab group to get started.'\n- Loading: Skeleton cards during fetchPods\n- Error: 'Failed to load pods: {error.message}'\n- Filtered-empty: 'No epics require re-grooming.'\n\n**PodView:**\n- Empty: 'No epics in this pod. Click + to add epics from GitLab.'\n- Loading: Skeleton rows during fetchPodEpics\n- Error: 'Failed to load epics: {error.message}'\n\n**DetailPanel:**\n- Empty (no epic selected): 'Select an epic to view details.'\n- No frameResult: 'Run Analysis to see FRAME estimate.'\n\n**MetricsModal:**\n- No data: 'Run Analysis first to see variance metrics.'\n\nUpdate tests to assert each state renders correct copy.",
+        "testStrategy": "Unit tests assert each state renders correct text. No 'TODO' or 'placeholder' strings in production code. Visual review of each state.",
+        "priority": "medium",
+        "dependencies": [
+          "32"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "40",
+        "title": "Create Knowledge Docs and ADRs for BRP",
+        "description": "Generate knowledge documentation for all BRP components, actions, and services. Create ADR-0004 (audit log) and ADR-0005 (LLM swap).",
+        "details": "Create docs in docs/knowledge/:\n- components/brp/BrpView.md\n- components/brp/PortfolioView.md\n- components/brp/PodView.md\n- components/brp/VarianceBadge.md\n- components/brp/CapacityDialog.md\n- components/brp/MetricsModal.md\n- components/brp/EpicRow.md\n- components/brp/DetailPanel.md\n- components/brp/CrewSelector.md\n- components/brp/PodLoader.md\n- components/brp/EpicPicker.md\n- components/brp/AnalysisProgress.md\n- actions/brpActions.md\n- services/brp/auditLog.md\n- services/brp/azureOpenAIEstimator.md\n\nCreate ADRs:\n- docs/adr/0004-brp-audit-log.md: Decision to use in-memory + JSON export, no localStorage\n- docs/adr/0005-brp-real-llm-swap.md: Decision for drop-in via estimatorProvider\n\nUpdate docs/adr/README.md and docs/devlog/README.md.",
+        "testStrategy": "All markdown files exist and are valid. ADRs follow template format. Knowledge docs have accurate entry points and line numbers.",
+        "priority": "low",
+        "dependencies": [
+          "35",
+          "37"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "41",
+        "title": "Create Devlog Entry and Update CLAUDE.md",
+        "description": "Write devlog entry for BRP UI completion. Update CLAUDE.md 'Active Work' section to reflect BRP shipped status.",
+        "details": "Create docs/devlog/<date>-brp-ui-complete.md:\n```markdown\n# BRP UI Complete\n\n**Date:** <date>\n**Branch:** feature/brp\n**Status:** Ready for PR\n\n## Summary\nCompleted Phases 5-7 of BRP: 12 components, 1 action file, 4 AI-assist modules, audit log, real LLM estimator.\n\n## Tasks Completed\n- B-14 through B-35\n- 12 component files with ~50 tests\n- Full integration test covering 5 flows\n- Deep review checkpoint passed\n\n## Key Decisions\n- ADR-0004: In-memory audit log with JSON export\n- ADR-0005: Drop-in estimator swap via provider pattern\n\n## Files Changed\n- src/components/brp/* (12 new)\n- src/actions/brpActions.ts (new)\n- src/services/brp/ai/* (4 new)\n- src/services/brp/auditLog.ts (new)\n...\n```\n\nUpdate CLAUDE.md:\n```markdown\n## Active Work\n- **BRP** — Phases 1-7 complete. Shipped on feature/brp. Ready for merge to main.\n```",
+        "testStrategy": "Files exist and contain accurate information. CLAUDE.md reflects shipped status. devlog/README.md updated with new entry.",
+        "priority": "low",
+        "dependencies": [
+          "40"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "42",
+        "title": "Final Acceptance Criteria Verification and Commit",
+        "description": "Verify all acceptance criteria (AC1-AC18), run full test suite, create final commit with 'branch ready for PR' message.",
+        "details": "Verification checklist:\n\n**AC1:** `npx tsc -b --noEmit` baseline preserved (55 errors, zero BRP-introduced)\n**AC2:** All BRP tests green:\n```bash\nnpm run test:run -- src/domain/brp.test.ts\nnpm run test:run -- src/stores/brpStore.test.ts\nnpm run test:run -- src/services/brp/\nnpm run test:run -- src/actions/brpActions.test.ts\nnpm run test:run -- src/components/brp/\nnpm run test:run -- src/test/integration/brpFlow.test.tsx\n```\n**AC3:** `npm run build` succeeds\n**AC4-AC9:** Manual click-through verification\n**AC10:** recharts in package.json at ^2.x\n**AC11:** Audit log records mutations, exports JSON\n**AC12-AC13:** Estimator swap works\n**AC14:** `grep -r 'hsl(' src/components/brp/` returns nothing\n**AC15:** Keyboard navigation works on all components\n**AC16:** Deep-review passed (B-31)\n**AC17-AC18:** Docs exist, CLAUDE.md updated\n\nFinal commit:\n```bash\ngit add -A\ngit commit -m \"feat(brp): Phase 5-7 complete — UI + wiring + polish + real LLM + audit log\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\"\n```",
+        "testStrategy": "All AC items verified with command output or manual confirmation. Test suite passes. Build succeeds. Commit created successfully.",
+        "priority": "high",
+        "dependencies": [
+          "38",
+          "39",
+          "41"
+        ],
+        "status": "pending",
+        "subtasks": []
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-05-26T05:15:41.571Z",
-      "taskCount": 14,
-      "completedCount": 14,
+      "lastModified": "2026-05-26T20:45:42.689Z",
+      "taskCount": 42,
+      "completedCount": 15,
       "tags": [
         "master"
       ]

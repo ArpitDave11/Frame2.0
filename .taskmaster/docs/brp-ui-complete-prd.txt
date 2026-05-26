@@ -1,0 +1,565 @@
+PRD: BRP — Complete (P5 → P7): Components + Wiring + Polish + Real LLM + Audit Log
+Version: 1.0
+Date: 2026-05-26
+Status: Ready for Taskmaster ingestion (parse_prd)
+Owner: FRAME team
+Related plans:
+- docs/Brp_plan/p5.md  (Phase 5 — components)
+- docs/Brp_plan/p6.md  (Phase 6 — wire the flows)
+- docs/Brp_plan/p7.md  (Phase 7 — polish + AI-assist)
+Prior PRD (closed): .taskmaster/docs/brp-headless-prd.txt (B-0..B-13)
+Reference UI (visual only, NOT a code shape):
+  docs/Brp_plan/ui_sample_brp/{BRP (1).tsx, CapacityDialog.tsx, MetricsModal.tsx, VarianceBadge.tsx}
+
+========================================================================
+1. PROBLEM STATEMENT
+========================================================================
+The BRP headless layer (Phases 1–4) is shipped on feature/brp: types,
+store, AI seam (simulator), GitLab service. 176 mocked tests + 1 live
+smoke passing. But the feature is invisible to users — there is no tab,
+no view, no UI. The planner cannot load a crew, set capacity, type
+estimates, run Analysis, or see results. Phase 6's wiring isn't there,
+so even if a component existed it couldn't talk to GitLab or the
+estimator. Phase 7's audit log isn't there — a UBS/banking-regulated
+context requires append-only audit traceability for any AI-assisted
+decision.
+
+This PRD finishes BRP: components (P5), the wiring that connects them
+to the store + services + AI seam (P6), and the polish + AI-assist +
+audit log + real LLM swap (P7) that makes it production-ready.
+
+========================================================================
+2. SCOPE OF THIS PRD
+========================================================================
+Phases 5 + 6 + 7 of the 7-phase plan. Everything from "components don't
+exist yet" to "BRP ships as a working tab with a real LLM estimator and
+an audit log."
+
+Out of this PRD's scope:
+- Anything in P1–P4 (those are shipped; this PRD treats their action
+  surface as a frozen contract).
+- A separate "BRP v2" (drag-and-drop, multi-PI compare, etc. — that's
+  a future PRD if dogfood justifies it).
+- Replacing gitlabClient.ts or any shared infrastructure.
+
+========================================================================
+3. GOALS
+========================================================================
+G1. Land BRP as the 8th workspace tab — registered in uiStore TabId,
+    routed in ViewRouter, listed in WorkspaceSidebar with an icon.
+G2. Build all the components needed for the two views (portfolio +
+    pod) using FRAME design tokens, zero raw hsl(), no Frutiger font
+    literal. Recharts is the chart library.
+G3. Wire the 5 end-to-end flows: Load, Capacity, Estimate, Analyze,
+    Re-groom handoff (into existing refinePipelineAction).
+G4. Add the 3 deferred deep-review acknowledgments (I5/I6/I8) as
+    must-fix:
+      - I5: onError injection into runAnalysis; surface via uiStore.addToast.
+      - I6: BrpProgress state field + UI rendering during runs.
+      - I8: Widen Result<T> error to { code?, message, cause? }.
+G5. Add the 6 AI-assist features documented in p7.md:
+      a) Capacity pre-fill from GitLab member count + PI sprints + holidays.
+      b) Unrealistic-capacity nudge (>= 1.5× team average).
+      c) Quality-gated variance — clamp Caution if FRAME confidence < 0.4
+         (already implemented in computeVariance; verify wiring).
+      d) Variance interpretation text (templated; no real LLM).
+      e) Duplicate-epic detection (token-overlap; rule-based; no LLM).
+      f) Audit log: append-only, banking-grade.
+G6. Swap simulator → real Azure OpenAI estimator via
+    estimatorProvider.ts. Single-line swap point; existing tests pin
+    the contract.
+G7. Pass a 5-agent deep-review checkpoint after P6 wiring complete.
+
+========================================================================
+4. NON-GOALS (this PRD)
+========================================================================
+N1. Drag-and-drop epic reassignment between pods (v2).
+N2. Multi-PI compare view (v2).
+N3. Cost-tracking dashboard for the real LLM estimator (v2).
+N4. Persisting BRP state across sessions (intentional — every load
+    refreshes from GitLab).
+N5. Real-time collaboration / shared cursors (v2).
+N6. Mobile / responsive layout (workspace is desktop-first per
+    existing FRAME convention).
+N7. i18n / locale support (FRAME is English-only today).
+N8. Replacing the headless layer's design decisions (P1–P4 contracts
+    are frozen).
+
+========================================================================
+5. USERS & USE CASES
+========================================================================
+Primary user: Scrum Master or product engineer running PI planning at
+UBS WMA. They have a GitLab root group containing crews → pods →
+epics.
+
+Use case 1: "Set up capacity for my pod"
+  - User opens BRP tab → Load crew → Select pod → Capacity dialog → enters
+    resources, spPerResource, sprintCount, holidayDays, leaveDays → Save.
+    Total capacity renders live in the dialog and on the pod row.
+
+Use case 2: "Compare planner estimates with FRAME"
+  - User types humanEstimate in the inline column for each epic.
+  - Clicks "Run Analysis" → progress bar advances epic-by-epic →
+    variance bands render per epic (Agree/Caution/Re-groom/Flagged).
+
+Use case 3: "Re-groom the wide-variance epics"
+  - User filters to "Re-groom only" → clicks a re-groom epic → DetailPanel
+    opens showing FRAME's breakdown + rationale + references → clicks
+    "Send to Refinement Pipeline" → handoff to existing refinePipelineAction.
+
+Use case 4: "Audit who/when an estimate was changed"
+  - Compliance officer pulls the audit log → sees every capacity
+    update, every humanEstimate edit, every Analysis run with
+    timestamps + actor (MSAL'd user) + before/after values.
+
+========================================================================
+6. LOCKED DESIGN DECISIONS
+========================================================================
+D1.  Tab id: 'brp'. Same pattern as IR's 'issueRefinery'.
+D2.  Components live at src/components/brp/{...}. Tests colocated.
+D3.  Recharts for MetricsModal (variance bar chart + capacity donut).
+     ~200KB minified gzip. Locked at session start.
+D4.  Action layer at src/actions/brpActions.ts (single file). Mirrors
+     the action-boundary pattern of refinePipelineAction.ts and
+     refineIssueAction.ts.
+D5.  runAnalysis onError callback: brpActions provides a closure that
+     calls uiStore.addToast({ type: 'error', title: ... }). The store
+     stays UI-agnostic; brpActions is the only file that imports
+     uiStore from BRP scope.
+D6.  Progress state: add `analysisProgress: { completed, total,
+     currentEpicId } | null` to BrpState. runAnalysis updates it via
+     a new setProgress action. Progress events from the estimator
+     advance pct on the current epic; epic-done events bump completed.
+D7.  Result<T> widening: brpGitlabService.ts changes to return
+     { success: false, error: { code: string; message: string; cause?: unknown } }.
+     Phase 6 callers branch on error.code ('auth' | 'ratelimit' |
+     'network' | 'unknown'). Add a unit test asserting the discrimination.
+D8.  Real LLM estimator: new src/services/brp/ai/azureOpenAIEstimator.ts.
+     Composes existing src/services/ai/azureClient.ts (the same client
+     used by the epic pipeline). DOES NOT add a new HTTP client.
+     Gated live smoke pattern, same as B-11.
+D9.  Audit log: src/services/brp/auditLog.ts + brpStore subscription
+     (NOT an action — a side-effect subscriber). Append-only in memory
+     today; localStorage persistence is a v2 enhancement (out of scope).
+     Captures: action name, timestamp, actor (msal user.id if available,
+     else 'unknown'), before/after for state-mutating events.
+D10. Design tokens: zero raw hsl() calls, zero font literals like
+     'Frutiger'. Use src/theme/tokens.ts (existing). VarianceBadge
+     ports from ui_sample_brp but rewrites the styling against tokens.
+D11. Single deep-review checkpoint after P6 (B-31), before P7 starts.
+     Same 5-agent pattern as the headless deep-review.
+D12. CLAUDE.md "Active Work" section is updated AT THE END of this
+     PRD (B-35), not mid-flight.
+
+========================================================================
+7. FUNCTIONAL REQUIREMENTS
+========================================================================
+
+7.1 — Phase 5 components (12 files + tab wiring)
+
+F5.1   `src/components/brp/VarianceBadge.tsx` — small badge component
+       rendering one of 5 bands. Ports from ui_sample_brp/VarianceBadge.tsx
+       but uses FRAME tokens. Display labels per the sample wording (locked
+       earlier): "In tolerance / Discuss / Re-groom / Needs detail / Pending".
+F5.2   `src/components/brp/CapacityDialog.tsx` — modal for 5 capacity
+       inputs + live total. Live `computeCapacity(inputs).total` rendered
+       breakdown. Save calls `brpStore.updatePodCapacity`.
+F5.3   `src/components/brp/MetricsModal.tsx` — recharts bar chart
+       (human vs frame per epic, flagged excluded) + capacity donut.
+F5.4   `src/components/brp/EpicRow.tsx` — single row in pod list:
+       title link to GitLab, humanEstimate input cell, frameEstimate
+       (read-only when present), variance badge.
+F5.5   `src/components/brp/DetailPanel.tsx` — right-side panel when
+       an epic is selected. Renders frameResult.breakdown + rationale +
+       references. "Send to Refinement" button (P6 wires the handoff).
+F5.6   `src/components/brp/CrewSelector.tsx` — top-bar dropdown listing
+       loaded crews. Selecting a crew calls `selectCrew(id)`.
+F5.7   `src/components/brp/PodLoader.tsx` — modal/inline component to
+       trigger `fetchPods(crewGroupId)` on demand.
+F5.8   `src/components/brp/EpicPicker.tsx` — load-epics-into-pod
+       affordance. Calls `fetchPodEpics(podSubgroupId)` and
+       `loadEpicsIntoPod`.
+F5.9   `src/components/brp/PortfolioView.tsx` — cross-crew view:
+       pods listed as cards with capacity + load + variance summary.
+F5.10  `src/components/brp/PodView.tsx` — drill-in view: pod's epics
+       in a table; DetailPanel slides in on selection.
+F5.11  `src/components/brp/BrpView.tsx` — tab root; switches between
+       PortfolioView and PodView based on `brpStore.view`.
+F5.12  `src/components/brp/AnalysisProgress.tsx` — banner shown
+       during `analysisStatus === 'running'`. Renders `completed/total`
+       + currentEpicId + a thin progress bar.
+
+Tab registration (touched existing files):
+F5.13  `src/stores/uiStore.ts` — add `'brp'` to `TabId` union.
+F5.14  `src/components/layout/ViewRouter.tsx` — add `case 'brp':
+       return <BrpView />`.
+F5.15  `src/components/layout/WorkspaceSidebar.tsx` — add sidebar
+       entry with a Phosphor icon (recommendation: `ChartBar` or
+       `Compass`).
+
+Test coverage per component: 3–8 tests covering happy path + error
+state + empty state + interaction. Total ~50 component tests.
+
+7.2 — Phase 6 wiring (single action file)
+
+F6.1   `src/actions/brpActions.ts` — exports these actions:
+         `loadCrewAction(crewGroupId)` — fetchCrews + loadCrew.
+         `loadCrewPodsAction(crewId, crewGroupId)` — fetchPods +
+            loadPods.
+         `loadPodEpicsAction(podId, podSubgroupId)` — fetchPodEpics +
+            loadEpicsIntoPod.
+         `runAnalysisAction()` — getEstimator + getReferences resolver
+            + onError surfaces to uiStore.addToast + abort-on-tab-leave.
+         `handoffEpicToRefinementAction(epicId)` — pull Epic from
+            brpStore + writeMarkdownIntoEpicStore + refinePipelineAction.
+       Each action: reads from brpStore + configStore, calls services,
+       writes results back to brpStore. Boundary-pattern compliant —
+       components do not call services directly.
+F6.2   `BrpProgress` state + setProgress action added to brpStore.
+       runAnalysis (in store) now also writes progress on every event.
+F6.3   `Result<T>` widened in brpGitlabService.ts:
+         `{ success: true; data: T }` |
+         `{ success: false; error: { code: 'auth'|'ratelimit'|'network'
+            |'unknown'; message: string; cause?: unknown } }`.
+       Mock tests updated; live smoke updated to assert error.code on
+       a 401 scenario.
+F6.4   `runAnalysisAction` consumes the AbortSignal from the user's
+       Cancel button (P5 component) AND from a tab-change unsubscribe.
+F6.5   `handoffEpicToRefinementAction` writes the epic body into
+       `epicStore.setMarkdown(...)` and switches `uiStore.activeTab`
+       to `'planner'`, then triggers `refinePipelineAction`. The
+       existing 6-stage pipeline handles it from there.
+
+7.3 — Phase 7 polish + AI-assist + audit log + real LLM (~10 files)
+
+F7.1   Design-system audit: every component reviewed; zero raw `hsl()`,
+       zero literal font names, all spacing via tokens.
+F7.2   Accessibility audit: keyboard nav on all components, ARIA labels,
+       no color-only signals (variance bands also carry icons / text).
+F7.3   AI-assist: capacity pre-fill.
+       New: `src/services/brp/ai/capacityPrefill.ts` — given a
+       crewGroupId, fetches member count via gitlabClient + currentPI
+       sprints + holidays from a config OR a sensible default. Returns
+       `CapacityInputs`. UI hook: "Pre-fill" button in CapacityDialog.
+F7.4   AI-assist: unrealistic-capacity nudge.
+       `src/services/brp/ai/capacityNudge.ts` — given a CapacityInputs,
+       compares against pod history (or a constant baseline if no
+       history). Returns a string warning or null. Rendered as inline
+       help text in CapacityDialog.
+F7.5   AI-assist: variance interpretation text.
+       `src/services/brp/ai/varianceInterpreter.ts` — given an Epic,
+       returns a short templated string per band. Pure function. No
+       LLM. Tested.
+F7.6   AI-assist: duplicate-epic detection.
+       `src/services/brp/ai/duplicateDetection.ts` — token-overlap
+       similarity (Jaccard or shingled) across an array of Epics.
+       Returns pairs above threshold. Pure function. Rendered as a
+       collapsed "Potential duplicates" section in PortfolioView.
+F7.7   Audit log.
+       `src/services/brp/auditLog.ts` — append-only in-memory log
+       capturing every state-mutating event with timestamp, actor
+       (msalAccount?.idTokenClaims?.oid if available, else 'unknown'),
+       action name, before/after delta. Exposed as a brpStore
+       subscriber (NOT a store action). UI: a hidden "Audit" panel
+       toggleable from DetailPanel (collapsed by default). The log
+       data structure is exportable as JSON for compliance asks.
+F7.8   Real LLM estimator.
+       `src/services/brp/ai/azureOpenAIEstimator.ts` — implements
+       `AIEstimator`. Composes existing `src/services/ai/azureClient.ts`.
+       Streams progress events as the LLM streams. Falls back to
+       'error' event on rate limit / auth failures. Schema-validates
+       the FrameResult before yielding 'done' (the schemas in
+       `src/services/brp/ai/schemas.ts` exist for this).
+       Mocked tests + gated live smoke (same pattern as B-11).
+F7.9   Estimator provider swap.
+       `src/services/brp/ai/estimatorProvider.ts` — `getEstimator()`
+       body changed from `createSimulatedEstimator()` to:
+         `import { isAIEnabled } from '@/services/ai/aiClient'`
+         `return isAIEnabled(useConfigStore.getState().config)`
+         `  ? createAzureOpenAIEstimator(config)`
+         `  : createSimulatedEstimator()`
+       The drop-in-equivalence test in simulatedEstimator.test.ts is
+       updated to skip when isAIEnabled returns true; a new test pins
+       the AzureOpenAI path.
+F7.10  All component empty / loading / error / filtered-empty states
+       have real copy (no placeholder text). Tests assert each state.
+
+========================================================================
+8. NON-FUNCTIONAL REQUIREMENTS
+========================================================================
+NFR1. Test coverage on new code ≥ 85% lines for components ≥ 90% for
+      actions/services.
+NFR2. `npx tsc -b --noEmit` exits with the SAME baseline error count
+      as before this PRD started (no BRP-introduced errors).
+NFR3. `npm run test:run` completes in < 10 seconds for all BRP test
+      files (not the whole project).
+NFR4. Zero changes to scope-guarded paths:
+        - src/pipeline/orchestrator*
+        - src/pipeline/stages/**
+        - src/components/welcome/**
+      `handoffEpicToRefinementAction` calls existing
+      `refinePipelineAction` — does NOT modify it.
+NFR5. Components render in jsdom-vitest without runtime errors. Smoke
+      test asserts each top-level component mounts cleanly.
+NFR6. `npm run build` succeeds (the headless-PRD baseline already has
+      `npm run build` failing on pre-existing tsc errors; this PRD
+      should not regress THAT — the failure list must be identical
+      after this PRD lands).
+NFR7. Bundle size impact: ≤ 500 KB additional gzipped (mostly recharts).
+NFR8. Accessibility: every interactive element keyboard-operable. No
+      color-only signals. ARIA labels on inputs, buttons, modals.
+
+========================================================================
+9. NEW & TOUCHED FILES
+========================================================================
+
+NEW files (P5 — components):
+  src/components/brp/BrpView.tsx
+  src/components/brp/PortfolioView.tsx
+  src/components/brp/PodView.tsx
+  src/components/brp/CapacityDialog.tsx
+  src/components/brp/MetricsModal.tsx
+  src/components/brp/VarianceBadge.tsx
+  src/components/brp/EpicRow.tsx
+  src/components/brp/DetailPanel.tsx
+  src/components/brp/CrewSelector.tsx
+  src/components/brp/PodLoader.tsx
+  src/components/brp/EpicPicker.tsx
+  src/components/brp/AnalysisProgress.tsx
+  (+ .test.tsx for each — 12 test files)
+  src/test/integration/brpFlow.test.tsx
+
+NEW files (P6 — wiring):
+  src/actions/brpActions.ts
+  src/actions/brpActions.test.ts
+
+NEW files (P7 — polish + AI-assist + audit log + real LLM):
+  src/services/brp/ai/capacityPrefill.ts (+ .test.ts)
+  src/services/brp/ai/capacityNudge.ts (+ .test.ts)
+  src/services/brp/ai/varianceInterpreter.ts (+ .test.ts)
+  src/services/brp/ai/duplicateDetection.ts (+ .test.ts)
+  src/services/brp/ai/azureOpenAIEstimator.ts (+ .test.ts +
+    .live.test.ts gated)
+  src/services/brp/auditLog.ts (+ .test.ts)
+
+NEW docs (B-34):
+  docs/knowledge/components/brp/*.md (one per component)
+  docs/knowledge/actions/brpActions.md
+  docs/knowledge/services/brp/auditLog.md
+  docs/knowledge/services/brp/azureOpenAIEstimator.md
+  docs/adr/0004-brp-audit-log.md  (decision: in-memory + JSON export, no localStorage)
+  docs/adr/0005-brp-real-llm-swap.md  (decision: drop-in via estimatorProvider)
+  docs/devlog/<date>-brp-ui-complete.md
+  docs/reviews/<date>-brp-ui-deep-review.md (the checkpoint report)
+
+TOUCHED files (additive only):
+  src/stores/uiStore.ts                     — add 'brp' to TabId
+  src/components/layout/ViewRouter.tsx     — add case + import
+  src/components/layout/WorkspaceSidebar.tsx — add sidebar entry
+  src/stores/brpStore.ts                   — add BrpProgress state +
+                                              setProgress action +
+                                              onError plumbing in runAnalysis
+  src/services/brp/brpGitlabService.ts     — widen Result error shape
+  src/services/brp/brpGitlabService.test.ts — update for new error shape
+  src/services/brp/ai/estimatorProvider.ts — swap to Azure-or-Sim selector
+  src/services/brp/ai/simulatedEstimator.test.ts — update drop-in test
+  CLAUDE.md                                — "Active Work" → BRP shipped
+  docs/devlog/README.md                    — prepend new entry
+  docs/adr/README.md                       — add 0004 + 0005 entries
+  package.json + package-lock.json         — add recharts
+
+========================================================================
+10. ATOMIC TASKS (B-prefix, continues from B-13)
+========================================================================
+B-14  Recharts install + smoke. `npm install recharts && npm install -D
+      @types/recharts`. Verify the dep doesn't break the tsc baseline.
+      No new source code yet.
+B-15  BrpProgress state + setProgress action + runAnalysis progress
+      updates + onError callback plumbing. Tests for each.
+B-16  Result<T> error widening in brpGitlabService.ts. Discriminant
+      'code' union ('auth' | 'ratelimit' | 'network' | 'unknown').
+      Update mocked tests + live smoke to assert error.code.
+B-17  Tab registration: uiStore TabId += 'brp', ViewRouter case,
+      WorkspaceSidebar entry. Layout regression tests still green.
+B-18  VarianceBadge component + tests. Ports from ui_sample_brp with
+      FRAME tokens. 5 bands, icons, text labels.
+B-19  CapacityDialog component + tests. 5 inputs, live total via
+      computeCapacity, Save calls updatePodCapacity.
+B-20  MetricsModal component + tests. Recharts bar chart + donut.
+      Variance distribution. Uses FRAME tokens for chart colors.
+B-21  EpicRow component + tests. humanEstimate inline edit, variance
+      badge, GitLab link.
+B-22  DetailPanel component + tests. Renders frameResult.breakdown +
+      rationale + references. "Send to Refinement" button (wires in B-29).
+B-23  CrewSelector + PodLoader + EpicPicker components + tests.
+B-24  AnalysisProgress component + tests. Banner during 'running'
+      state. Reads from BrpProgress.
+B-25  PortfolioView component + tests. Pods as cards. Filter by
+      reGroomOnlyFilter.
+B-26  PodView component + tests. Pod's epics in a table; DetailPanel
+      side panel.
+B-27  BrpView component + tests. Tab root; switches Portfolio ↔ Pod.
+B-28  brpActions.ts (Load + Capacity + Estimate flows) + tests.
+B-29  brpActions.ts (Analysis flow with onError + AbortSignal +
+      handoff to refinePipelineAction) + tests.
+B-30  Full integration test src/test/integration/brpFlow.test.tsx —
+      load crew → load pods → load epics → set capacity → set
+      humanEstimate → run analysis (mocked estimator) → see variance
+      bands → handoff. Asserts the 5 flows end-to-end.
+[CHECKPOINT B-31: 5-agent deep-review post-UI per
+ docs/runbooks/deep-review-a10.md. Zero critical findings required.]
+B-32  AI-assist: capacityPrefill + capacityNudge + varianceInterpreter
+      + duplicateDetection. 4 small pure modules + tests.
+B-33  Audit log: src/services/brp/auditLog.ts + tests + brpStore
+      subscriber wiring + DetailPanel audit panel. ADR-0004.
+B-34  Real LLM estimator: src/services/brp/ai/azureOpenAIEstimator.ts +
+      tests + .live.test.ts gated. Update estimatorProvider.ts swap.
+      Update simulatedEstimator.test.ts drop-in test. ADR-0005.
+B-35  Knowledge docs (per-component + actions + auditLog +
+      azureOpenAIEstimator). Devlog entry. Update CLAUDE.md "Active
+      Work". Update docs/{adr,devlog}/README.md. Final commit
+      "branch ready for PR". Acceptance criteria checklist verified.
+
+Each task follows the standing protocol per .claude/STANDING_PROTOCOL.md:
+  next_task → set_task_status: in_progress → implement →
+  invoke superpowers:verification-before-completion (paste actual
+  command output) → append journal entry to .powerstack4/task_plan.md
+  → set_task_status: completed → commit per Conventional Commits
+  (scope = brp).
+
+========================================================================
+11. ACCEPTANCE CRITERIA
+========================================================================
+AC1.  `npx tsc -b --noEmit` baseline preserved (55 pre-existing errors,
+      zero BRP-introduced).
+AC2.  All BRP test files green:
+        - npm run test:run -- src/domain/brp.test.ts (40 tests)
+        - npm run test:run -- src/stores/brpStore.test.ts (existing
+          + new progress/onError tests)
+        - npm run test:run -- src/services/brp/ (mocked + 2 gated live)
+        - npm run test:run -- src/actions/brpActions.test.ts (new)
+        - npm run test:run -- src/components/brp/ (12 new component
+          test files)
+        - npm run test:run -- src/test/integration/brpFlow.test.tsx
+AC3.  `npm run build` produces a buildable dist (vite step succeeds;
+      tsc step may still report the pre-existing 55 errors — that's
+      acceptable per NFR6).
+AC4.  Clicking the BRP tab renders BrpView; existing tabs unchanged.
+AC5.  Load crew → load pods → load epics works end-to-end (mocked in
+      tests; live verified manually with the existing PAT pattern).
+AC6.  Capacity dialog saves; pod row shows new total via
+      computeCapacity at render time. No `totalCapacity` field
+      stored (grep assertion).
+AC7.  setHumanEstimate via inline cell triggers variance re-derivation
+      on the next render.
+AC8.  runAnalysisAction with mocked estimator updates per-epic status
+      AND BrpProgress AND triggers an onError toast on simulated
+      failure.
+AC9.  Re-groom handoff writes epic body into epicStore + switches tab
+      to 'planner' + triggers refinePipelineAction (existing pipeline
+      handles it).
+AC10. Recharts dep is in package.json @ ^2.x (latest minor at install).
+AC11. Audit log records every state-mutating event with actor +
+      timestamp + before/after. JSON-exportable.
+AC12. Real LLM estimator: mocked tests pass; gated live smoke
+      .skipIf(!VITE_BRP_LIVE_LLM_SMOKE) by default.
+AC13. estimatorProvider correctly selects azure vs simulator based on
+      isAIEnabled(config).
+AC14. Zero raw `hsl(` strings in src/components/brp/**/*.tsx (grep
+      assertion). Zero literal font names ('Frutiger', 'Helvetica
+      Neue' inline). All styling via src/theme/tokens.ts.
+AC15. Every component is keyboard-operable; every interactive element
+      has an ARIA label or accessible name.
+AC16. Deep-review checkpoint B-31 concludes with zero critical
+      findings.
+AC17. Knowledge docs cover every new component + action + service.
+AC18. CLAUDE.md "Active Work" updated to reflect BRP shipped.
+
+========================================================================
+12. RISKS & MITIGATIONS
+========================================================================
+RK1. Recharts is large (~200KB minified). Mitigation: ensure it's
+     code-split (vite handles this automatically for components
+     that import it lazily). Track bundle size via npm run build
+     output.
+
+RK2. Real LLM estimator integration may hit Azure rate limits during
+     dev. Mitigation: skip-by-default live smoke; mocked tests
+     exercise the contract.
+
+RK3. The Result<T> widening in brpGitlabService.ts is an API change.
+     Mitigation: it's only consumed by brpActions.ts (new in this PRD).
+     The mocked tests get updated alongside. No external consumers.
+
+RK4. Component scope is large (12 components). Mitigation: each
+     component is small (<200 lines), single-responsibility, tested.
+     Atomic tasks (B-18..B-27) keep commits focused.
+
+RK5. Audit log design may be over-specified for v1 needs.
+     Mitigation: keep in-memory only (no persistence). JSON export.
+     Phase 5/6 dogfood will reveal what compliance actually needs.
+
+RK6. Real LLM may not respect the Zod schema (LLM emits non-Fibonacci
+     frameEstimate, etc.). Mitigation: azureOpenAIEstimator.ts
+     schema-validates every event payload before yielding. Invalid
+     events become 'error' events with a clear message.
+
+RK7. handoffEpicToRefinementAction writes to epicStore which IR also
+     writes to. Mitigation: read-only consumption in handoff; epic
+     body goes in, existing pipeline takes over. No conflicts.
+
+RK8. The kit hardening H3 hook (block test-file edits) will be hit
+     ~30 times across this PRD. Pattern: `rm + Write` (documented in
+     IR devlog).
+
+========================================================================
+13. ROLLBACK PLAN
+========================================================================
+The feature is purely additive at the workspace tab level:
+- Rollback option 1: revert the merge commit. The BRP tab disappears,
+  existing tabs continue to render.
+- Rollback option 2: remove the `'brp'` entry from TabId in uiStore;
+  the tab becomes inaccessible but the code stays.
+- No data migration. No backend changes. No deployed surface beyond
+  the frontend bundle.
+
+The audit log is in-memory only, so rollback loses its contents — but
+that's by design for v1; compliance asks for an audit log of a session
+that no longer exists are answered by "we don't have it; load again."
+
+========================================================================
+14. SUCCESS METRICS (post-launch, not blocking)
+========================================================================
+M1. BRP tab opens cleanly in production (visual smoke before launch).
+M2. P95 end-to-end Load → Pods → Epics latency < 5 seconds against
+    UBS GitLab.
+M3. P95 Analysis latency per pod < 30 seconds with real LLM (10 epics).
+M4. Audit log JSON export size < 100 KB for a typical PI planning session.
+M5. Real LLM cost per Analysis: < $0.50 per pod (10 epics).
+M6. Recharts bundle size impact: ≤ 250 KB gzipped (target).
+
+========================================================================
+15. APPENDIX: REFERENCES
+========================================================================
+- Prior PRD (closed): .taskmaster/docs/brp-headless-prd.txt
+- Phase plans:
+    docs/Brp_plan/p5.md
+    docs/Brp_plan/p6.md
+    docs/Brp_plan/p7.md
+- UI reference (visual only):
+    docs/Brp_plan/ui_sample_brp/{BRP (1).tsx, CapacityDialog.tsx,
+                                 MetricsModal.tsx, VarianceBadge.tsx}
+- Deep-review report (headless): docs/reviews/2026-05-25-brp-headless-deep-review.md
+- Acknowledged deferrals (now must-fix here):
+    docs/reviews/acknowledged.md
+- Standing instructions:
+    docs/research/Standing Coding-Instructions for Claude Code.md
+- Existing patterns to mirror:
+    src/components/issueRefinery/*       (component composition + tests)
+    src/actions/refineIssueAction.ts     (action-boundary pattern)
+    src/services/ai/azureClient.ts       (Azure OpenAI integration)
+    src/theme/tokens.ts                  (design tokens)
+- Standing protocol:
+    CLAUDE.md
+    .claude/STANDING_PROTOCOL.md
+- Deep-review runbook: docs/runbooks/deep-review-a10.md
