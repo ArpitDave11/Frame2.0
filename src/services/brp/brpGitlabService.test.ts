@@ -97,23 +97,25 @@ describe('fetchCrews', () => {
     );
   });
 
-  it('returns an error result when rootGroupId is empty', async () => {
+  it("returns error.code='unknown' when rootGroupId is empty", async () => {
     const result = await fetchCrews(buildConfig({ rootGroupId: '' }));
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error).toContain('rootGroupId');
+    expect(result.error.code).toBe('unknown');
+    expect(result.error.message).toContain('rootGroupId');
     expect(mockedFetchGitLabSubgroups).not.toHaveBeenCalled();
   });
 
-  it('propagates GitLab errors as an error result (does not throw)', async () => {
+  it('propagates GitLab errors as a structured error result (does not throw)', async () => {
     mockedFetchGitLabSubgroups.mockResolvedValueOnce({
       success: false,
-      error: '401 Unauthorized',
+      error: 'GitLab API error (401): unauthorized',
     });
     const result = await fetchCrews(buildConfig());
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error).toBe('401 Unauthorized');
+    expect(result.error.code).toBe('auth');
+    expect(result.error.message).toBe('GitLab API error (401): unauthorized');
   });
 
   it('handles empty GitLab response (no subgroups) gracefully', async () => {
@@ -128,12 +130,6 @@ describe('fetchCrews', () => {
   });
 
   it('[live-smoke regression] coerces NUMERIC subgroup id from GitLab to BRP string id', async () => {
-    // The live smoke against gitlab.com (2026-05-25) caught real drift:
-    // GitLab returns subgroup.id as a number, but
-    // src/services/gitlab/types.ts declares it as string. The mocked
-    // tests above happened to pass because the fixtures used strings
-    // (matching the WRONG type, not reality). This regression test
-    // pins the boundary coercion so the drift cannot recur silently.
     const subgroupWithNumericId = {
       id: 131025594,
       name: 'Crew-Alpha',
@@ -148,13 +144,104 @@ describe('fetchCrews', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data[0]).toEqual({
-      id: '131025594', // string, not the number 131025594
+      id: '131025594',
       name: 'Crew-Alpha',
-      gitlabGroupId: 131025594, // number for outbound calls
+      gitlabGroupId: 131025594,
       pods: [],
     });
     expect(typeof result.data[0]!.id).toBe('string');
     expect(typeof result.data[0]!.gitlabGroupId).toBe('number');
+  });
+});
+
+// ─── Error code discrimination (B-16, deep-review I8) ────
+
+describe('brpGitlabService — error code discrimination', () => {
+  it("HTTP 401 → error.code = 'auth'", async () => {
+    mockedFetchGitLabSubgroups.mockResolvedValueOnce({
+      success: false,
+      error: 'GitLab API error (401): {"message":"401 Unauthorized"}',
+    });
+    const result = await fetchCrews(buildConfig());
+    if (result.success) throw new Error('expected failure');
+    expect(result.error.code).toBe('auth');
+  });
+
+  it("HTTP 403 → error.code = 'auth'", async () => {
+    mockedFetchGitLabSubgroups.mockResolvedValueOnce({
+      success: false,
+      error: 'GitLab API error (403): forbidden',
+    });
+    const result = await fetchCrews(buildConfig());
+    if (result.success) throw new Error('expected failure');
+    expect(result.error.code).toBe('auth');
+  });
+
+  it("HTTP 429 → error.code = 'ratelimit'", async () => {
+    mockedFetchGitLabSubgroups.mockResolvedValueOnce({
+      success: false,
+      error: 'GitLab API error (429): rate limit exceeded',
+    });
+    const result = await fetchPods(buildConfig(), 10);
+    if (result.success) throw new Error('expected failure');
+    expect(result.error.code).toBe('ratelimit');
+  });
+
+  it("HTTP 500/502/503 → error.code = 'network' (server failures are retryable)", async () => {
+    for (const status of [500, 502, 503]) {
+      mockedFetchGitLabSubgroups.mockResolvedValueOnce({
+        success: false,
+        error: `GitLab API error (${status}): server error`,
+      });
+      const result = await fetchPods(buildConfig(), 10);
+      if (result.success) throw new Error('expected failure');
+      expect(result.error.code).toBe('network');
+    }
+  });
+
+  it("HTTP 404 (or other 4xx) → error.code = 'unknown'", async () => {
+    mockedFetchGitLabSubgroups.mockResolvedValueOnce({
+      success: false,
+      error: 'GitLab API error (404): not found',
+    });
+    const result = await fetchPods(buildConfig(), 10);
+    if (result.success) throw new Error('expected failure');
+    expect(result.error.code).toBe('unknown');
+  });
+
+  it("network-marker strings → error.code = 'network'", async () => {
+    for (const msg of [
+      'fetch failed',
+      'ENOTFOUND gitlab.example',
+      'ECONNREFUSED 1.2.3.4:443',
+      'request timeout',
+    ]) {
+      mockedFetchGitLabSubgroups.mockResolvedValueOnce({ success: false, error: msg });
+      const result = await fetchPods(buildConfig(), 10);
+      if (result.success) throw new Error(`expected failure for "${msg}"`);
+      expect(result.error.code).toBe('network');
+    }
+  });
+
+  it("non-HTTP, non-network strings → error.code = 'unknown'", async () => {
+    mockedFetchGitLabSubgroups.mockResolvedValueOnce({
+      success: false,
+      error: 'something weird happened',
+    });
+    const result = await fetchPods(buildConfig(), 10);
+    if (result.success) throw new Error('expected failure');
+    expect(result.error.code).toBe('unknown');
+  });
+
+  it('undefined error string from gitlabClient → falls back to fallback message + unknown', async () => {
+    mockedFetchGitLabSubgroups.mockResolvedValueOnce({
+      success: false,
+      error: undefined as unknown as string,
+    });
+    const result = await fetchPods(buildConfig(), 10);
+    if (result.success) throw new Error('expected failure');
+    expect(result.error.code).toBe('unknown');
+    expect(result.error.message).toBe('Failed to fetch pods');
   });
 });
 
@@ -211,7 +298,7 @@ describe('fetchPods', () => {
     );
   });
 
-  it('propagates GitLab errors as an error result', async () => {
+  it('propagates GitLab errors as a structured error result', async () => {
     mockedFetchGitLabSubgroups.mockResolvedValueOnce({
       success: false,
       error: 'network timeout',
@@ -219,11 +306,11 @@ describe('fetchPods', () => {
     const result = await fetchPods(buildConfig(), 10);
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error).toBe('network timeout');
+    expect(result.error.code).toBe('network');
+    expect(result.error.message).toBe('network timeout');
   });
 
   it('[live-smoke regression] coerces NUMERIC subgroup id from GitLab to BRP string id', async () => {
-    // Same drift as fetchCrews. Pin it for pods too.
     const podSubgroup = {
       id: 131025595,
       name: 'Pod-A1',
@@ -310,15 +397,16 @@ describe('fetchPodEpics', () => {
     );
   });
 
-  it('propagates GitLab errors as an error result', async () => {
+  it('propagates GitLab errors as a structured error result', async () => {
     mockedFetchGroupEpics.mockResolvedValueOnce({
       success: false,
-      error: '403 Forbidden',
+      error: 'GitLab API error (403): forbidden',
     });
     const result = await fetchPodEpics(buildConfig(), 101);
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error).toBe('403 Forbidden');
+    expect(result.error.code).toBe('auth');
+    expect(result.error.message).toBe('GitLab API error (403): forbidden');
   });
 
   it('never pre-fills frameResult, even if GitLab response includes spurious fields', async () => {
@@ -427,7 +515,7 @@ describe('fetchReferenceEpics', () => {
     }
   });
 
-  it('propagates GitLab errors as an error result', async () => {
+  it('propagates GitLab errors as a structured error result', async () => {
     mockedFetchGroupEpics.mockResolvedValueOnce({
       success: false,
       error: 'service unavailable',
@@ -435,6 +523,8 @@ describe('fetchReferenceEpics', () => {
     const result = await fetchReferenceEpics(buildConfig(), 101);
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error).toBe('service unavailable');
+    // No HTTP status in the string; no network markers; → 'unknown'
+    expect(result.error.code).toBe('unknown');
+    expect(result.error.message).toBe('service unavailable');
   });
 });

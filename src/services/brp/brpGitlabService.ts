@@ -47,15 +47,74 @@ import type {
 } from '../../domain/brp';
 import { DEFAULT_SP_PER_RESOURCE } from '../../domain/brp.constants';
 
-// ─── Result shape (matches gitlabClient pattern) ────────────
+// ─── Result shape (widened in B-16 to address deep-review I8) ──
 
 /**
- * Discriminated result, identical in shape to gitlabClient's per-call
- * results. Phase 6 wiring branches on `.success` to surface UI errors.
+ * Discriminated error code for the widened Result<T> shape (B-16).
+ * Lets Phase 6 callers branch on error semantics (e.g., prompt to
+ * reauthenticate for 'auth' vs. show a backoff toast for 'ratelimit').
+ *
+ *   'auth'       — token expired/invalid (HTTP 401/403)
+ *   'ratelimit'  — too many requests (HTTP 429)
+ *   'network'    — connection failure, DNS error, or 5xx server error
+ *   'unknown'    — anything else; consult the message
+ */
+export type ResultErrorCode = 'auth' | 'ratelimit' | 'network' | 'unknown';
+
+/** Structured error returned by every Result<T> failure. */
+export interface ResultError {
+  code: ResultErrorCode;
+  message: string;
+  cause?: unknown;
+}
+
+/**
+ * Discriminated result. Phase 6 wiring branches on `.success` then on
+ * `error.code` to drive UI affordances (toast vs. relogin prompt vs.
+ * silent retry, etc.).
+ *
+ * Widened in B-16 from `{ error: string }` after the deep-review's
+ * Production Readiness reviewer (I8) flagged that a plain string
+ * loses the HTTP status discrimination needed for a regulated context.
  */
 export type Result<T> =
   | { success: true; data: T }
-  | { success: false; error: string };
+  | { success: false; error: ResultError };
+
+// ─── Error mapping helpers ─────────────────────────────────
+
+/**
+ * Heuristically classify a raw gitlabClient error string. gitlabClient
+ * emits errors as `GitLab API error (NNN): {body}` for HTTP failures,
+ * or as plain network-failure strings for fetch errors. We parse the
+ * HTTP status when present; otherwise grep for common network markers.
+ */
+function classifyErrorCode(rawError: string | undefined): ResultErrorCode {
+  if (!rawError) return 'unknown';
+  const statusMatch = rawError.match(/\((\d{3})\)/);
+  if (statusMatch?.[1]) {
+    const status = parseInt(statusMatch[1], 10);
+    if (status === 401 || status === 403) return 'auth';
+    if (status === 429) return 'ratelimit';
+    if (status >= 500) return 'network';
+  }
+  if (/network|fetch failed|enotfound|econnrefused|timeout/i.test(rawError)) {
+    return 'network';
+  }
+  return 'unknown';
+}
+
+/** Build a failure Result from a raw gitlabClient error string. */
+function toErrorResult<T>(
+  rawError: string | undefined,
+  fallbackMessage: string,
+): Result<T> {
+  const message = rawError ?? fallbackMessage;
+  return {
+    success: false,
+    error: { code: classifyErrorCode(rawError), message },
+  };
+}
 
 // ─── Default capacity for a freshly-loaded Pod ──────────────
 
@@ -181,11 +240,14 @@ function gitlabEpicToReference(e: GitLabEpic): ReferenceEpic {
  */
 export async function fetchCrews(config: GitLabConfig): Promise<Result<Crew[]>> {
   if (!config.rootGroupId) {
-    return { success: false, error: 'GitLab rootGroupId is not configured' };
+    return {
+      success: false,
+      error: { code: 'unknown', message: 'GitLab rootGroupId is not configured' },
+    };
   }
   const result = await fetchGitLabSubgroups(config, config.rootGroupId);
   if (!result.success) {
-    return { success: false, error: result.error ?? 'Failed to fetch crews' };
+    return toErrorResult(result.error, 'Failed to fetch crews');
   }
   const crews = (result.data ?? []).map(subgroupToCrew);
   return { success: true, data: crews };
@@ -201,7 +263,7 @@ export async function fetchPods(
 ): Promise<Result<Pod[]>> {
   const result = await fetchGitLabSubgroups(config, String(crewGroupId));
   if (!result.success) {
-    return { success: false, error: result.error ?? 'Failed to fetch pods' };
+    return toErrorResult(result.error, 'Failed to fetch pods');
   }
   const pods = (result.data ?? []).map(subgroupToPod);
   return { success: true, data: pods };
@@ -227,7 +289,7 @@ export async function fetchPodEpics(
     per_page: 100,
   });
   if (!result.success) {
-    return { success: false, error: result.error ?? 'Failed to fetch epics' };
+    return toErrorResult(result.error, 'Failed to fetch epics');
   }
   const podIdStr = String(podSubgroupId);
   const epics = (result.data ?? []).map((e) => gitlabEpicToEpic(e, podIdStr));
@@ -250,7 +312,7 @@ export async function fetchReferenceEpics(
     per_page: 100,
   });
   if (!result.success) {
-    return { success: false, error: result.error ?? 'Failed to fetch reference epics' };
+    return toErrorResult(result.error, 'Failed to fetch reference epics');
   }
   const refs = (result.data ?? []).map(gitlabEpicToReference);
   return { success: true, data: refs };
