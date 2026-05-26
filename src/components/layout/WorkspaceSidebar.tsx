@@ -18,6 +18,7 @@ import {
   GearSix,
   List,
   LinkSimple,
+  Compass,
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { useUiStore } from '@/stores/uiStore';
@@ -48,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { id: 'sprint', icon: Kanban, label: 'Performa - Sprint', tabOverride: 'issues', issueSubTab: 'sprint' },
+  { id: 'brp', icon: Compass, label: 'BRP' },
   { id: 'analytics', icon: ChartBar, label: 'Analytics' },
   { id: 'settings', icon: GearSix, label: 'Settings', isModal: true },
 ];

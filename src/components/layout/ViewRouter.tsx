@@ -16,6 +16,7 @@ import { SplitPane } from '@/components/layout/SplitPane';
 import { EditorPane } from '@/components/editor/EditorPane';
 import { PreviewPane } from '@/components/editor/PreviewPane';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
+import { BrpView } from '@/components/brp/BrpView';
 
 // ─── Planner View ───────────────────────────────────────────
 
@@ -64,6 +65,16 @@ function AnalyticsView() {
   );
 }
 
+// ─── BRP View ───────────────────────────────────────────────
+
+function BrpViewWrapper() {
+  return (
+    <div data-testid="brp-view-wrapper" style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
+      <BrpView />
+    </div>
+  );
+}
+
 // ─── Router ─────────────────────────────────────────────────
 
 export function ViewRouter() {
@@ -78,6 +89,8 @@ export function ViewRouter() {
       return <ErrorBoundary viewName="Blueprint"><BlueprintView /></ErrorBoundary>;
     case 'analytics':
       return <ErrorBoundary viewName="Analytics"><AnalyticsView /></ErrorBoundary>;
+    case 'brp':
+      return <ErrorBoundary viewName="BRP"><BrpViewWrapper /></ErrorBoundary>;
     default:
       return <ErrorBoundary viewName="Epic Planner"><PlannerView /></ErrorBoundary>;
   }
