@@ -1,22 +1,43 @@
 /**
- * BRP AI seam — estimator provider (B-9).
+ * BRP AI seam — estimator provider (B-9, swap landed in B-37).
  *
- * Single-line swap point between the deterministic simulator (today)
- * and a real LLM estimator (Phase 7). Callers — `brpStore.runAnalysis`
- * being the primary one, via Phase 6 wiring — depend on this function
- * and never on the simulator directly. Swapping providers in P7 is
- * a one-line change here; nothing else moves.
+ * Single swap point between the deterministic simulator (default) and
+ * the Azure OpenAI–backed estimator (B-36). Callers — `brpStore.runAnalysis`
+ * via brpActions — depend on this function and never on a specific
+ * implementation.
+ *
+ * Switching providers: at runtime the choice is driven by configStore:
+ *   - When `config.ai.provider === 'azure'` AND `azureEndpoint` is set
+ *     AND `azure.apiKey` is set, we return the Azure estimator.
+ *   - Otherwise we fall back to the simulator. This keeps the BRP UI
+ *     usable without a live LLM (planner can still load epics, edit
+ *     human estimates, see variance bands recompute) and the test
+ *     suite doesn't need credentials.
+ *
+ * The fallback is the safe default — a missing-config slip won't take
+ * the planner offline; they just get the simulator's heuristics.
  */
 
 import type { AIEstimator } from './types';
 import { createSimulatedEstimator } from './simulatedEstimator';
+import { createAzureEstimator } from './azureEstimator';
+import { useConfigStore } from '@/stores/configStore';
 
-/**
- * Return the active BRP estimator. Returns the simulator today.
- * Replace the body in Phase 7 with `createAzureOpenAIEstimator(...)`
- * (or whichever real implementation lands) once the LLM backend is
- * available; no consumer needs to change.
- */
 export function getEstimator(): AIEstimator {
-  return createSimulatedEstimator();
+  const root = useConfigStore.getState().config;
+  const azureReady =
+    root.ai.provider === 'azure' &&
+    !!root.endpoints?.azureEndpoint &&
+    !!root.ai.azure?.apiKey;
+
+  if (!azureReady) {
+    return createSimulatedEstimator();
+  }
+
+  return createAzureEstimator({
+    readConfig: () => {
+      const c = useConfigStore.getState().config;
+      return { ...c.ai, endpoints: c.endpoints };
+    },
+  });
 }
