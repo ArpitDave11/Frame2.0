@@ -30,6 +30,16 @@ export interface PodViewProps {
   analysisTotal: number;
   analysisCurrentEpicTitle?: string | null;
   analysisFailures?: AnalysisFailure[];
+  /**
+   * AI-assist (B-34): set of epic ids the duplicate detector flagged
+   * as likely duplicates inside THIS pod. Empty = no warnings.
+   */
+  duplicateEpicIds?: ReadonlySet<string>;
+  /**
+   * AI-assist (B-34): variance interpreter explanation for the
+   * currently-selected epic. null/undefined hides the banner.
+   */
+  selectedVarianceMessage?: string | null;
   onBackToPortfolio: () => void;
   onSelectEpic: (epicId: string | null) => void;
   onHumanEstimateChange: (epicId: string, value: number | null) => void;
@@ -62,6 +72,8 @@ export function PodView({
   analysisTotal,
   analysisCurrentEpicTitle,
   analysisFailures = [],
+  duplicateEpicIds,
+  selectedVarianceMessage,
   onBackToPortfolio,
   onSelectEpic,
   onHumanEstimateChange,
@@ -306,6 +318,7 @@ export function PodView({
                       key={epic.id}
                       epic={epic}
                       isSelected={epic.id === selectedEpicId}
+                      isLikelyDuplicate={duplicateEpicIds?.has(epic.id) ?? false}
                       onSelect={() =>
                         onSelectEpic(epic.id === selectedEpicId ? null : epic.id)
                       }
@@ -331,6 +344,7 @@ export function PodView({
               epic={selectedEpic}
               onClose={() => onSelectEpic(null)}
               onSendToGrooming={onSendToGrooming}
+              varianceMessage={selectedVarianceMessage ?? undefined}
             />
           </div>
         )}

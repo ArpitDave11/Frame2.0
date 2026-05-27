@@ -29,6 +29,10 @@ import type { Result } from './brpGitlabService';
 import { getEstimator } from './ai/estimatorProvider';
 import { getCapacityAssistant } from './ai/capacityAssistant';
 import type { CapacitySuggestion } from './ai/capacityAssistant';
+import { getVarianceInterpreter } from './ai/varianceInterpreter';
+import type { VarianceInterpretation } from './ai/varianceInterpreter';
+import { getDuplicateDetector } from './ai/duplicateDetector';
+import type { DuplicateGroup } from './ai/duplicateDetector';
 import type { CapacityInputs, Crew, Epic, Pod, ReferenceEpic } from '@/domain/brp';
 
 /**
@@ -143,6 +147,43 @@ export function confirmAddEpicsAction(podId: string, chosen: Epic[]): void {
  */
 export function updateCapacityAction(podId: string, inputs: CapacityInputs): void {
   useBrpStore.getState().updatePodCapacity(podId, inputs);
+}
+
+/**
+ * Ask the active VarianceInterpreter for a one-sentence explanation
+ * of an epic's variance band (B-34). Returns null when there is
+ * nothing useful to say (agree/pending) or when the epic is no longer
+ * loaded. Pure delegation — keeps the UI free of the AI seam import.
+ */
+export async function interpretVarianceAction(
+  epicId: string,
+): Promise<VarianceInterpretation | null> {
+  const epic = findEpic(useBrpStore.getState().crews, epicId);
+  if (!epic) return null;
+  return getVarianceInterpreter().explain(epic);
+}
+
+/**
+ * Find duplicate-looking epics inside one pod (B-34). The detector
+ * runs on the pod's currently-loaded epics — no GitLab fetch.
+ * Returns an empty list when the pod is missing or has < 2 epics.
+ */
+export async function findDuplicatesInPodAction(
+  podId: string,
+): Promise<DuplicateGroup[]> {
+  const pod = findPod(useBrpStore.getState().crews, podId);
+  if (!pod) return [];
+  return getDuplicateDetector().findDuplicates(pod.epics);
+}
+
+function findEpic(crews: readonly Crew[], epicId: string): Epic | null {
+  for (const c of crews) {
+    for (const p of c.pods) {
+      const e = p.epics.find((x) => x.id === epicId);
+      if (e) return e;
+    }
+  }
+  return null;
 }
 
 /**

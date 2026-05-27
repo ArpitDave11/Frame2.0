@@ -31,6 +31,8 @@ import { MetricsModal } from './MetricsModal';
 import { EpicPicker } from './EpicPicker';
 import {
   confirmAddEpicsAction,
+  findDuplicatesInPodAction,
+  interpretVarianceAction,
   listCandidateEpicsAction,
   runAnalysisForPodAction,
   suggestCapacityAction,
@@ -114,10 +116,65 @@ export function BrpView() {
     };
   }, [analysisController]);
 
+  // ─── AI-assist (B-34) ──────────────────────────────────────
+  // Duplicate detection runs per-pod whenever the pod's epics list
+  // changes. The result is a Set<string> the EpicRow can use to flag
+  // its title with "Likely duplicate".
+  const [duplicateEpicIds, setDuplicateEpicIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Variance interpretation runs whenever the selected epic changes.
+  const [selectedVarianceMessage, setSelectedVarianceMessage] = useState<string | null>(
+    null,
+  );
+
   const { pod, crew } = useMemo(
     () => findPod(crews, selectedPodId),
     [crews, selectedPodId],
   );
+
+  // Recompute duplicate groups whenever the pod's epics list changes.
+  // Run cancelled if the pod is swapped out or the view unmounts.
+  useEffect(() => {
+    if (!pod) {
+      setDuplicateEpicIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    findDuplicatesInPodAction(pod.id)
+      .then((groups) => {
+        if (cancelled) return;
+        const flagged = new Set<string>();
+        for (const g of groups) for (const id of g.epicIds) flagged.add(id);
+        setDuplicateEpicIds(flagged);
+      })
+      .catch(() => {
+        if (!cancelled) setDuplicateEpicIds(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pod]);
+
+  // Re-explain variance whenever the selected epic changes.
+  useEffect(() => {
+    if (!selectedEpicId) {
+      setSelectedVarianceMessage(null);
+      return;
+    }
+    let cancelled = false;
+    interpretVarianceAction(selectedEpicId)
+      .then((interp) => {
+        if (cancelled) return;
+        setSelectedVarianceMessage(interp?.message ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedVarianceMessage(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEpicId, pod]);
 
   // ─── Routing. ───────────────────────────────────────────────────────
   // No pod selected → Portfolio. Selected pod that no longer exists →
@@ -176,6 +233,8 @@ export function BrpView() {
             : null
         }
         analysisFailures={lastRun?.failures ?? []}
+        duplicateEpicIds={duplicateEpicIds}
+        selectedVarianceMessage={selectedVarianceMessage}
         onBackToPortfolio={() => {
           selectPod(null);
           selectEpic(null);

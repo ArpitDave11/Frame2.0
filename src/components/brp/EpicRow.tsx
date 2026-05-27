@@ -28,6 +28,13 @@ export interface EpicRowProps {
   isSelected: boolean;
   onSelect: () => void;
   onHumanEstimateChange: (value: number | null) => void;
+  /**
+   * When true, the row renders a small "Likely duplicate" tag in the
+   * title cell (B-34). Caller (PodView/BrpView) computes the dup
+   * groups via brpActions.findDuplicatesInPodAction and passes the
+   * boolean per row. Optional — false/undefined hides the tag.
+   */
+  isLikelyDuplicate?: boolean;
 }
 
 const cellBase: React.CSSProperties = {
@@ -47,6 +54,7 @@ export function EpicRow({
   isSelected,
   onSelect,
   onHumanEstimateChange,
+  isLikelyDuplicate = false,
 }: EpicRowProps) {
   // Local controlled value for the input so the user can type without
   // every keystroke round-tripping through the store. Commit on blur or
@@ -130,9 +138,31 @@ export function EpicRow({
             fontWeight: fontWeight.normal,
             color: color.black,
             marginBottom: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
           }}
         >
-          {epic.title}
+          <span>{epic.title}</span>
+          {isLikelyDuplicate && (
+            <span
+              data-testid={`epic-row-duplicate-${epic.id}`}
+              title="FRAME found another epic in this pod with a very similar title"
+              style={{
+                fontSize: '0.625rem',
+                fontWeight: fontWeight.semibold,
+                color: color.red,
+                background: color.pastelI,
+                border: `1px solid ${color.bordeauxI}`,
+                borderRadius: 4,
+                padding: '1px 6px',
+                letterSpacing: '0.3px',
+                textTransform: 'uppercase',
+              }}
+            >
+              Likely duplicate
+            </span>
+          )}
         </div>
         <div
           data-testid={`epic-row-iid-${epic.id}`}

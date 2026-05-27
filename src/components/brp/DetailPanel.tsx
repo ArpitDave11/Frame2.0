@@ -33,6 +33,13 @@ export interface DetailPanelProps {
   epic: Epic | null;
   onClose: () => void;
   onSendToGrooming?: (epic: Epic) => void;
+  /**
+   * Optional AI-generated variance explanation (B-34). When provided,
+   * the panel renders it under the title as a small banner. Caller
+   * fetches via brpActions.interpretVarianceAction and plumbs the
+   * `.message` string. Empty/undefined hides the banner.
+   */
+  varianceMessage?: string;
 }
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -54,7 +61,12 @@ const itemRowStyle: React.CSSProperties = {
   border: `1px solid ${color.neutral200}`,
 };
 
-export function DetailPanel({ epic, onClose, onSendToGrooming }: DetailPanelProps) {
+export function DetailPanel({
+  epic,
+  onClose,
+  onSendToGrooming,
+  varianceMessage,
+}: DetailPanelProps) {
   if (!epic) return null;
 
   const variance = computeVariance(epic);
@@ -145,6 +157,24 @@ export function DetailPanel({ epic, onClose, onSendToGrooming }: DetailPanelProp
 
       {/* Body */}
       <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
+        {varianceMessage ? (
+          <div
+            data-testid="detail-variance-message"
+            role="note"
+            style={{
+              marginBottom: 24,
+              padding: '10px 14px',
+              background: color.pastelI,
+              border: `1px solid ${color.grayI}`,
+              borderRadius: radius.sm,
+              fontSize: fontSize.sm,
+              color: color.grayV,
+              lineHeight: 1.5,
+            }}
+          >
+            {varianceMessage}
+          </div>
+        ) : null}
         {epic.frameResult ? (
           <>
             <Section
