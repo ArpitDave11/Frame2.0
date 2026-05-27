@@ -91,13 +91,17 @@ export function BrpView() {
   const updatePodCapacity = useBrpStore((s) => s.updatePodCapacity);
   const setHumanEstimate = useBrpStore((s) => s.setHumanEstimate);
 
-  // ─── Local UI state (modal flags + analysis failures). ─────────────
+  // ─── Local UI state (modal flags + analysis last-run snapshot). ───
   const [modals, setModals] = useState<ModalState>(INITIAL_MODAL_STATE);
   const closeAllModals = () => setModals(INITIAL_MODAL_STATE);
-  // failures from the most recent runAnalysisAction. Cleared on each
-  // new run; kept after completion so the AnalysisProgress banner can
-  // render the partial-failure summary until the planner dismisses it.
-  const [analysisFailures, setAnalysisFailures] = useState<AnalysisFailure[]>([]);
+  // Snapshot of the most recent COMPLETED run. The store clears
+  // analysisProgress when the run finishes, so we keep total+failures
+  // here so the AnalysisProgress banner can render success/partial.
+  // null = no run completed since the last dismiss/page-load.
+  const [lastRun, setLastRun] = useState<{
+    total: number;
+    failures: AnalysisFailure[];
+  } | null>(null);
   // AbortController for the in-flight analysis run, so Cancel works.
   const [analysisController, setAnalysisController] = useState<AbortController | null>(null);
 
@@ -144,14 +148,25 @@ export function BrpView() {
         crew={crew}
         selectedEpicId={selectedEpicId}
         analysisRunning={analysisRunning}
-        analysisCompleted={analysisProgress?.completed ?? 0}
-        analysisTotal={analysisProgress?.total ?? 0}
+        analysisCompleted={
+          analysisRunning
+            ? analysisProgress?.completed ?? 0
+            : // After completion the store clears analysisProgress —
+              // surface the snapshot's "completed" count (total − failures)
+              // so AnalysisProgress can render the success/partial banner.
+              lastRun
+              ? lastRun.total - lastRun.failures.length
+              : 0
+        }
+        analysisTotal={
+          analysisRunning ? analysisProgress?.total ?? 0 : lastRun?.total ?? 0
+        }
         analysisCurrentEpicTitle={
           analysisProgress?.currentEpicId
             ? pod.epics.find((e) => e.id === analysisProgress.currentEpicId)?.title ?? null
             : null
         }
-        analysisFailures={analysisFailures}
+        analysisFailures={lastRun?.failures ?? []}
         onBackToPortfolio={() => {
           selectPod(null);
           selectEpic(null);
@@ -164,19 +179,28 @@ export function BrpView() {
         onOpenEpicPicker={() => setModals((m) => ({ ...m, pickerOpen: true }))}
         onRunAnalysis={() => {
           const controller = new AbortController();
+          const totalAtStart = pod.epics.length;
           setAnalysisController(controller);
-          setAnalysisFailures([]);
+          setLastRun(null);
           runAnalysisForPodAction(pod.id, { signal: controller.signal })
             .then((result) => {
-              setAnalysisFailures(result.failures);
+              if (result.aborted) {
+                // Planner cancelled — suppress the post-run banner.
+                setLastRun(null);
+              } else {
+                setLastRun({ total: totalAtStart, failures: result.failures });
+              }
             })
             .catch((e: unknown) => {
-              setAnalysisFailures([
-                {
-                  epicId: '<run>',
-                  message: e instanceof Error ? e.message : String(e),
-                },
-              ]);
+              setLastRun({
+                total: totalAtStart,
+                failures: [
+                  {
+                    epicId: '<run>',
+                    message: e instanceof Error ? e.message : String(e),
+                  },
+                ],
+              });
             })
             .finally(() => {
               setAnalysisController(null);
@@ -190,9 +214,7 @@ export function BrpView() {
             : undefined
         }
         onDismissAnalysisResult={
-          analysisFailures.length > 0
-            ? () => setAnalysisFailures([])
-            : undefined
+          lastRun !== null ? () => setLastRun(null) : undefined
         }
       />
 
