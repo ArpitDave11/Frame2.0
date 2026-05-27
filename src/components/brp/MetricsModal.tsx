@@ -74,7 +74,12 @@ export function MetricsModal({ open, pod, onClose }: MetricsModalProps) {
   const metrics = useMemo(() => computePodMetrics(pod), [pod]);
 
   const { epicChartData, varianceCounts, totalEpics } = useMemo(() => {
-    const eligible = pod.epics.filter((e) => computeVariance(e) !== 'flagged');
+    // B-32 I1: also exclude pending epics — they have no FRAME estimate,
+    // so a `frame: 0` bar would misrepresent the data as "FRAME said 0".
+    // Eligible = analyzed (frameResult !== null) AND not flagged.
+    const eligible = pod.epics.filter(
+      (e) => e.frameResult !== null && computeVariance(e) !== 'flagged',
+    );
     const epicChartData = eligible.map((e) => ({
       name: truncate(e.title, 18),
       human: e.humanEstimate ?? 0,

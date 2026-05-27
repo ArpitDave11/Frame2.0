@@ -114,6 +114,14 @@ export type GetReferencesFn = (epic: Epic) => readonly ReferenceEpic[];
 export interface RunAnalysisOptions {
   signal?: AbortSignal;
   onError?: (failure: { epicId: string; message: string }) => void;
+  /**
+   * Scope the run to a single pod. When omitted, the run walks every
+   * epic across every loaded crew/pod (v1 semantics — preserved for
+   * backwards compatibility). Added post-B-32 deep-review (C2) so the
+   * "Run analysis" button in PodView actually analyzes only the open
+   * pod. Unknown pod IDs result in an empty-scope run (no epics).
+   */
+  podId?: string;
 }
 
 interface BrpActions {
@@ -353,9 +361,18 @@ export const useBrpStore = create<BrpStore>()((set, get) => ({
     // Snapshot the epic IDs at start. Walking the live store would risk
     // missing newly-loaded epics or revisiting analyzed ones — neither
     // is desirable. v1 semantics: "analyze whatever was loaded at kickoff".
-    const epicIds = get().crews.flatMap((c) =>
-      c.pods.flatMap((p) => p.epics.map((e) => e.id)),
-    );
+    // When `options.podId` is supplied, scope the run to that single pod
+    // (B-32 C2 fix); an unknown pod yields an empty list and the run
+    // completes immediately with no work.
+    const epicIds = options.podId
+      ? get().crews.flatMap((c) =>
+          c.pods
+            .filter((p) => p.id === options.podId)
+            .flatMap((p) => p.epics.map((e) => e.id)),
+        )
+      : get().crews.flatMap((c) =>
+          c.pods.flatMap((p) => p.epics.map((e) => e.id)),
+        );
 
     // Initialize progress in one set() with running status (B-15 / I6).
     set({

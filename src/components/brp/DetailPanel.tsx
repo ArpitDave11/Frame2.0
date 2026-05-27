@@ -21,6 +21,14 @@ import { computeVariance } from '@/domain/brp';
 import type { Epic } from '@/domain/brp';
 import { color, font, fontSize, fontWeight, radius } from '@/theme/tokens';
 
+/**
+ * B-32 I4: only http(s) URLs are safe targets for the GitLab link.
+ * Anything else (javascript:, data:, vbscript:, …) gets neutered to '#'.
+ */
+function isSafeHttpUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
+}
+
 export interface DetailPanelProps {
   epic: Epic | null;
   onClose: () => void;
@@ -102,7 +110,11 @@ export function DetailPanel({ epic, onClose, onSendToGrooming }: DetailPanelProp
           >
             !{epic.iid}{' '}
             <a
-              href={epic.gitlabWebUrl}
+              // B-32 I4: guard against javascript: / data: URLs that a
+              // malicious or buggy GitLab response could plant in the
+              // epic body. Only http(s) gets through; everything else
+              // renders as a noop link.
+              href={isSafeHttpUrl(epic.gitlabWebUrl) ? epic.gitlabWebUrl : '#'}
               target="_blank"
               rel="noopener noreferrer"
               data-testid="detail-panel-gitlab-link"

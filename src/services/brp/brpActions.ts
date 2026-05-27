@@ -193,59 +193,61 @@ async function buildReferenceResolver(
 }
 
 /**
+ * Detect whether the most recent runAnalysis call was cancelled.
+ *
+ * The store's `runAnalysis` does NOT throw on abort — it sets
+ * `analysisStatus` to 'idle' in its finally block (see brpStore.ts
+ * line ~457). So we cannot infer "aborted" from a thrown AbortError.
+ * Two cheap signals tell us the truth:
+ *   1. The caller's signal was aborted (planner clicked Cancel).
+ *   2. After the run, the store ended in 'idle' instead of 'done'
+ *      (the store's own AbortController fired — e.g., reset() called
+ *      mid-run).
+ *
+ * Either signal indicates the run didn't complete. Caught post-B-32
+ * deep-review (C1) — without this, a cancelled run reported
+ * `aborted: false` and the UI showed a false-positive success banner.
+ */
+function detectAborted(signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  if (useBrpStore.getState().analysisStatus === 'idle') return true;
+  return false;
+}
+
+/**
  * Run analysis for every epic across every loaded crew/pod. Composes:
  *   - estimator from estimatorProvider (B-37 swaps the implementation)
- *   - reference resolver per pod (cached per-pod fetch via buildReferenceResolver)
+ *   - empty reference resolver (no scope info to pick a pod's refs)
  *   - failures collector wired through RunAnalysisOptions.onError
  *   - AbortSignal wired through RunAnalysisOptions.signal
  *
  * Returns the collected failures + an `aborted` flag. Throws only if
  * the configStore guard fires (GitLab disabled at the moment of run).
  *
- * Per-pod reference resolution: we build ONE resolver per pod up-front
- * so repeated calls inside the inner loop don't refire the GitLab call.
- * For v1 the store iterates every epic across all pods using a single
- * shared resolver — we resolve to "no references" in that case so the
- * simulator falls back to its built-in heuristics. Phase 6+ will let
- * the caller scope analysis to one pod (and wire the per-pod resolver).
+ * For per-pod runs prefer `runAnalysisForPodAction` — it scopes the
+ * store walk and supplies real reference epics for the estimator.
  */
 export async function runAnalysisAction(
   options: { signal?: AbortSignal } = {},
 ): Promise<RunAnalysisActionResult> {
   const estimator = getEstimator();
   const failures: AnalysisFailure[] = [];
-
-  // For v1 scope: run across everything with an empty resolver. The
-  // store visits epics across all pods, and a single sync resolver
-  // can't switch on pod-id without async work the store doesn't
-  // accept yet. The simulator handles missing references gracefully.
   const resolver = () => [] as readonly ReferenceEpic[];
 
-  let aborted = false;
-  try {
-    await useBrpStore.getState().runAnalysis(estimator, resolver, {
-      signal: options.signal,
-      onError: (failure) => failures.push(failure),
-    });
-  } catch (e: unknown) {
-    if (
-      e instanceof Error &&
-      (e.name === 'AbortError' || /aborted/i.test(e.message))
-    ) {
-      aborted = true;
-    } else {
-      throw e;
-    }
-  }
+  await useBrpStore.getState().runAnalysis(estimator, resolver, {
+    signal: options.signal,
+    onError: (failure) => failures.push(failure),
+  });
 
-  return { aborted, failures };
+  return { aborted: detectAborted(options.signal), failures };
 }
 
 /**
  * Variant: run analysis for a SINGLE pod. Uses buildReferenceResolver
- * to give the estimator real references from the pod's closed epics.
- * This is the surface most BrpView flows will consume in Phase 6+ —
- * the planner usually wants to size one pod at a time.
+ * to give the estimator real references from the pod's closed epics,
+ * and passes `podId` through to the store so the run is scoped to
+ * only that pod's epics (B-32 C2 fix — previously this ran across
+ * EVERY pod despite the name).
  */
 export async function runAnalysisForPodAction(
   podId: string,
@@ -267,24 +269,13 @@ export async function runAnalysisForPodAction(
   const failures: AnalysisFailure[] = [];
   const resolver = await buildReferenceResolver(pod);
 
-  let aborted = false;
-  try {
-    await useBrpStore.getState().runAnalysis(estimator, resolver, {
-      signal: options.signal,
-      onError: (failure) => failures.push(failure),
-    });
-  } catch (e: unknown) {
-    if (
-      e instanceof Error &&
-      (e.name === 'AbortError' || /aborted/i.test(e.message))
-    ) {
-      aborted = true;
-    } else {
-      throw e;
-    }
-  }
+  await useBrpStore.getState().runAnalysis(estimator, resolver, {
+    signal: options.signal,
+    onError: (failure) => failures.push(failure),
+    podId,
+  });
 
-  return { aborted, failures };
+  return { aborted: detectAborted(options.signal), failures };
 }
 
 // ─── Internal ───────────────────────────────────────────────

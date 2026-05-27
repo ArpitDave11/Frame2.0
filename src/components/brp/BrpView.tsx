@@ -104,6 +104,14 @@ export function BrpView() {
   } | null>(null);
   // AbortController for the in-flight analysis run, so Cancel works.
   const [analysisController, setAnalysisController] = useState<AbortController | null>(null);
+  // Cleanup the in-flight run when BrpView unmounts (B-32 C3): without
+  // this, the planner navigating away leaves a zombie run that keeps
+  // writing to the store + calling setState on this unmounted component.
+  useEffect(() => {
+    return () => {
+      analysisController?.abort();
+    };
+  }, [analysisController]);
 
   const { pod, crew } = useMemo(
     () => findPod(crews, selectedPodId),
