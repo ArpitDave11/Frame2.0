@@ -335,14 +335,14 @@ function EpicPickerWrapper({
   const [candidates, setCandidates] = useState<Epic[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumping this counter re-triggers the fetch effect for Retry.
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const alreadyLoadedIds = useMemo(
     () => new Set(pod.epics.map((e) => e.id)),
     [pod.epics],
   );
 
-  // Fetch candidates each time the picker opens for this pod. Reset
-  // when it closes so a stale list doesn't appear on the next open.
   useEffect(() => {
     if (!open) {
       setCandidates([]);
@@ -372,25 +372,15 @@ function EpicPickerWrapper({
     return () => {
       cancelled = true;
     };
-  }, [open, pod.id]);
+  }, [open, pod.id, retryNonce]);
 
   if (!open) return null;
 
-  // While loading or after an error, render the picker with an empty
-  // candidate list. The picker's empty-state copy explains there's
-  // nothing to add; a future task (B-39) injects loading/error variants.
-  if (loading || error) {
-    return (
-      <EpicPicker
-        open={open}
-        podName={pod.name}
-        candidates={[]}
-        alreadyLoadedIds={alreadyLoadedIds}
-        onClose={onClose}
-        onConfirm={() => onClose()}
-      />
-    );
-  }
+  const pickerState: 'ready' | 'loading' | 'error' = loading
+    ? 'loading'
+    : error
+      ? 'error'
+      : 'ready';
 
   return (
     <EpicPicker
@@ -400,6 +390,9 @@ function EpicPickerWrapper({
       alreadyLoadedIds={alreadyLoadedIds}
       onClose={onClose}
       onConfirm={(chosen) => confirmAddEpicsAction(pod.id, chosen)}
+      state={pickerState}
+      errorMessage={error ?? undefined}
+      onRetry={() => setRetryNonce((n) => n + 1)}
     />
   );
 }

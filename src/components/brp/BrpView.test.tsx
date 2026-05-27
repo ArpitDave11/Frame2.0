@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { BrpView } from './BrpView';
 import { useBrpStore } from '@/stores/brpStore';
 import type { Crew, Epic, FrameResult, Pod } from '@/domain/brp';
@@ -50,11 +50,7 @@ const makeCrew = (id: string, name: string, pods: Pod[] = []): Crew => ({
   pods,
 });
 
-// ─── Test helpers ────────────────────────────────────────────────
-
 function resetStore() {
-  // Re-initialize state by clearing crews and selections — exercising
-  // the store's reset action keeps tests isolated from each other.
   useBrpStore.getState().reset();
 }
 
@@ -146,13 +142,16 @@ describe('BrpView modal wiring', () => {
     expect(screen.getByTestId('epic-picker')).toBeTruthy();
   });
 
-  it('EpicPicker pre-checks the already-loaded epics', () => {
+  it('EpicPicker initially shows the loading state while candidates fetch (B-39)', async () => {
     render(<BrpView />);
     fireEvent.click(screen.getByTestId('pod-view-action-add-epics'));
-    // The existing epic '1' is already in the pod — it shouldn't appear
-    // as a candidate yet (candidates array is empty until B-29). The
-    // alreadyLoadedIds set is derived from the pod's current epics.
-    expect(screen.getByTestId('epic-picker-empty')).toBeTruthy();
+    expect(screen.getByTestId('epic-picker-loading')).toBeTruthy();
+    // After the in-flight fetch settles (gitlab disabled → action returns
+    // a "GitLab disabled" error in test env), the picker switches to
+    // the error variant.
+    await waitFor(() => {
+      expect(screen.getByTestId('epic-picker-error')).toBeTruthy();
+    });
   });
 
   it('changing a human estimate inline persists to the store', () => {

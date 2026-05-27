@@ -30,6 +30,15 @@ export interface EpicPickerProps {
   alreadyLoadedIds: ReadonlySet<string>;
   onClose: () => void;
   onConfirm: (chosen: Epic[]) => void;
+  /**
+   * Optional state surface for the wrapper around the picker (B-39).
+   * 'loading' shows a spinner; 'error' shows the message + Retry.
+   * Default 'ready' renders the candidate list.
+   */
+  state?: 'ready' | 'loading' | 'error';
+  errorMessage?: string;
+  /** Retry handler when state === 'error'. */
+  onRetry?: () => void;
 }
 
 export function EpicPicker({
@@ -39,6 +48,9 @@ export function EpicPicker({
   alreadyLoadedIds,
   onClose,
   onConfirm,
+  state = 'ready',
+  errorMessage,
+  onRetry,
 }: EpicPickerProps) {
   const titleId = useId();
   const searchId = useId();
@@ -201,7 +213,58 @@ export function EpicPicker({
 
         {/* List */}
         <div style={{ flex: 1, overflow: 'auto', padding: '12px 0' }}>
-          {filtered.length === 0 ? (
+          {state === 'loading' ? (
+            <div
+              data-testid="epic-picker-loading"
+              role="status"
+              aria-live="polite"
+              style={{
+                padding: '40px 28px',
+                textAlign: 'center',
+                color: color.grayV,
+                fontSize: fontSize.sm,
+              }}
+            >
+              Loading epics from GitLab…
+            </div>
+          ) : state === 'error' ? (
+            <div
+              data-testid="epic-picker-error"
+              role="alert"
+              style={{
+                margin: '20px 28px',
+                padding: '14px 16px',
+                background: color.pastelI,
+                border: `1px solid ${color.bordeauxI}`,
+                borderRadius: radius.sm,
+                color: color.red,
+                fontSize: fontSize.sm,
+              }}
+            >
+              <div data-testid="epic-picker-error-message" style={{ marginBottom: 10 }}>
+                {errorMessage ?? 'Failed to load epics from GitLab.'}
+              </div>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  data-testid="epic-picker-error-retry"
+                  style={{
+                    background: color.red,
+                    color: color.white,
+                    border: 'none',
+                    padding: '6px 14px',
+                    borderRadius: radius.sm,
+                    fontSize: fontSize.xs,
+                    fontWeight: fontWeight.medium,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          ) : filtered.length === 0 ? (
             <div
               data-testid="epic-picker-empty"
               style={{
