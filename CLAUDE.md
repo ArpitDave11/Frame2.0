@@ -8,10 +8,11 @@ Zustand v5 stores, no backend today (planned FastAPI DocMining service).
 ## Stack
 - React 19, TypeScript strict, Vite 6, Vitest 4
 - Zustand v5 (stores: `epicStore`, `uiStore`, `blueprintStore`, `gitlabStore`,
-  `settingsStore`, `issueStore`)
+  `settingsStore`, `issueStore`, `brpStore`)
 - Module federation via `@originjs/vite-plugin-federation` (shell loads
   `./App` from `/frame/remoteEntry.js`, port 3002)
 - MSAL (Entra ID) for auth, Mermaid 11 for diagrams
+- Recharts 3 (BRP MetricsModal)
 - LLM: Azure OpenAI (gpt-4.1 default, gpt-5/o-series reasoning supported)
 
 ## Pipeline (src/pipeline/)
@@ -34,6 +35,17 @@ npm run test:run    # vitest once
 - Modal control  → `uiStore.openModal(id)` (ModalId type at src/stores/uiStore.ts:16)
 
 ## Active Work
+- **BRP (Breakdown & Re-groom Planning)** — capacity-driven epic-sizing tool
+  shipped end-to-end on `feature/brp`. Crew → Pod → Epic hierarchy backed by
+  brpStore + brpActions + AI seams (estimator, capacity assistant, variance
+  interpreter, duplicate detector). Azure OpenAI swap lives in
+  `services/brp/ai/estimatorProvider.ts`; falls back to deterministic simulator
+  when unconfigured.
+  Devlog: `docs/devlog/2026-05-26-brp-headless.md`,
+          `docs/devlog/2026-05-27-brp-ui-complete.md`
+  ADRs: 0003 no-derived-state, 0004 audit log, 0005 LLM swap
+  Status: P1-P7 complete (B-1 → B-39); B-42 acceptance pending.
+
 - **DocMining integration** — adding minimal FastAPI backend for file upload →
   text extraction → auto-populate editor → existing refine flow.
   Plans: `docs/plans/2026-04-23-docmining-integration-design.md`
@@ -46,6 +58,13 @@ npm run test:run    # vitest once
 - Pipeline orchestrator purity — no store reads/writes inside pipeline/stages/
 - Category templates v7.0.0 — JSON is canonical, do not hand-edit generated
   files downstream of `templateLoader.ts`
+- BRP invariants — no top-level `variance`/`delta`/`totalCapacity` STORED on
+  Pod/Epic (all derived); Pod stores `CapacityInputs` only; `VarianceBand` is
+  a return type, never a field. Components must derive via
+  `computeVariance` / `computeDelta` / `computePodMetrics` / `computeCapacity`.
+  See ADR 0003.
+- BRP component purity — components in `src/components/brp/` must not call
+  `useBrpStore` or `useConfigStore` directly. Compose via `brpActions`.
 
 ## Commit Style
 Conventional (feat:, fix:, docs:, chore:). Co-author Claude when I contribute.
