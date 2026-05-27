@@ -34,6 +34,8 @@ import {
   findDuplicatesInPodAction,
   interpretVarianceAction,
   listCandidateEpicsAction,
+  loadCrewsAction,
+  loadPodsAction,
   runAnalysisForPodAction,
   setHumanEstimateAction,
   suggestCapacityAction,
@@ -119,6 +121,51 @@ export function BrpView() {
     };
   }, [analysisController]);
 
+  // ─── Load-state (post-B-42 UI gap fix) ────────────────────
+  // Tracks the live state of the data-loading actions so PortfolioView
+  // can swap the empty/loading/error variants. The actions themselves
+  // mutate brpStore on success — these locals only carry "in-flight" +
+  // "last error" so the UI can render the right CTA.
+  const [loadCrewsState, setLoadCrewsState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [loadCrewsError, setLoadCrewsError] = useState<string | undefined>();
+  const [loadPodsState, setLoadPodsState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [loadPodsError, setLoadPodsError] = useState<string | undefined>();
+
+  const handleLoadCrews = async () => {
+    setLoadCrewsState('loading');
+    setLoadCrewsError(undefined);
+    try {
+      const res = await loadCrewsAction();
+      if (res.success) {
+        setLoadCrewsState('idle');
+      } else {
+        setLoadCrewsState('error');
+        setLoadCrewsError(res.error.message);
+      }
+    } catch (e: unknown) {
+      setLoadCrewsState('error');
+      setLoadCrewsError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleLoadPods = async () => {
+    if (!selectedCrewId) return;
+    setLoadPodsState('loading');
+    setLoadPodsError(undefined);
+    try {
+      const res = await loadPodsAction(selectedCrewId);
+      if (res.success) {
+        setLoadPodsState('idle');
+      } else {
+        setLoadPodsState('error');
+        setLoadPodsError(res.error.message);
+      }
+    } catch (e: unknown) {
+      setLoadPodsState('error');
+      setLoadPodsError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   // ─── AI-assist (B-34) ──────────────────────────────────────
   // Duplicate detection runs per-pod whenever the pod's epics list
   // changes. The result is a Set<string> the EpicRow can use to flag
@@ -198,6 +245,12 @@ export function BrpView() {
             selectPod(podId);
             selectEpic(null);
           }}
+          onLoadCrews={handleLoadCrews}
+          onLoadPods={handleLoadPods}
+          loadCrewsState={loadCrewsState}
+          loadPodsState={loadPodsState}
+          loadCrewsError={loadCrewsError}
+          loadPodsError={loadPodsError}
         />
       </div>
     );

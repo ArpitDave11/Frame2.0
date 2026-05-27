@@ -22,6 +22,17 @@ export interface PortfolioViewProps {
   crewFilterId: string | null;
   onSelectCrew: (crewId: string | null) => void;
   onSelectPod: (podId: string) => void;
+  /** Trigger brpActions.loadCrewsAction. When provided, shown in the
+   *  header AND as a CTA when no crews are loaded. */
+  onLoadCrews?: () => void;
+  /** Trigger brpActions.loadPodsAction for the currently-filtered crew.
+   *  Shown as a CTA when a crew is filtered but has no pods. */
+  onLoadPods?: () => void;
+  /** Live state of the in-flight load (drives the button label). */
+  loadCrewsState?: 'idle' | 'loading' | 'error';
+  loadPodsState?: 'idle' | 'loading' | 'error';
+  loadCrewsError?: string;
+  loadPodsError?: string;
 }
 
 interface PodCardEntry {
@@ -49,6 +60,12 @@ export function PortfolioView({
   crewFilterId,
   onSelectCrew,
   onSelectPod,
+  onLoadCrews,
+  onLoadPods,
+  loadCrewsState = 'idle',
+  loadPodsState = 'idle',
+  loadCrewsError,
+  loadPodsError,
 }: PortfolioViewProps) {
   const entries = useMemo<PodCardEntry[]>(() => {
     const visible = crewFilterId === null
@@ -99,25 +116,98 @@ export function PortfolioView({
             Portfolio
           </h2>
         </div>
-        <CrewSelector
-          crews={crews}
-          selectedCrewId={crewFilterId}
-          onSelect={onSelectCrew}
-        />
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
+          <CrewSelector
+            crews={crews}
+            selectedCrewId={crewFilterId}
+            onSelect={onSelectCrew}
+          />
+          {onLoadCrews ? (
+            <LoadButton
+              testid="portfolio-load-crews"
+              onClick={onLoadCrews}
+              state={loadCrewsState}
+              label={crews.length === 0 ? 'Load crews' : 'Refresh crews'}
+              loadingLabel="Loading…"
+            />
+          ) : null}
+          {onLoadPods && crewFilterId ? (
+            <LoadButton
+              testid="portfolio-load-pods"
+              onClick={onLoadPods}
+              state={loadPodsState}
+              label="Load pods"
+              loadingLabel="Loading…"
+            />
+          ) : null}
+        </div>
       </header>
+
+      {/* Persistent error banners — sit above the grid so they're visible
+          regardless of which empty state is active. */}
+      {loadCrewsError ? (
+        <div
+          data-testid="portfolio-load-crews-error"
+          role="alert"
+          style={errorBannerStyle}
+        >
+          Crews failed to load: {loadCrewsError}
+        </div>
+      ) : null}
+      {loadPodsError ? (
+        <div
+          data-testid="portfolio-load-pods-error"
+          role="alert"
+          style={errorBannerStyle}
+        >
+          Pods failed to load: {loadPodsError}
+        </div>
+      ) : null}
 
       {/* Grid */}
       {crews.length === 0 ? (
         <EmptyState
           testid="portfolio-view-empty-crews"
           title="No crews loaded yet"
-          hint="Load a crew from GitLab to start sizing pods."
+          hint={
+            onLoadCrews
+              ? 'Click “Load crews” above to fetch from GitLab.'
+              : 'Configure GitLab in Settings, then load a crew.'
+          }
+          action={
+            onLoadCrews
+              ? {
+                  label: loadCrewsState === 'loading' ? 'Loading…' : 'Load crews',
+                  onClick: onLoadCrews,
+                  disabled: loadCrewsState === 'loading',
+                  testid: 'portfolio-view-empty-crews-load',
+                }
+              : undefined
+          }
         />
       ) : entries.length === 0 ? (
         <EmptyState
           testid="portfolio-view-empty-pods"
-          title="This crew has no pods loaded"
-          hint="Load pods from GitLab to see capacity here."
+          title={
+            crewFilterId
+              ? 'This crew has no pods loaded'
+              : 'Pick a crew + load its pods'
+          }
+          hint={
+            crewFilterId && onLoadPods
+              ? 'Click “Load pods” above to fetch from GitLab.'
+              : 'Pick a crew in the selector above to load its pods.'
+          }
+          action={
+            crewFilterId && onLoadPods
+              ? {
+                  label: loadPodsState === 'loading' ? 'Loading…' : 'Load pods',
+                  onClick: onLoadPods,
+                  disabled: loadPodsState === 'loading',
+                  testid: 'portfolio-view-empty-pods-load',
+                }
+              : undefined
+          }
         />
       ) : (
         <div
@@ -310,10 +400,17 @@ function EmptyState({
   title,
   hint,
   testid,
+  action,
 }: {
   title: string;
   hint: string;
   testid: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+    testid: string;
+  };
 }) {
   return (
     <div
@@ -327,7 +424,78 @@ function EmptyState({
       }}
     >
       <div style={{ fontSize: fontSize.base, color: color.grayV, marginBottom: 6 }}>{title}</div>
-      <div style={{ fontSize: fontSize.sm, color: color.grayIII }}>{hint}</div>
+      <div style={{ fontSize: fontSize.sm, color: color.grayIII, marginBottom: action ? 16 : 0 }}>
+        {hint}
+      </div>
+      {action ? (
+        <button
+          type="button"
+          data-testid={action.testid}
+          disabled={action.disabled}
+          onClick={action.onClick}
+          style={{
+            background: action.disabled ? color.neutral200 : color.red,
+            color: action.disabled ? color.grayIII : color.white,
+            border: 'none',
+            padding: '10px 22px',
+            borderRadius: radius.sm,
+            fontSize: fontSize.sm,
+            fontWeight: fontWeight.medium,
+            cursor: action.disabled ? 'not-allowed' : 'pointer',
+            fontFamily: font.sans,
+          }}
+        >
+          {action.label}
+        </button>
+      ) : null}
     </div>
+  );
+}
+
+const errorBannerStyle: React.CSSProperties = {
+  padding: '10px 14px',
+  background: color.pastelI,
+  border: `1px solid ${color.bordeauxI}`,
+  borderRadius: radius.sm,
+  color: color.red,
+  fontSize: fontSize.sm,
+  fontFamily: font.sans,
+};
+
+function LoadButton({
+  testid,
+  onClick,
+  state,
+  label,
+  loadingLabel,
+}: {
+  testid: string;
+  onClick: () => void;
+  state: 'idle' | 'loading' | 'error';
+  label: string;
+  loadingLabel: string;
+}) {
+  const isLoading = state === 'loading';
+  return (
+    <button
+      type="button"
+      data-testid={testid}
+      data-state={state}
+      disabled={isLoading}
+      onClick={onClick}
+      style={{
+        background: isLoading ? color.neutral200 : color.white,
+        color: isLoading ? color.grayIII : color.grayV,
+        border: `1px solid ${state === 'error' ? color.bordeauxI : color.neutral200}`,
+        padding: '8px 14px',
+        borderRadius: radius.sm,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.medium,
+        cursor: isLoading ? 'wait' : 'pointer',
+        fontFamily: font.sans,
+      }}
+    >
+      {isLoading ? loadingLabel : label}
+    </button>
   );
 }
