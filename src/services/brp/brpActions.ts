@@ -23,9 +23,11 @@ import {
   fetchCrews,
   fetchPodEpics,
   fetchPods,
+  fetchReferenceEpics,
 } from './brpGitlabService';
 import type { Result } from './brpGitlabService';
-import type { CapacityInputs, Crew, Epic, Pod } from '@/domain/brp';
+import { getEstimator } from './ai/estimatorProvider';
+import type { CapacityInputs, Crew, Epic, Pod, ReferenceEpic } from '@/domain/brp';
 
 /**
  * Snapshot the current GitLab config from configStore. Pulled out so
@@ -139,6 +141,150 @@ export function confirmAddEpicsAction(podId: string, chosen: Epic[]): void {
  */
 export function updateCapacityAction(podId: string, inputs: CapacityInputs): void {
   useBrpStore.getState().updatePodCapacity(podId, inputs);
+}
+
+// ─── B-30 Analysis flow ─────────────────────────────────────
+
+/**
+ * One failure surfaced by runAnalysisAction. Mirrors the shape the
+ * AnalysisProgress component consumes, so the caller can drop the
+ * `failures` field straight into the banner.
+ */
+export interface AnalysisFailure {
+  epicId: string;
+  message: string;
+}
+
+/**
+ * Result returned from runAnalysisAction. `aborted` distinguishes a
+ * planner-initiated cancel from a "completed but with failures" run —
+ * the UI can use it to suppress the success banner when the planner
+ * stopped the run themselves.
+ */
+export interface RunAnalysisActionResult {
+  aborted: boolean;
+  failures: AnalysisFailure[];
+}
+
+/**
+ * Reference resolver factory. For each pod, fetch the pod's closed
+ * epics ONCE and memoize the result so repeat lookups for each epic
+ * in that pod don't re-fire the GitLab call. The estimator gets a
+ * synchronous lookup (the store's runAnalysis expects a sync
+ * GetReferencesFn for v1).
+ *
+ * Returns an empty list on fetch failure — references are an
+ * estimator hint, not a hard requirement, so a transient error
+ * shouldn't block the whole analysis.
+ */
+async function buildReferenceResolver(
+  pod: Pod,
+): Promise<(epic: Epic) => readonly ReferenceEpic[]> {
+  let refs: readonly ReferenceEpic[] = [];
+  try {
+    const cfg = readGitLabConfig();
+    const res = await fetchReferenceEpics(cfg, pod.gitlabSubgroupId);
+    if (res.success) refs = res.data;
+  } catch {
+    // GitLab disabled or otherwise unreachable — leave refs empty so
+    // the run still completes against the simulator's own heuristics.
+  }
+  return () => refs;
+}
+
+/**
+ * Run analysis for every epic across every loaded crew/pod. Composes:
+ *   - estimator from estimatorProvider (B-37 swaps the implementation)
+ *   - reference resolver per pod (cached per-pod fetch via buildReferenceResolver)
+ *   - failures collector wired through RunAnalysisOptions.onError
+ *   - AbortSignal wired through RunAnalysisOptions.signal
+ *
+ * Returns the collected failures + an `aborted` flag. Throws only if
+ * the configStore guard fires (GitLab disabled at the moment of run).
+ *
+ * Per-pod reference resolution: we build ONE resolver per pod up-front
+ * so repeated calls inside the inner loop don't refire the GitLab call.
+ * For v1 the store iterates every epic across all pods using a single
+ * shared resolver — we resolve to "no references" in that case so the
+ * simulator falls back to its built-in heuristics. Phase 6+ will let
+ * the caller scope analysis to one pod (and wire the per-pod resolver).
+ */
+export async function runAnalysisAction(
+  options: { signal?: AbortSignal } = {},
+): Promise<RunAnalysisActionResult> {
+  const estimator = getEstimator();
+  const failures: AnalysisFailure[] = [];
+
+  // For v1 scope: run across everything with an empty resolver. The
+  // store visits epics across all pods, and a single sync resolver
+  // can't switch on pod-id without async work the store doesn't
+  // accept yet. The simulator handles missing references gracefully.
+  const resolver = () => [] as readonly ReferenceEpic[];
+
+  let aborted = false;
+  try {
+    await useBrpStore.getState().runAnalysis(estimator, resolver, {
+      signal: options.signal,
+      onError: (failure) => failures.push(failure),
+    });
+  } catch (e: unknown) {
+    if (
+      e instanceof Error &&
+      (e.name === 'AbortError' || /aborted/i.test(e.message))
+    ) {
+      aborted = true;
+    } else {
+      throw e;
+    }
+  }
+
+  return { aborted, failures };
+}
+
+/**
+ * Variant: run analysis for a SINGLE pod. Uses buildReferenceResolver
+ * to give the estimator real references from the pod's closed epics.
+ * This is the surface most BrpView flows will consume in Phase 6+ —
+ * the planner usually wants to size one pod at a time.
+ */
+export async function runAnalysisForPodAction(
+  podId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<RunAnalysisActionResult> {
+  const pod = findPod(useBrpStore.getState().crews, podId);
+  if (!pod) {
+    return {
+      aborted: false,
+      failures: [
+        {
+          epicId: '<missing-pod>',
+          message: `Pod ${podId} is not loaded.`,
+        },
+      ],
+    };
+  }
+  const estimator = getEstimator();
+  const failures: AnalysisFailure[] = [];
+  const resolver = await buildReferenceResolver(pod);
+
+  let aborted = false;
+  try {
+    await useBrpStore.getState().runAnalysis(estimator, resolver, {
+      signal: options.signal,
+      onError: (failure) => failures.push(failure),
+    });
+  } catch (e: unknown) {
+    if (
+      e instanceof Error &&
+      (e.name === 'AbortError' || /aborted/i.test(e.message))
+    ) {
+      aborted = true;
+    } else {
+      throw e;
+    }
+  }
+
+  return { aborted, failures };
 }
 
 // ─── Internal ───────────────────────────────────────────────

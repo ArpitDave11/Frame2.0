@@ -32,7 +32,9 @@ import { EpicPicker } from './EpicPicker';
 import {
   confirmAddEpicsAction,
   listCandidateEpicsAction,
+  runAnalysisForPodAction,
 } from '@/services/brp/brpActions';
+import type { AnalysisFailure } from '@/services/brp/brpActions';
 import { font } from '@/theme/tokens';
 
 interface ModalState {
@@ -89,9 +91,15 @@ export function BrpView() {
   const updatePodCapacity = useBrpStore((s) => s.updatePodCapacity);
   const setHumanEstimate = useBrpStore((s) => s.setHumanEstimate);
 
-  // ─── Local UI state (modal flags). ──────────────────────────────────
+  // ─── Local UI state (modal flags + analysis failures). ─────────────
   const [modals, setModals] = useState<ModalState>(INITIAL_MODAL_STATE);
   const closeAllModals = () => setModals(INITIAL_MODAL_STATE);
+  // failures from the most recent runAnalysisAction. Cleared on each
+  // new run; kept after completion so the AnalysisProgress banner can
+  // render the partial-failure summary until the planner dismisses it.
+  const [analysisFailures, setAnalysisFailures] = useState<AnalysisFailure[]>([]);
+  // AbortController for the in-flight analysis run, so Cancel works.
+  const [analysisController, setAnalysisController] = useState<AbortController | null>(null);
 
   const { pod, crew } = useMemo(
     () => findPod(crews, selectedPodId),
@@ -124,7 +132,6 @@ export function BrpView() {
 
   // ─── PodView mode. ──────────────────────────────────────────────────
   const analysisRunning = analysisStatus === 'running';
-  const failures: { epicId: string; message: string }[] = []; // populated by action layer in B-30
 
   return (
     <div
@@ -144,7 +151,7 @@ export function BrpView() {
             ? pod.epics.find((e) => e.id === analysisProgress.currentEpicId)?.title ?? null
             : null
         }
-        analysisFailures={failures}
+        analysisFailures={analysisFailures}
         onBackToPortfolio={() => {
           selectPod(null);
           selectEpic(null);
@@ -156,13 +163,37 @@ export function BrpView() {
         onOpenMetricsModal={() => setModals((m) => ({ ...m, metricsOpen: true }))}
         onOpenEpicPicker={() => setModals((m) => ({ ...m, pickerOpen: true }))}
         onRunAnalysis={() => {
-          // Real wiring lands in B-30 via brpActions. For now this is
-          // a no-op placeholder; the button stays interactive so the
-          // test for B-26 still passes. Surface a console hint so
-          // developers know the wiring isn't there yet.
-          // eslint-disable-next-line no-console
-          console.info('[BrpView] Run analysis is wired in B-30 (brpActions.runAnalysisFlow).');
+          const controller = new AbortController();
+          setAnalysisController(controller);
+          setAnalysisFailures([]);
+          runAnalysisForPodAction(pod.id, { signal: controller.signal })
+            .then((result) => {
+              setAnalysisFailures(result.failures);
+            })
+            .catch((e: unknown) => {
+              setAnalysisFailures([
+                {
+                  epicId: '<run>',
+                  message: e instanceof Error ? e.message : String(e),
+                },
+              ]);
+            })
+            .finally(() => {
+              setAnalysisController(null);
+            });
         }}
+        onCancelAnalysis={
+          analysisController
+            ? () => {
+                analysisController.abort();
+              }
+            : undefined
+        }
+        onDismissAnalysisResult={
+          analysisFailures.length > 0
+            ? () => setAnalysisFailures([])
+            : undefined
+        }
       />
 
       {/* Modals */}
