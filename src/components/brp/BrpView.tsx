@@ -35,7 +35,9 @@ import {
   interpretVarianceAction,
   listCandidateEpicsAction,
   runAnalysisForPodAction,
+  setHumanEstimateAction,
   suggestCapacityAction,
+  updateCapacityAction,
 } from '@/services/brp/brpActions';
 import type { AnalysisFailure } from '@/services/brp/brpActions';
 import { font } from '@/theme/tokens';
@@ -91,8 +93,9 @@ export function BrpView() {
   const selectCrew = useBrpStore((s) => s.selectCrew);
   const selectPod = useBrpStore((s) => s.selectPod);
   const selectEpic = useBrpStore((s) => s.selectEpic);
-  const updatePodCapacity = useBrpStore((s) => s.updatePodCapacity);
-  const setHumanEstimate = useBrpStore((s) => s.setHumanEstimate);
+  // updatePodCapacity + setHumanEstimate now route through the action
+  // layer so audit entries (B-35) are recorded automatically — see
+  // updateCapacityAction / setHumanEstimateAction.
 
   // ─── Local UI state (modal flags + analysis last-run snapshot). ───
   const [modals, setModals] = useState<ModalState>(INITIAL_MODAL_STATE);
@@ -241,7 +244,7 @@ export function BrpView() {
           closeAllModals();
         }}
         onSelectEpic={selectEpic}
-        onHumanEstimateChange={setHumanEstimate}
+        onHumanEstimateChange={setHumanEstimateAction}
         onOpenCapacityDialog={() => setModals((m) => ({ ...m, capacityOpen: true }))}
         onOpenMetricsModal={() => setModals((m) => ({ ...m, metricsOpen: true }))}
         onOpenEpicPicker={() => setModals((m) => ({ ...m, pickerOpen: true }))}
@@ -292,7 +295,7 @@ export function BrpView() {
         podName={pod.name}
         initial={pod.capacity}
         onClose={() => setModals((m) => ({ ...m, capacityOpen: false }))}
-        onSave={(inputs: CapacityInputs) => updatePodCapacity(pod.id, inputs)}
+        onSave={(inputs: CapacityInputs) => updateCapacityAction(pod.id, inputs)}
         onRequestSuggestion={() => suggestCapacityAction(pod.id)}
       />
 

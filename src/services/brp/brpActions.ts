@@ -19,6 +19,7 @@
 
 import { useConfigStore } from '@/stores/configStore';
 import { useBrpStore } from '@/stores/brpStore';
+import { recordAudit } from './auditLog';
 import {
   fetchCrews,
   fetchPodEpics,
@@ -63,6 +64,9 @@ export async function loadCrewsAction(): Promise<Result<Crew[]>> {
     for (const crew of result.data) {
       useBrpStore.getState().loadCrew(crew);
     }
+    recordAudit('crews-loaded', `Loaded ${result.data.length} crew${result.data.length === 1 ? '' : 's'} from GitLab`, {
+      count: result.data.length,
+    });
   }
   return result;
 }
@@ -90,6 +94,10 @@ export async function loadPodsAction(crewId: string): Promise<Result<Pod[]>> {
   const result = await fetchPods(cfg, crew.gitlabGroupId);
   if (result.success) {
     useBrpStore.getState().loadPods(crewId, result.data);
+    recordAudit('pods-loaded', `Loaded ${result.data.length} pod${result.data.length === 1 ? '' : 's'} for crew ${crew.name}`, {
+      crewId,
+      count: result.data.length,
+    });
   }
   return result;
 }
@@ -138,6 +146,10 @@ export function confirmAddEpicsAction(podId: string, chosen: Epic[]): void {
   const additions = chosen.filter((e) => !existingIds.has(e.id));
   if (additions.length === 0) return;
   useBrpStore.getState().loadEpicsIntoPod(podId, [...pod.epics, ...additions]);
+  recordAudit('epics-added', `Added ${additions.length} epic${additions.length === 1 ? '' : 's'} to ${pod.name}`, {
+    podId,
+    count: additions.length,
+  });
 }
 
 /**
@@ -145,8 +157,41 @@ export function confirmAddEpicsAction(podId: string, chosen: Epic[]): void {
  * here so the BrpView/CapacityDialog can route through a single
  * surface even though there's no async work.
  */
+/**
+ * Update an epic's planner estimate with an audit entry (B-35). Thin
+ * wrapper over the store action so BrpView can route through one
+ * surface and audit picks up every change automatically.
+ */
+export function setHumanEstimateAction(
+  epicId: string,
+  value: number | null,
+): void {
+  const epic = findEpic(useBrpStore.getState().crews, epicId);
+  useBrpStore.getState().setHumanEstimate(epicId, value);
+  recordAudit(
+    'human-estimate-set',
+    value === null
+      ? `Cleared human estimate for ${epic?.title ?? epicId}`
+      : `Set human estimate for ${epic?.title ?? epicId} → ${value} SP`,
+    {
+      epicId,
+      previous: epic?.humanEstimate ?? -1,
+      next: value ?? -1,
+    },
+  );
+}
+
 export function updateCapacityAction(podId: string, inputs: CapacityInputs): void {
+  const pod = findPod(useBrpStore.getState().crews, podId);
   useBrpStore.getState().updatePodCapacity(podId, inputs);
+  recordAudit('capacity-updated', `Capacity updated for ${pod?.name ?? podId}`, {
+    podId,
+    resources: inputs.resources,
+    spPerResource: inputs.spPerResource,
+    sprintCount: inputs.sprintCount,
+    holidayDays: inputs.holidayDays,
+    leaveDays: inputs.leaveDays,
+  });
 }
 
 /**
@@ -341,13 +386,36 @@ export async function runAnalysisForPodAction(
   const failures: AnalysisFailure[] = [];
   const resolver = await buildReferenceResolver(pod);
 
+  const epicCount = pod.epics.length;
+  recordAudit(
+    'analysis-run-started',
+    `Analysis started for ${pod.name} (${epicCount} epic${epicCount === 1 ? '' : 's'})`,
+    { podId, total: epicCount },
+  );
+
   await useBrpStore.getState().runAnalysis(estimator, resolver, {
     signal: options.signal,
-    onError: (failure) => failures.push(failure),
+    onError: (failure) => {
+      failures.push(failure);
+      recordAudit(
+        'analysis-epic-failed',
+        `Analysis failed for epic ${failure.epicId}: ${failure.message}`,
+        { podId, epicId: failure.epicId },
+      );
+    },
     podId,
   });
 
-  return { aborted: detectAborted(options.signal), failures };
+  const aborted = detectAborted(options.signal);
+  recordAudit(
+    aborted ? 'analysis-run-cancelled' : 'analysis-run-completed',
+    aborted
+      ? `Analysis cancelled for ${pod.name}`
+      : `Analysis completed for ${pod.name} — ${failures.length} failure${failures.length === 1 ? '' : 's'}`,
+    { podId, failures: failures.length },
+  );
+
+  return { aborted, failures };
 }
 
 // ─── Internal ───────────────────────────────────────────────
