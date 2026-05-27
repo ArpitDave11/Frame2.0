@@ -20,7 +20,7 @@
  * handlers in the action layer wire to the real flows.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useBrpStore } from '@/stores/brpStore';
 import type { CapacityInputs, Crew, Epic, Pod } from '@/domain/brp';
@@ -29,7 +29,11 @@ import { PodView } from './PodView';
 import { CapacityDialog } from './CapacityDialog';
 import { MetricsModal } from './MetricsModal';
 import { EpicPicker } from './EpicPicker';
-import { color, font, fontSize } from '@/theme/tokens';
+import {
+  confirmAddEpicsAction,
+  listCandidateEpicsAction,
+} from '@/services/brp/brpActions';
+import { font } from '@/theme/tokens';
 
 interface ModalState {
   capacityOpen: boolean;
@@ -186,11 +190,13 @@ export function BrpView() {
 }
 
 /**
- * EpicPickerWrapper — placeholder that opens the picker with an empty
- * candidate list. B-29 will replace this with a wrapper that calls
- * `brpGitlabService.fetchPodEpics(pod.gitlabSubgroupId, …)` on mount
- * and feeds the result in. For now the picker just opens and shows
- * its empty state so the modal plumbing is testable end-to-end.
+ * EpicPickerWrapper — drives the EpicPicker by fetching candidate
+ * epics from GitLab on open, then routing the planner's confirmation
+ * through brpActions.confirmAddEpicsAction (B-29).
+ *
+ * Fetch happens once per open (not on every re-render). Errors are
+ * captured into local state and surfaced as the picker's "empty"
+ * variant with a hint — Phase B-39 adds a richer error surface.
  */
 function EpicPickerWrapper({
   open,
@@ -201,14 +207,65 @@ function EpicPickerWrapper({
   pod: Pod;
   onClose: () => void;
 }) {
-  const loadEpicsIntoPod = useBrpStore((s) => s.loadEpicsIntoPod);
-  const candidates: Epic[] = []; // populated by B-29
+  const [candidates, setCandidates] = useState<Epic[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const alreadyLoadedIds = useMemo(
     () => new Set(pod.epics.map((e) => e.id)),
     [pod.epics],
   );
 
+  // Fetch candidates each time the picker opens for this pod. Reset
+  // when it closes so a stale list doesn't appear on the next open.
+  useEffect(() => {
+    if (!open) {
+      setCandidates([]);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    listCandidateEpicsAction(pod.id)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success) {
+          setCandidates(res.data);
+        } else {
+          setError(res.error.message);
+          setCandidates([]);
+        }
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, pod.id]);
+
   if (!open) return null;
+
+  // While loading or after an error, render the picker with an empty
+  // candidate list. The picker's empty-state copy explains there's
+  // nothing to add; a future task (B-39) injects loading/error variants.
+  if (loading || error) {
+    return (
+      <EpicPicker
+        open={open}
+        podName={pod.name}
+        candidates={[]}
+        alreadyLoadedIds={alreadyLoadedIds}
+        onClose={onClose}
+        onConfirm={() => onClose()}
+      />
+    );
+  }
 
   return (
     <EpicPicker
@@ -217,17 +274,7 @@ function EpicPickerWrapper({
       candidates={candidates}
       alreadyLoadedIds={alreadyLoadedIds}
       onClose={onClose}
-      onConfirm={(chosen) => loadEpicsIntoPod(pod.id, chosen)}
+      onConfirm={(chosen) => confirmAddEpicsAction(pod.id, chosen)}
     />
   );
 }
-
-/**
- * Inline marker used by older diagnostics — exported so accidental
- * re-removal during edits still surfaces as a TS error.
- */
-export const _brpViewTokens = {
-  font: font.sans,
-  fontSize: fontSize.sm,
-  color: color.grayV,
-} as const;
