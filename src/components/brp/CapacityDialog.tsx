@@ -27,6 +27,20 @@ export interface CapacityDialogProps {
   initial: CapacityInputs;
   onClose: () => void;
   onSave: (inputs: CapacityInputs) => void;
+  /**
+   * Optional AI-assist callback (B-33). When provided, the dialog
+   * renders a "Suggest" button that asks the assistant and merges the
+   * suggestion into the form. The dialog itself doesn't know about
+   * GitLab or the brpStore — the caller (BrpView) plumbs the action.
+   *
+   * Returning `null` keeps the form unchanged and surfaces no message
+   * (used when the pod is no longer loaded).
+   */
+  onRequestSuggestion?: () => Promise<{
+    inputs: CapacityInputs;
+    confidence: number;
+    rationale: string;
+  } | null>;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -61,16 +75,44 @@ export function CapacityDialog({
   initial,
   onClose,
   onSave,
+  onRequestSuggestion,
 }: CapacityDialogProps) {
   const [inputs, setInputs] = useState<CapacityInputs>(initial);
   const titleId = useId();
   const firstFieldRef = useRef<HTMLInputElement | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  // After a successful suggestion, render a small banner so the planner
+  // can see *why* the form changed (confidence + rationale). Cleared
+  // whenever the dialog closes (the `initial` effect re-seeds the form).
+  const [suggestion, setSuggestion] = useState<{
+    confidence: number;
+    rationale: string;
+  } | null>(null);
 
   // Reset local state whenever the initial inputs change (different pod
-  // selected, or store updated mid-dialog).
+  // selected, or store updated mid-dialog). Also clear any prior
+  // suggestion banner.
   useEffect(() => {
     setInputs(initial);
+    setSuggestion(null);
   }, [initial]);
+
+  const handleSuggest = async () => {
+    if (!onRequestSuggestion || suggesting) return;
+    setSuggesting(true);
+    try {
+      const result = await onRequestSuggestion();
+      if (result) {
+        setInputs(result.inputs);
+        setSuggestion({
+          confidence: result.confidence,
+          rationale: result.rationale,
+        });
+      }
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   // Escape closes; only while open. Listener is added/removed by `open`.
   useEffect(() => {
@@ -310,16 +352,71 @@ export function CapacityDialog({
           </div>
         </div>
 
+        {/* AI suggestion banner — only after a successful Suggest run. */}
+        {suggestion && (
+          <div
+            data-testid="capacity-dialog-suggestion"
+            data-confidence={suggestion.confidence}
+            role="status"
+            style={{
+              margin: '0 28px 12px 28px',
+              padding: '10px 14px',
+              background: color.pastelII,
+              border: `1px solid ${color.grayI}`,
+              borderRadius: radius.sm,
+              fontSize: fontSize.xs,
+              color: color.grayV,
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <span data-testid="capacity-dialog-suggestion-rationale">
+              {suggestion.rationale}
+            </span>
+            <span
+              data-testid="capacity-dialog-suggestion-confidence"
+              style={{ fontFamily: font.mono, color: color.black }}
+            >
+              {Math.round(suggestion.confidence * 100)}% conf
+            </span>
+          </div>
+        )}
+
         {/* Footer */}
         <div
           style={{
             padding: '16px 28px',
             borderTop: `1px solid ${color.neutral200}`,
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
             gap: 10,
           }}
         >
+          {onRequestSuggestion ? (
+            <button
+              type="button"
+              onClick={handleSuggest}
+              disabled={suggesting}
+              data-testid="capacity-dialog-suggest"
+              style={{
+                background: 'transparent',
+                color: color.grayV,
+                border: `1px solid ${color.grayI}`,
+                padding: '10px 14px',
+                borderRadius: radius.md,
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.medium,
+                cursor: suggesting ? 'wait' : 'pointer',
+                opacity: suggesting ? 0.6 : 1,
+              }}
+            >
+              {suggesting ? 'Suggesting…' : 'Suggest from history'}
+            </button>
+          ) : (
+            <span />
+          )}
+          <div style={{ display: 'flex', gap: 10 }}>
           <button
             type="button"
             onClick={onClose}
@@ -357,6 +454,7 @@ export function CapacityDialog({
           >
             Save
           </button>
+          </div>
         </div>
       </div>
     </>

@@ -27,6 +27,8 @@ import {
 } from './brpGitlabService';
 import type { Result } from './brpGitlabService';
 import { getEstimator } from './ai/estimatorProvider';
+import { getCapacityAssistant } from './ai/capacityAssistant';
+import type { CapacitySuggestion } from './ai/capacityAssistant';
 import type { CapacityInputs, Crew, Epic, Pod, ReferenceEpic } from '@/domain/brp';
 
 /**
@@ -141,6 +143,35 @@ export function confirmAddEpicsAction(podId: string, chosen: Epic[]): void {
  */
 export function updateCapacityAction(podId: string, inputs: CapacityInputs): void {
   useBrpStore.getState().updatePodCapacity(podId, inputs);
+}
+
+/**
+ * Ask the active CapacityAssistant for a capacity suggestion (B-33).
+ * Fetches the pod's closed reference epics from GitLab and feeds them
+ * to the assistant — the assistant itself is dependency-free of
+ * GitLab. On reference fetch error, the assistant still runs against
+ * an empty reference list and returns confidence 0.
+ *
+ * Returns null only when the pod is not loaded. The dialog should
+ * disable its "Suggest" button in that case.
+ */
+export async function suggestCapacityAction(
+  podId: string,
+): Promise<CapacitySuggestion | null> {
+  const pod = findPod(useBrpStore.getState().crews, podId);
+  if (!pod) return null;
+
+  let refs: readonly ReferenceEpic[] = [];
+  try {
+    const cfg = readGitLabConfig();
+    const res = await fetchReferenceEpics(cfg, pod.gitlabSubgroupId);
+    if (res.success) refs = res.data;
+  } catch {
+    // GitLab disabled or unreachable — fall through with empty refs.
+    // The assistant degrades to "no data" + confidence 0.
+  }
+
+  return getCapacityAssistant().suggestCapacity(pod, refs);
 }
 
 // ─── B-30 Analysis flow ─────────────────────────────────────

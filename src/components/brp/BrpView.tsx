@@ -33,6 +33,7 @@ import {
   confirmAddEpicsAction,
   listCandidateEpicsAction,
   runAnalysisForPodAction,
+  suggestCapacityAction,
 } from '@/services/brp/brpActions';
 import type { AnalysisFailure } from '@/services/brp/brpActions';
 import { font } from '@/theme/tokens';
@@ -233,6 +234,7 @@ export function BrpView() {
         initial={pod.capacity}
         onClose={() => setModals((m) => ({ ...m, capacityOpen: false }))}
         onSave={(inputs: CapacityInputs) => updatePodCapacity(pod.id, inputs)}
+        onRequestSuggestion={() => suggestCapacityAction(pod.id)}
       />
 
       <MetricsModal
