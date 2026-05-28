@@ -72,10 +72,10 @@ describe('BrpView routing', () => {
     expect(screen.getByTestId('portfolio-view')).toBeTruthy();
   });
 
-  it('switches to PodView when a pod card is clicked', () => {
+  it('switches to PodView when the Open button on a pod section is clicked', () => {
     seedCrews([makeCrew('1', 'Alpha', [makePod('p1', 'Pod A', [makeEpic('1', 'p1')])])]);
     render(<BrpView />);
-    fireEvent.click(screen.getByTestId('portfolio-pod-card-p1'));
+    fireEvent.click(screen.getByTestId('portfolio-pod-open-p1'));
     expect(screen.getByTestId('brp-view').getAttribute('data-mode')).toBe('pod');
     expect(screen.getByTestId('pod-view')).toBeTruthy();
     expect(screen.getByTestId('pod-view-title').textContent).toBe('Pod A');
@@ -93,10 +93,18 @@ describe('BrpView routing', () => {
   it('Back-to-portfolio clears selectedPodId and returns to PortfolioView', () => {
     seedCrews([makeCrew('1', 'Alpha', [makePod('p1', 'Pod A')])]);
     render(<BrpView />);
-    fireEvent.click(screen.getByTestId('portfolio-pod-card-p1'));
+    fireEvent.click(screen.getByTestId('portfolio-pod-open-p1'));
     fireEvent.click(screen.getByTestId('pod-view-back'));
     expect(useBrpStore.getState().selectedPodId).toBeNull();
     expect(screen.getByTestId('brp-view').getAttribute('data-mode')).toBe('portfolio');
+  });
+
+  it('clicking a portfolio epic row jumps to PodView with that epic selected', () => {
+    seedCrews([makeCrew('1', 'Alpha', [makePod('p1', 'Pod A', [makeEpic('e1', 'p1')])])]);
+    render(<BrpView />);
+    fireEvent.click(screen.getByTestId('portfolio-epic-row-e1'));
+    expect(useBrpStore.getState().selectedPodId).toBe('p1');
+    expect(useBrpStore.getState().selectedEpicId).toBe('e1');
   });
 });
 
@@ -142,13 +150,10 @@ describe('BrpView modal wiring', () => {
     expect(screen.getByTestId('epic-picker')).toBeTruthy();
   });
 
-  it('EpicPicker initially shows the loading state while candidates fetch (B-39)', async () => {
+  it('EpicPicker initially shows the loading state while candidates fetch', async () => {
     render(<BrpView />);
     fireEvent.click(screen.getByTestId('pod-view-action-add-epics'));
     expect(screen.getByTestId('epic-picker-loading')).toBeTruthy();
-    // After the in-flight fetch settles (gitlab disabled → action returns
-    // a "GitLab disabled" error in test env), the picker switches to
-    // the error variant.
     await waitFor(() => {
       expect(screen.getByTestId('epic-picker-error')).toBeTruthy();
     });

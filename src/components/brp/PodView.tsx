@@ -12,13 +12,13 @@
  */
 
 import { useMemo } from 'react';
-import { Plus, Gauge, ChartLineUp, Lightning, ArrowLeft } from '@phosphor-icons/react';
-import { computePodMetrics } from '@/domain/brp';
+import { Plus, Gauge, ChartLineUp, Sparkle, ArrowLeft, PencilSimple } from '@phosphor-icons/react';
+import { computeCapacity, computePodMetrics } from '@/domain/brp';
 import type { Crew, Epic, Pod } from '@/domain/brp';
 import { EpicRow } from './EpicRow';
 import { DetailPanel } from './DetailPanel';
 import { AnalysisProgress, type AnalysisFailure } from './AnalysisProgress';
-import { color, font, fontSize, fontWeight, radius, shadow } from '@/theme/tokens';
+import { color, font, fontSize, fontWeight, radius, shadow, transition } from '@/theme/tokens';
 
 export interface PodViewProps {
   pod: Pod;
@@ -40,6 +40,8 @@ export interface PodViewProps {
    * currently-selected epic. null/undefined hides the banner.
    */
   selectedVarianceMessage?: string | null;
+  /** Active PI name. Renders a small badge in the header when provided. */
+  piName?: string | null;
   onBackToPortfolio: () => void;
   onSelectEpic: (epicId: string | null) => void;
   onHumanEstimateChange: (epicId: string, value: number | null) => void;
@@ -74,6 +76,7 @@ export function PodView({
   analysisFailures = [],
   duplicateEpicIds,
   selectedVarianceMessage,
+  piName,
   onBackToPortfolio,
   onSelectEpic,
   onHumanEstimateChange,
@@ -151,18 +154,37 @@ export function PodView({
             >
               {crew.name}
             </div>
-            <h2
-              data-testid="pod-view-title"
-              style={{
-                margin: 0,
-                fontSize: fontSize.lg,
-                fontWeight: fontWeight.medium,
-                color: color.black,
-                letterSpacing: '-0.2px',
-              }}
-            >
-              {pod.name}
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h2
+                data-testid="pod-view-title"
+                style={{
+                  margin: 0,
+                  fontSize: fontSize.lg,
+                  fontWeight: fontWeight.medium,
+                  color: color.black,
+                  letterSpacing: '-0.2px',
+                }}
+              >
+                {pod.name}
+              </h2>
+              {piName ? (
+                <span
+                  data-testid="pod-view-pi-badge"
+                  style={{
+                    padding: '3px 10px',
+                    border: `1px solid ${color.neutral200}`,
+                    borderRadius: radius.sm,
+                    background: color.white,
+                    fontSize: fontSize.xs,
+                    fontWeight: fontWeight.semibold,
+                    color: color.grayV,
+                    letterSpacing: '0.3px',
+                  }}
+                >
+                  {piName}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -187,7 +209,7 @@ export function PodView({
           />
           <PodActionButton
             onClick={onRunAnalysis}
-            icon={<Lightning size={14} weight="fill" aria-hidden="true" />}
+            icon={<Sparkle size={14} weight="fill" aria-hidden="true" />}
             label="Run analysis"
             primary
             testid="pod-view-action-analyze"
@@ -263,9 +285,11 @@ export function PodView({
             flex: selectedEpic ? '0 0 58%' : 1,
             overflow: 'auto',
             borderRight: selectedEpic ? `1px solid ${color.neutral200}` : 'none',
-            padding: 28,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
+          <div style={{ padding: 28, flex: 1, minHeight: 0 }}>
           {pod.epics.length === 0 ? (
             <div
               data-testid="pod-view-empty-epics"
@@ -329,6 +353,8 @@ export function PodView({
               </table>
             </div>
           )}
+          </div>
+          <CapacityBreakdown pod={pod} metrics={metrics} onEdit={onOpenCapacityDialog} />
         </div>
 
         {selectedEpic && (
@@ -387,10 +413,253 @@ function PodActionButton({
         fontFamily: font.sans,
         fontSize: fontSize.sm,
         fontWeight: fontWeight.medium,
+        transition: transition.fast,
+        boxShadow: primary && !disabled ? '0 2px 4px rgba(230, 0, 0, 0.15)' : 'none',
+      }}
+      onMouseEnter={(e) => {
+        if (disabled) return;
+        if (primary) {
+          e.currentTarget.style.boxShadow = '0 3px 6px rgba(230, 0, 0, 0.25)';
+          e.currentTarget.style.transform = 'translateY(-1px)';
+        } else {
+          e.currentTarget.style.borderColor = color.grayIII;
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (disabled) return;
+        if (primary) {
+          e.currentTarget.style.boxShadow = '0 2px 4px rgba(230, 0, 0, 0.15)';
+          e.currentTarget.style.transform = 'translateY(0)';
+        } else {
+          e.currentTarget.style.borderColor = color.neutral200;
+        }
       }}
     >
       {icon}
       {label}
     </button>
+  );
+}
+
+// ─── Capacity breakdown (Task 4-1) ────────────────────────────
+
+/**
+ * Pinned bottom section of the pod table region. Shows the gross →
+ * holidays → leave → total chain from `computeCapacity`, the FRAME
+ * load + percentage bar, and the balance. The Edit button opens the
+ * CapacityDialog so the planner can change inputs in-place.
+ */
+function CapacityBreakdown({
+  pod,
+  metrics,
+  onEdit,
+}: {
+  pod: Pod;
+  metrics: ReturnType<typeof computePodMetrics>;
+  onEdit: () => void;
+}) {
+  const breakdown = useMemo(() => computeCapacity(pod.capacity), [pod.capacity]);
+  const overCommit = metrics.balance < 0;
+  const loadPct = Math.min(
+    Math.round((metrics.frameLoad / Math.max(metrics.totalCapacity, 1)) * 100),
+    100,
+  );
+  const balancePrefix = metrics.balance > 0 ? '+' : '';
+
+  return (
+    <section
+      data-testid="pod-view-capacity-breakdown"
+      style={{
+        borderTop: `1px solid ${color.neutral200}`,
+        background: color.white,
+        padding: '24px 32px',
+        boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.03)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 18,
+        }}
+      >
+        <h3
+          style={{
+            fontSize: fontSize.xs,
+            fontWeight: fontWeight.semibold,
+            color: color.grayV,
+            margin: 0,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}
+        >
+          Capacity breakdown
+        </h3>
+        <button
+          type="button"
+          data-testid="pod-view-capacity-edit"
+          onClick={onEdit}
+          style={{
+            background: color.white,
+            color: color.grayV,
+            border: `1px solid ${color.neutral200}`,
+            borderRadius: radius.sm,
+            padding: '6px 12px',
+            fontSize: fontSize.xs,
+            fontWeight: fontWeight.medium,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontFamily: font.sans,
+            transition: transition.fast,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = color.grayIII;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = color.neutral200;
+          }}
+        >
+          <PencilSimple size={12} weight="bold" aria-hidden="true" />
+          Edit capacity
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <BreakdownLine
+          label="Gross"
+          value={`${breakdown.gross} SP`}
+          testid="capacity-line-gross"
+        />
+        <BreakdownLine
+          label="− Holidays"
+          value={`−${breakdown.holidayDeduction} SP`}
+          indent
+          muted
+          testid="capacity-line-holidays"
+        />
+        <BreakdownLine
+          label="− Leave"
+          value={`−${breakdown.leaveDeduction} SP`}
+          indent
+          muted
+          testid="capacity-line-leave"
+        />
+        <div style={{ borderTop: `1px solid ${color.neutral200}`, margin: '4px 0' }} />
+        <BreakdownLine
+          label="Total capacity"
+          value={`${breakdown.total} SP`}
+          emphasis
+          testid="capacity-line-total"
+        />
+      </div>
+
+      <div style={{ marginTop: 22 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginBottom: 6,
+            fontSize: fontSize.sm,
+            color: color.grayV,
+          }}
+        >
+          <span>FRAME load</span>
+          <span style={{ fontFamily: font.mono, color: color.black }}>
+            {metrics.frameLoad} SP
+          </span>
+        </div>
+        <div
+          data-testid="pod-view-load-bar"
+          style={{
+            position: 'relative',
+            height: 28,
+            background: color.neutral200,
+            borderRadius: radius.sm,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            data-testid="pod-view-load-bar-fill"
+            style={{
+              width: `${loadPct}%`,
+              height: '100%',
+              background: overCommit ? color.red : color.bordeauxI,
+              transition: 'width 0.3s ease',
+            }}
+          />
+          <span
+            data-testid="pod-view-load-pct"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: fontSize.xs,
+              fontWeight: fontWeight.semibold,
+              fontFamily: font.mono,
+              color: loadPct >= 50 ? color.white : color.black,
+              mixBlendMode: 'normal',
+            }}
+          >
+            {loadPct}%
+          </span>
+        </div>
+        <div
+          data-testid="pod-view-capacity-balance"
+          data-overcommitted={overCommit ? 'true' : 'false'}
+          style={{
+            marginTop: 10,
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: fontSize.sm,
+            color: overCommit ? color.red : color.semanticGreenText,
+            fontWeight: fontWeight.semibold,
+          }}
+        >
+          <span>Balance</span>
+          <span style={{ fontFamily: font.mono }}>
+            {balancePrefix}
+            {metrics.balance} SP
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BreakdownLine({
+  label,
+  value,
+  testid,
+  indent = false,
+  muted = false,
+  emphasis = false,
+}: {
+  label: string;
+  value: string;
+  testid: string;
+  indent?: boolean;
+  muted?: boolean;
+  emphasis?: boolean;
+}) {
+  return (
+    <div
+      data-testid={testid}
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        paddingLeft: indent ? 20 : 0,
+        fontSize: emphasis ? fontSize.sm : '0.8125rem',
+        color: muted ? color.grayIII : emphasis ? color.black : color.grayV,
+        fontWeight: emphasis ? fontWeight.semibold : fontWeight.normal,
+      }}
+    >
+      <span>{label}</span>
+      <span style={{ fontFamily: font.mono }}>{value}</span>
+    </div>
   );
 }

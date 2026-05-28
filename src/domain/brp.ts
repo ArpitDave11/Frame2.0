@@ -426,3 +426,74 @@ export function computePodMetrics(pod: Pod): PodMetrics {
     reGroomCount,
   };
 }
+
+// ─── Crew-level roll-up (quality remediation Task 2-2) ──────
+
+/**
+ * Aggregate metrics across every pod in a crew. The reference UI's
+ * portfolio summary strip (Task 2-1) needs these six numbers — they
+ * answer "how does the whole crew look right now?" before the planner
+ * drills into a pod.
+ *
+ * Definitions:
+ *   totalCapacity   Σ pod.totalCapacity
+ *   humanLoad       Σ pod.humanLoad        (excludes flagged epics —
+ *                                            see computePodMetrics)
+ *   frameLoad       Σ pod.frameLoad        (same exclusion)
+ *   balance         totalCapacity − frameLoad   (negative = crew over)
+ *   podsOver        # pods where balance < 0
+ *   totalPods       crew.pods.length
+ *   epicsToReGroom  # epics across all pods whose band is 're-groom'
+ *   totalEpics      total epic count (every band, including flagged)
+ *   flaggedCount    # epics across all pods whose band is 'flagged'
+ *
+ * Pure — no side effects, no Date.now(). Delegates band classification
+ * to `computeVariance` so the rollup cannot drift from the per-row UI.
+ */
+export interface CrewMetrics {
+  totalCapacity: number;
+  humanLoad: number;
+  frameLoad: number;
+  balance: number;
+  podsOver: number;
+  totalPods: number;
+  epicsToReGroom: number;
+  totalEpics: number;
+  flaggedCount: number;
+}
+
+export function computeCrewMetrics(crew: Crew): CrewMetrics {
+  let totalCapacity = 0;
+  let humanLoad = 0;
+  let frameLoad = 0;
+  let podsOver = 0;
+  let epicsToReGroom = 0;
+  let totalEpics = 0;
+  let flaggedCount = 0;
+
+  for (const pod of crew.pods) {
+    const pm = computePodMetrics(pod);
+    totalCapacity += pm.totalCapacity;
+    humanLoad += pm.humanLoad;
+    frameLoad += pm.frameLoad;
+    if (pm.balance < 0) podsOver++;
+    for (const epic of pod.epics) {
+      totalEpics++;
+      const band = computeVariance(epic);
+      if (band === 're-groom') epicsToReGroom++;
+      if (band === 'flagged') flaggedCount++;
+    }
+  }
+
+  return {
+    totalCapacity,
+    humanLoad,
+    frameLoad,
+    balance: totalCapacity - frameLoad,
+    podsOver,
+    totalPods: crew.pods.length,
+    epicsToReGroom,
+    totalEpics,
+    flaggedCount,
+  };
+}

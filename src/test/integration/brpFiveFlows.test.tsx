@@ -1,18 +1,8 @@
 /**
- * BRP — five canonical flow integration tests (B-31).
- *
- * Exercises the complete BRP UI end-to-end with mocked GitLab service
- * and a deterministic stub estimator. Validates that the UI, action
- * layer, and store cooperate on the five flows the PRD calls out:
- *
- *  1. Load crews → load pods → list candidates → confirm add → epics appear
- *  2. Edit capacity via dialog → metrics strip + portfolio update
- *  3. Edit human estimate inline → variance band recomputes
- *  4. Run analysis → progress shows → results land → banner clears
- *  5. Navigate Portfolio → Pod → back to Portfolio (selection state)
- *
- * Each flow asserts on a specific UI affordance so a regression in any
- * single component or wiring step fails this test (not just the unit).
+ * BRP — five canonical flow integration tests (B-31, updated post-
+ * Phase-2 quality remediation: pod sections + Open button replaced
+ * the PodCard grid, and the epic table is now visible inline at the
+ * portfolio level).
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -157,25 +147,20 @@ describe('BRP integration — Flow 1: load crews → pods → candidates → add
       data: [epic('e1', 'p1'), epic('e2', 'p1')],
     });
 
-    // Pre-load data via the action layer (the UI's "Load crews" /
-    // "Load pods" buttons land in B-39; for now we exercise the
-    // action layer directly + then render the UI).
     await act(async () => {
       await loadCrewsAction();
       await loadPodsAction('c1');
     });
 
     render(<BrpView />);
-    // Start on portfolio with one card.
     expect(screen.getByTestId('brp-view').getAttribute('data-mode')).toBe('portfolio');
-    expect(screen.getByTestId('portfolio-pod-card-p1')).toBeTruthy();
+    // Pod sections + Open button replaced the pod card.
+    expect(screen.getByTestId('portfolio-pod-section-p1')).toBeTruthy();
 
-    // Drill into the pod.
-    fireEvent.click(screen.getByTestId('portfolio-pod-card-p1'));
+    fireEvent.click(screen.getByTestId('portfolio-pod-open-p1'));
     expect(screen.getByTestId('brp-view').getAttribute('data-mode')).toBe('pod');
     expect(screen.getByTestId('pod-view-empty-epics')).toBeTruthy();
 
-    // Add epics via the picker.
     fireEvent.click(screen.getByTestId('pod-view-action-add-epics'));
     await waitFor(() => {
       expect(screen.getByTestId('epic-picker-row-e1')).toBeTruthy();
@@ -184,7 +169,6 @@ describe('BRP integration — Flow 1: load crews → pods → candidates → add
     fireEvent.click(screen.getByTestId('epic-picker-checkbox-e2'));
     fireEvent.click(screen.getByTestId('epic-picker-confirm'));
 
-    // Epics now present in the pod table.
     await waitFor(() => {
       expect(screen.getByTestId('epic-row-e1')).toBeTruthy();
       expect(screen.getByTestId('epic-row-e2')).toBeTruthy();
@@ -195,7 +179,7 @@ describe('BRP integration — Flow 1: load crews → pods → candidates → add
 describe('BRP integration — Flow 2: capacity dialog updates metrics', () => {
   beforeEach(resetAll);
 
-  it('saving CapacityDialog updates the metrics strip live', async () => {
+  it('saving CapacityDialog updates the metrics strip live', () => {
     useBrpStore.getState().loadCrew(crew('c1', 'C', [pod('p1', 'P', 100)]));
     act(() => {
       useBrpStore.getState().selectPod('p1');
@@ -208,7 +192,6 @@ describe('BRP integration — Flow 2: capacity dialog updates metrics', () => {
       target: { value: '10' },
     });
     fireEvent.click(screen.getByTestId('capacity-dialog-save'));
-    // resources 10 → 10×10×6 = 600 gross; 2×10=20 holiday; 4 leave; 576 total.
     expect(screen.getByTestId('pod-view-capacity').textContent).toBe('576');
   });
 });
@@ -229,16 +212,12 @@ describe('BRP integration — Flow 3: inline human estimate updates variance ban
     });
 
     render(<BrpView />);
-    // Default fixture: human=5 vs frame=5 → ratio 0 → agree.
-    // But confidence is 0.8 so no bump. → agree.
     expect(screen.getByTestId('variance-badge').getAttribute('data-variance')).toBe('agree');
 
-    // Type a far-off human estimate → variance flips.
     const input = screen.getByTestId('epic-row-human-e1') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '1' } });
     fireEvent.blur(input);
 
-    // human=1 vs frame=5 → |4|/5 = 0.8 → re-groom.
     expect(screen.getByTestId('variance-badge').getAttribute('data-variance')).toBe('re-groom');
   });
 });
@@ -258,8 +237,6 @@ describe('BRP integration — Flow 4: run analysis end-to-end', () => {
     render(<BrpView />);
 
     fireEvent.click(screen.getByTestId('pod-view-action-analyze'));
-    // Wait for the post-run state to settle — banner appears once the
-    // store flips analysisStatus back to 'done' and progress resets to null.
     await waitFor(() => {
       expect(screen.getByTestId('analysis-progress-success')).toBeTruthy();
     });
@@ -271,14 +248,14 @@ describe('BRP integration — Flow 4: run analysis end-to-end', () => {
 describe('BRP integration — Flow 5: portfolio ↔ pod navigation', () => {
   beforeEach(resetAll);
 
-  it('clicking a portfolio card enters PodView; Back returns to Portfolio', () => {
+  it('clicking a portfolio pod Open button enters PodView; Back returns to Portfolio', () => {
     useBrpStore.getState().loadCrew(
       crew('c1', 'C', [pod('p1', 'Pod A'), pod('p2', 'Pod B')]),
     );
     render(<BrpView />);
 
     expect(screen.getByTestId('brp-view').getAttribute('data-mode')).toBe('portfolio');
-    fireEvent.click(screen.getByTestId('portfolio-pod-card-p2'));
+    fireEvent.click(screen.getByTestId('portfolio-pod-open-p2'));
     expect(screen.getByTestId('brp-view').getAttribute('data-mode')).toBe('pod');
     expect(screen.getByTestId('pod-view-title').textContent).toBe('Pod B');
 

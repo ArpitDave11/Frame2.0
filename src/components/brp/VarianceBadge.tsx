@@ -28,35 +28,39 @@ interface BandConfig {
   label: string;
 }
 
-// One entry per band. Uses FRAME tokens exclusively — no raw colors,
-// no inline hsl(). The chosen palette is the existing brand ramp:
-// pastels for backgrounds, gray ramp for text, red for re-groom severity.
+// One entry per band. Quality remediation (Phase 1): the original
+// palette used pastelI/pastelII/grayV across all 4 non-pending bands,
+// rendering the badges indistinguishable at a glance. The semantic
+// green/amber/red/purple tokens (Phase 0 of remediation) restore the
+// signal — each band reads as its own band without reading the label.
+// `pending` keeps its CSS-var-based muted palette so unanalyzed epics
+// look quiet rather than competing for attention.
 const BAND_CONFIG: Record<VarianceBand, BandConfig> = {
   agree: {
-    bg: color.pastelII,
-    text: color.grayV,
-    border: color.grayI,
+    bg: color.semanticGreenBg,
+    text: color.semanticGreenText,
+    border: color.semanticGreenBorder,
     Icon: CheckCircle,
     label: 'In tolerance',
   },
   caution: {
-    bg: color.pastelI,
-    text: color.grayV,
-    border: color.grayI,
+    bg: color.semanticAmberBg,
+    text: color.semanticAmberText,
+    border: color.semanticAmberBorder,
     Icon: Warning,
     label: 'Discuss',
   },
   're-groom': {
-    bg: color.pastelI,
-    text: color.red,
-    border: color.bordeauxI,
+    bg: color.semanticRedBg,
+    text: color.red,                 // keep brand red for re-groom severity
+    border: color.semanticRedBorder,
     Icon: Warning,
     label: 'Re-groom',
   },
   flagged: {
-    bg: color.pastelI,
-    text: color.grayV,
-    border: color.grayIII,
+    bg: color.semanticPurpleBg,
+    text: color.semanticPurpleText,
+    border: color.semanticPurpleBorder,
     Icon: Flag,
     label: 'Needs detail',
   },

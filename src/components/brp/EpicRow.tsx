@@ -126,9 +126,22 @@ export function EpicRow({
       tabIndex={0}
       onClick={handleRowClick}
       onKeyDown={handleRowKey}
+      onMouseEnter={(e) => {
+        // Quality remediation Task 5-3: subtle row hover. Skip when
+        // already selected so the active row's tint doesn't flicker.
+        if (!isSelected) {
+          (e.currentTarget as HTMLTableRowElement).style.background = color.neutral50;
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isSelected) {
+          (e.currentTarget as HTMLTableRowElement).style.background = 'transparent';
+        }
+      }}
       style={{
         cursor: 'pointer',
         background: isSelected ? color.neutral50 : 'transparent',
+        transition: 'background 0.12s ease',
       }}
     >
       <td style={cellBase}>

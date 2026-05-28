@@ -79,6 +79,8 @@ export function BrpView() {
     selectedEpicId,
     analysisStatus,
     analysisProgress,
+    reGroomOnlyFilter,
+    currentPI,
   } = useBrpStore(
     useShallow((s) => ({
       crews: s.crews,
@@ -87,6 +89,8 @@ export function BrpView() {
       selectedEpicId: s.selectedEpicId,
       analysisStatus: s.analysisStatus,
       analysisProgress: s.analysisProgress,
+      reGroomOnlyFilter: s.reGroomOnlyFilter,
+      currentPI: s.currentPI,
     })),
   );
 
@@ -95,6 +99,7 @@ export function BrpView() {
   const selectCrew = useBrpStore((s) => s.selectCrew);
   const selectPod = useBrpStore((s) => s.selectPod);
   const selectEpic = useBrpStore((s) => s.selectEpic);
+  const setReGroomOnlyFilter = useBrpStore((s) => s.setReGroomOnlyFilter);
   // updatePodCapacity + setHumanEstimate now route through the action
   // layer so audit entries (B-35) are recorded automatically — see
   // updateCapacityAction / setHumanEstimateAction.
@@ -245,6 +250,13 @@ export function BrpView() {
             selectPod(podId);
             selectEpic(null);
           }}
+          onSelectEpicInPod={(podId, epicId) => {
+            selectPod(podId);
+            selectEpic(epicId);
+          }}
+          reGroomOnlyFilter={reGroomOnlyFilter}
+          onToggleReGroomFilter={() => setReGroomOnlyFilter(!reGroomOnlyFilter)}
+          piName={currentPI?.name ?? null}
           onLoadCrews={handleLoadCrews}
           onLoadPods={handleLoadPods}
           loadCrewsState={loadCrewsState}
@@ -291,6 +303,7 @@ export function BrpView() {
         analysisFailures={lastRun?.failures ?? []}
         duplicateEpicIds={duplicateEpicIds}
         selectedVarianceMessage={selectedVarianceMessage}
+        piName={currentPI?.name ?? null}
         onBackToPortfolio={() => {
           selectPod(null);
           selectEpic(null);
