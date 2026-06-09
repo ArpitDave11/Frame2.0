@@ -31,6 +31,26 @@ export const color = {
   // Neutrals
   neutral50: '#FAFAFA',
   neutral200: '#E5E5E5',
+
+  // Semantic — variance & status (not brand, not overridable).
+  // Added in BRP quality remediation (Phase 0) so VarianceBadge's
+  // 4 bands are distinguishable at a glance — the previous
+  // pastelI/pastelII/grayV trio rendered as indistinct beige/gray.
+  // Hex values approximate the HSL points in the reference UI.
+  semanticGreenBg: '#E8F5E9',        // ~hsl(120, 60%, 95%) — agree
+  semanticGreenText: '#2E7D32',      // ~hsl(120, 60%, 30%)
+  semanticGreenBorder: '#81C784',    // ~hsl(120, 60%, 75%)
+
+  semanticAmberBg: '#FFF8E1',        // ~hsl(45, 100%, 95%) — caution / discuss
+  semanticAmberText: '#E65100',      // ~hsl(30, 95%, 45%)
+  semanticAmberBorder: '#FFD54F',    // ~hsl(45, 100%, 75%)
+
+  semanticRedBg: '#FFF0F0',          // ~hsl(0, 100%, 96%) — re-groom (paired with brand red text)
+  semanticRedBorder: '#EF9A9A',      // ~hsl(0, 80%, 80%)
+
+  semanticPurpleBg: '#F3E5F5',       // ~hsl(280, 50%, 96%) — flagged / needs detail
+  semanticPurpleText: '#7B1FA2',     // ~hsl(280, 60%, 40%)
+  semanticPurpleBorder: '#CE93D8',   // ~hsl(280, 50%, 75%)
 } as const;
 
 // ─── CSS Custom Property Colors ─────────────────────────────────
@@ -157,7 +177,10 @@ export const radius = {
 // UBS brand: Frutiger family. Fallback chain per theme instructions.
 
 export const font = {
-  sans: "Frutiger, Arial, Helvetica, sans-serif",
+  // Exact chain mandated by UBS_Theme_Instructions.docx §1 — never
+  // substitute or reorder. Frutiger first, then Arial → Helvetica →
+  // system sans-serif as graceful fallbacks.
+  sans: 'Frutiger, Arial, Helvetica, sans-serif',
   mono: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
 } as const;
 
@@ -230,6 +253,10 @@ export const transition = {
   arrowButton: 'all 200ms ease',
   indicatorDot: 'all 300ms ease',
   doormatUnderline: 'background-size 0.2s cubic-bezier(1, 0, 0.3, 1)',
+  // BRP remediation — short shorthand for button hover effects (bg +
+  // border + shadow + transform animate together).
+  fast: 'all 0.15s ease',
+  normal: 'all 0.2s ease',
 } as const;
 
 // ─── Chart Colors ──────────────────────────────────────────────

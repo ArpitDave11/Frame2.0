@@ -1,0 +1,499 @@
+/**
+ * BRP — Breakdown & Re-groom Planning — Phase 1 type model (B-1).
+ *
+ * This module is the single source of truth for BRP data shapes and (in
+ * later B-tasks) the pure derivation functions. It is dependency-free
+ * except for its own constants file: no React, no Zustand, no FRAME
+ * services. It can be unit-tested with zero setup, and the pure
+ * functions added by B-2..B-4 must respect the same purity rule
+ * (same input → same output, no side effects, no `Date.now()`, no
+ * randomness).
+ *
+ * Three architectural invariants are enforced by the type shape itself.
+ * If you find yourself wanting to add a field that violates one, do
+ * not — fix the call site or compute it via a pure function instead:
+ *
+ *   1. Epic has NO top-level `variance`, `delta`, or `frameEstimate`
+ *      field. All FRAME outputs live inside the nullable
+ *      `Epic.frameResult` sub-object — present after analysis, `null`
+ *      before. There is no half-populated middle state.
+ *
+ *   2. Pod stores `CapacityInputs` (the 5 raw inputs). It does NOT
+ *      store `totalCapacity`. The total is always `computeCapacity(...)`
+ *      at read time, so it can never drift from its inputs.
+ *
+ *   3. `VarianceBand` is a return type of `computeVariance` — never a
+ *      field on any entity. Storing it is the exact bug the sample
+ *      code in `docs/Brp_plan/ui_sample_brp/` made.
+ *
+ * Reviewer gate (per PRD AC5/AC6): grep across BRP code must show
+ * zero instances of `variance:`, `delta:`, or `totalCapacity:` as a
+ * field, and `brp.ts` must import nothing outside of `./brp.constants`.
+ */
+
+import {
+  CONFIDENCE_BUMP_THRESHOLD,
+  FLAGGED_DESCRIPTION_MIN_CHARS,
+  VARIANCE_AGREE_THRESHOLD,
+  VARIANCE_CAUTION_THRESHOLD,
+} from './brp.constants';
+
+// ─── Scales & enums ─────────────────────────────────────────
+
+/**
+ * Canonical Fibonacci point scale for FRAME estimates. Literal union so
+ * a wrong value is a TypeScript error at the call site, not a runtime
+ * validation step. The runtime mirror is `FIBONACCI_POINTS` in
+ * `brp.constants.ts`.
+ */
+export type FibonacciPoint = 1 | 2 | 3 | 5 | 8 | 13 | 21 | 40 | 100;
+
+/** Per-epic analysis lifecycle. */
+export type AnalysisStatus = 'raw' | 'analyzing' | 'done' | 'error';
+
+/**
+ * Variance band returned by `computeVariance(epic)`. NEVER stored as a
+ * field anywhere in the model — invariant #3 above.
+ *
+ *   agree     human and FRAME estimates within `VARIANCE_AGREE_THRESHOLD`
+ *   caution   estimates moderately apart, OR an 'agree' with low FRAME confidence
+ *   re-groom  estimates far apart — re-groom the epic before sprinting it
+ *   flagged   FRAME could not estimate (description too thin or analysis errored)
+ *   pending   FRAME has not analyzed yet (status 'raw'/'analyzing'/'error'),
+ *             or human estimate not yet entered
+ */
+export type VarianceBand = 'agree' | 'caution' | 're-groom' | 'flagged' | 'pending';
+
+// ─── Capacity ───────────────────────────────────────────────
+
+/**
+ * The 5 raw capacity inputs the planner enters in the Capacity dialog.
+ * A Pod stores exactly this — never a precomputed total — so that
+ * `computeCapacity` is the single source of truth.
+ */
+export interface CapacityInputs {
+  /** People available to this Pod for the PI. */
+  resources: number;
+  /** Story points each resource delivers per sprint. Defaults to 10. */
+  spPerResource: number;
+  /** Number of sprints in the Planning Increment. */
+  sprintCount: number;
+  /** Holiday days in the PI. Multiplied by `resources` (a holiday hits everyone). */
+  holidayDays: number;
+  /** Sum of individual leave days across all resources. Used as-is (no multiplication). */
+  leaveDays: number;
+}
+
+/** Full breakdown returned by `computeCapacity` so the UI can show each line. */
+export interface CapacityResult {
+  gross: number;
+  holidayDeduction: number;
+  leaveDeduction: number;
+  /** `max(0, gross - holidayDeduction - leaveDeduction)` — never negative. */
+  total: number;
+}
+
+// ─── FRAME result building blocks ───────────────────────────
+
+/** One item in a FRAME breakdown. The breakdown's points sum approximately to `frameEstimate`. */
+export interface BreakdownItem {
+  title: string;
+  points: FibonacciPoint;
+}
+
+/**
+ * A historical reference epic FRAME considered when estimating. Returned
+ * to the UI so the planner can verify the comparison was sensible.
+ */
+export interface ReferenceEpic {
+  /** GitLab epic global id, as a string for safety across number ranges. */
+  epicId: string;
+  title: string;
+  /** Cosine/jaccard similarity to the epic being analyzed. Range [0, 1]. */
+  similarity: number;
+  /** Actual story points the reference epic shipped at. */
+  actualSp: number;
+}
+
+/**
+ * A story FRAME generated when the input epic had no decomposition.
+ * Present only in FrameResult.generatedStories when FRAME had to invent them.
+ */
+export interface GeneratedStory {
+  title: string;
+  points: FibonacciPoint;
+  acceptanceCriteria: string[];
+}
+
+/**
+ * Everything FRAME produces from one analysis pass. Grouped into a single
+ * nullable object on Epic so partial/half-populated state cannot exist
+ * (invariant #1). If `Epic.frameResult` is non-null, every field here is
+ * present and valid; if null, FRAME has not analyzed the epic yet.
+ */
+export interface FrameResult {
+  frameEstimate: FibonacciPoint;
+  breakdown: BreakdownItem[];
+  rationale: string;
+  /** FRAME's confidence in its own estimate. Range [0, 1]. */
+  confidence: number;
+  references: ReferenceEpic[];
+  /** Present only when FRAME had to invent stories. `null` otherwise. */
+  generatedStories: GeneratedStory[] | null;
+  /** Identifier of the estimator that produced this result (for audit). */
+  modelVersion: string;
+  /** ISO-8601 timestamp at which the result was produced. */
+  analyzedAt: string;
+}
+
+// ─── Core entities: Crew → Pod → Epic ───────────────────────
+
+/**
+ * One epic loaded from GitLab. Authoring is not supported in BRP — epics
+ * are always sourced. The shape enforces invariant #1: no top-level
+ * `variance`, `delta`, or `frameEstimate` — those are computed by the
+ * pure functions in this module from `humanEstimate` + `frameResult`.
+ */
+export interface Epic {
+  /** GitLab epic global id (string for safety across large number ranges). */
+  id: string;
+  /** GitLab epic internal id (iid) within its group. */
+  iid: number;
+  title: string;
+  /**
+   * Epic body. The 'flagged' band heuristic in `computeVariance` reads
+   * this; the GitLab service normalizes null bodies to '' so callers
+   * never have to null-check.
+   */
+  description: string;
+  /** Direct link back to the GitLab epic page. */
+  gitlabWebUrl: string;
+  /** ID of the Pod this epic is assigned to. */
+  podId: string;
+  /**
+   * Where the epic came from. Today only `'gitlab'` exists; the type is
+   * a single literal, not a union. If a future source (e.g., a manual
+   * seed) is added, widen this to a union here and update consumers
+   * (the variance/metrics functions don't depend on it). Deep-review
+   * I9: the previous comment claimed a "union shape" that didn't exist
+   * — corrected to avoid promising polymorphism that isn't there.
+   */
+  source: 'gitlab';
+  /**
+   * Planner's estimate in story points. `null` until the planner types
+   * a value into the editable cell. Setting this NEVER touches any
+   * other field — variance/delta re-derive automatically at render time.
+   */
+  humanEstimate: number | null;
+  /** Lifecycle status of FRAME's analysis for this epic. */
+  analysisStatus: AnalysisStatus;
+  /**
+   * FRAME's analysis output. `null` until status reaches 'done'.
+   * Never partially populated — either all fields are present, or the
+   * whole sub-object is `null`.
+   */
+  frameResult: FrameResult | null;
+}
+
+/**
+ * A squad — a GitLab subgroup. Owns capacity inputs and epics. Does
+ * NOT store `totalCapacity` (invariant #2) — that is always
+ * `computeCapacity(pod.capacity).total` at read time.
+ */
+export interface Pod {
+  id: string;
+  name: string;
+  gitlabSubgroupId: number;
+  capacity: CapacityInputs;
+  epics: Epic[];
+}
+
+/** A crew — a GitLab root group. Owns Pods. Thin. */
+export interface Crew {
+  id: string;
+  name: string;
+  gitlabGroupId: number;
+  pods: Pod[];
+}
+
+/** The planning increment the BRP board is sized against. */
+export interface PI {
+  id: string;
+  name: string;
+  /** ISO-8601 date. */
+  startDate: string;
+  /** ISO-8601 date. */
+  endDate: string;
+  sprintCount: number;
+}
+
+// ─── Derived (return types — NEVER stored) ──────────────────
+
+/**
+ * The roll-up `computePodMetrics(pod)` returns. Every field is computed;
+ * none of these is ever a field on Pod or Crew. `humanLoad` and
+ * `frameLoad` EXCLUDE flagged epics — a flagged epic is one FRAME
+ * could not estimate, so including it in either load would misrepresent
+ * the comparison.
+ */
+export interface PodMetrics {
+  totalCapacity: number;
+  humanLoad: number;
+  frameLoad: number;
+  /** `totalCapacity - frameLoad`. Negative = pod is over-committed. */
+  balance: number;
+  /** Mean of `frameResult.confidence` across analyzed (non-flagged) epics. 0 if none. */
+  avgConfidence: number;
+  epicCount: number;
+  flaggedCount: number;
+  reGroomCount: number;
+}
+
+// ─── AI seam ────────────────────────────────────────────────
+//
+// `AIEstimator` and `AnalysisEvent` USED to live here. The Architecture
+// reviewer (deep-review 2026-05-25, finding I10) correctly noted that a
+// service seam doesn't belong in a module whose own header claims to be
+// "dependency-free of services." They were moved to
+// `src/services/brp/ai/types.ts`. Consumers import them from there.
+
+// ─── Pure functions ─────────────────────────────────────────
+
+/**
+ * Compute Pod capacity from its 5 raw inputs. Pure — same input always
+ * yields the same output, no side effects, no `Date.now()`, no randomness.
+ *
+ * Formula (whole-PI basis, 1 day = 1 SP at the SP/resource rate):
+ *   gross             = resources × spPerResource × sprintCount
+ *   holidayDeduction  = holidayDays × resources         // a holiday hits everyone
+ *   leaveDeduction    = leaveDays                       // already a total in person-days
+ *   total             = max(0, gross − holidayDeduction − leaveDeduction)
+ *
+ * Returns the full breakdown so the UI can show each line without recomputing.
+ * `total` clamps at 0 — a Pod cannot have negative usable capacity.
+ *
+ * Worked example (PRD acceptance criterion):
+ *   inputs { resources: 6, spPerResource: 10, sprintCount: 6, holidayDays: 2, leaveDays: 5 }
+ *   gross = 6 × 10 × 6 = 360
+ *   holidayDeduction = 2 × 6 = 12
+ *   leaveDeduction = 5
+ *   total = 360 − 12 − 5 = 343
+ */
+export function computeCapacity(inputs: CapacityInputs): CapacityResult {
+  const gross = inputs.resources * inputs.spPerResource * inputs.sprintCount;
+  const holidayDeduction = inputs.holidayDays * inputs.resources;
+  const leaveDeduction = inputs.leaveDays;
+  const total = Math.max(0, gross - holidayDeduction - leaveDeduction);
+  return { gross, holidayDeduction, leaveDeduction, total };
+}
+
+/**
+ * Compute the signed delta between FRAME's estimate and the planner's
+ * estimate (frame − human). Returns `null` whenever either side is missing
+ * — either the epic has not been analyzed yet, or the planner has not
+ * typed a value into the editable cell.
+ *
+ * Sign convention: positive means FRAME estimated higher than the human.
+ * Never stored — derived on every read so it cannot drift.
+ */
+export function computeDelta(epic: Epic): number | null {
+  if (epic.frameResult === null || epic.humanEstimate === null) {
+    return null;
+  }
+  return epic.frameResult.frameEstimate - epic.humanEstimate;
+}
+
+/**
+ * Compute the variance band for an Epic. Single source of truth for the
+ * value — never stored as a field anywhere. Order of checks matters and
+ * is enforced by the test suite at the threshold boundaries:
+ *
+ *   1. If `analysisStatus !== 'done'` OR `frameResult` is null:
+ *      → 'flagged' when the description is too thin to estimate
+ *        (length below `FLAGGED_DESCRIPTION_MIN_CHARS`), otherwise
+ *      → 'pending'.
+ *
+ *   2. If `computeDelta(epic)` is null (planner has not entered an estimate
+ *      despite FRAME having finished) → 'pending'.
+ *
+ *   3. Compute `ratio = |delta| / max(human, frame)` (a relative gap):
+ *        ratio ≤ VARIANCE_AGREE_THRESHOLD   → 'agree'
+ *        ratio ≤ VARIANCE_CAUTION_THRESHOLD → 'caution'
+ *        else                               → 're-groom'
+ *      Both thresholds are inclusive (a ratio of exactly 0.20 is 'agree';
+ *      0.50 is 'caution'). Tests pin the boundary behavior.
+ *
+ *   4. If the band would be 'agree' but `frameResult.confidence` is
+ *      below `CONFIDENCE_BUMP_THRESHOLD`, the band bumps up to 'caution'.
+ *      Low-confidence agreement is not real agreement.
+ */
+export function computeVariance(epic: Epic): VarianceBand {
+  // Step 1: FRAME hasn't produced a usable result for this epic.
+  if (epic.analysisStatus !== 'done' || epic.frameResult === null) {
+    return epic.description.length < FLAGGED_DESCRIPTION_MIN_CHARS
+      ? 'flagged'
+      : 'pending';
+  }
+
+  // Step 2: FRAME estimated but the planner hasn't.
+  const delta = computeDelta(epic);
+  if (delta === null) return 'pending';
+
+  // Step 3: relative gap classification.
+  const human = epic.humanEstimate as number; // non-null guaranteed by delta !== null
+  const frame = epic.frameResult.frameEstimate;
+  const denom = Math.max(human, frame);
+  // Both estimates 0 is degenerate but treat as full agreement.
+  const ratio = denom === 0 ? 0 : Math.abs(delta) / denom;
+  let band: VarianceBand;
+  if (ratio <= VARIANCE_AGREE_THRESHOLD) band = 'agree';
+  else if (ratio <= VARIANCE_CAUTION_THRESHOLD) band = 'caution';
+  else band = 're-groom';
+
+  // Step 4: confidence bump.
+  if (band === 'agree' && epic.frameResult.confidence < CONFIDENCE_BUMP_THRESHOLD) {
+    band = 'caution';
+  }
+
+  return band;
+}
+
+/**
+ * Compute the roll-up the dashboards (Phase 5) need for a single Pod.
+ * Pure — no side effects. Reads `pod.capacity`, `pod.epics[*]`, and
+ * delegates band classification to `computeVariance`.
+ *
+ * Critical rule (regression guard from p1.md's stated past bug): epics
+ * with band 'flagged' are EXCLUDED from both `humanLoad` and `frameLoad`.
+ * Including them silently misrepresents the planner-vs-FRAME comparison
+ * — FRAME has nothing to compare against on a flagged epic. They are
+ * counted only in `flaggedCount` and `epicCount`.
+ *
+ *   totalCapacity = computeCapacity(pod.capacity).total
+ *   humanLoad     = Σ epic.humanEstimate  for epics where band ≠ 'flagged'
+ *   frameLoad     = Σ epic.frameResult.frameEstimate  for epics where band ≠ 'flagged'
+ *   balance       = totalCapacity − frameLoad   (negative = over-committed)
+ *   avgConfidence = mean(frameResult.confidence) over epics with frameResult ≠ null
+ *                   AND band ≠ 'flagged'.  0 if there are none.
+ *   epicCount     = pod.epics.length
+ *   flaggedCount  = number of epics whose band is 'flagged'
+ *   reGroomCount  = number of epics whose band is 're-groom'
+ */
+export function computePodMetrics(pod: Pod): PodMetrics {
+  const totalCapacity = computeCapacity(pod.capacity).total;
+
+  let humanLoad = 0;
+  let frameLoad = 0;
+  let confidenceSum = 0;
+  let confidenceCount = 0;
+  let flaggedCount = 0;
+  let reGroomCount = 0;
+
+  for (const epic of pod.epics) {
+    const band = computeVariance(epic);
+    if (band === 'flagged') {
+      flaggedCount++;
+      continue; // exclude from loads — see invariant above
+    }
+    if (band === 're-groom') reGroomCount++;
+
+    if (epic.humanEstimate !== null) {
+      humanLoad += epic.humanEstimate;
+    }
+    // I4 (deep-review): only count epics whose analysis is CURRENT
+    // (status === 'done') in frameLoad + avgConfidence. A re-run sets
+    // an epic back to 'analyzing' but deliberately preserves the prior
+    // `frameResult` until the new one lands (per `setEpicAnalysisStatus`
+    // — see its docstring). Without this filter, the stale value would
+    // contribute to `frameLoad` and skew `avgConfidence` for the duration
+    // of every re-run. `humanLoad` is intentionally NOT status-gated:
+    // the planner's number is valid regardless of analysis lifecycle.
+    if (epic.frameResult !== null && epic.analysisStatus === 'done') {
+      frameLoad += epic.frameResult.frameEstimate;
+      confidenceSum += epic.frameResult.confidence;
+      confidenceCount++;
+    }
+  }
+
+  return {
+    totalCapacity,
+    humanLoad,
+    frameLoad,
+    balance: totalCapacity - frameLoad,
+    avgConfidence: confidenceCount > 0 ? confidenceSum / confidenceCount : 0,
+    epicCount: pod.epics.length,
+    flaggedCount,
+    reGroomCount,
+  };
+}
+
+// ─── Crew-level roll-up (quality remediation Task 2-2) ──────
+
+/**
+ * Aggregate metrics across every pod in a crew. The reference UI's
+ * portfolio summary strip (Task 2-1) needs these six numbers — they
+ * answer "how does the whole crew look right now?" before the planner
+ * drills into a pod.
+ *
+ * Definitions:
+ *   totalCapacity   Σ pod.totalCapacity
+ *   humanLoad       Σ pod.humanLoad        (excludes flagged epics —
+ *                                            see computePodMetrics)
+ *   frameLoad       Σ pod.frameLoad        (same exclusion)
+ *   balance         totalCapacity − frameLoad   (negative = crew over)
+ *   podsOver        # pods where balance < 0
+ *   totalPods       crew.pods.length
+ *   epicsToReGroom  # epics across all pods whose band is 're-groom'
+ *   totalEpics      total epic count (every band, including flagged)
+ *   flaggedCount    # epics across all pods whose band is 'flagged'
+ *
+ * Pure — no side effects, no Date.now(). Delegates band classification
+ * to `computeVariance` so the rollup cannot drift from the per-row UI.
+ */
+export interface CrewMetrics {
+  totalCapacity: number;
+  humanLoad: number;
+  frameLoad: number;
+  balance: number;
+  podsOver: number;
+  totalPods: number;
+  epicsToReGroom: number;
+  totalEpics: number;
+  flaggedCount: number;
+}
+
+export function computeCrewMetrics(crew: Crew): CrewMetrics {
+  let totalCapacity = 0;
+  let humanLoad = 0;
+  let frameLoad = 0;
+  let podsOver = 0;
+  let epicsToReGroom = 0;
+  let totalEpics = 0;
+  let flaggedCount = 0;
+
+  for (const pod of crew.pods) {
+    const pm = computePodMetrics(pod);
+    totalCapacity += pm.totalCapacity;
+    humanLoad += pm.humanLoad;
+    frameLoad += pm.frameLoad;
+    if (pm.balance < 0) podsOver++;
+    for (const epic of pod.epics) {
+      totalEpics++;
+      const band = computeVariance(epic);
+      if (band === 're-groom') epicsToReGroom++;
+      if (band === 'flagged') flaggedCount++;
+    }
+  }
+
+  return {
+    totalCapacity,
+    humanLoad,
+    frameLoad,
+    balance: totalCapacity - frameLoad,
+    podsOver,
+    totalPods: crew.pods.length,
+    epicsToReGroom,
+    totalEpics,
+    flaggedCount,
+  };
+}

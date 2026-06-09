@@ -19,6 +19,7 @@ import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import ExtremeInitiativeView from '@/components/initiative/ExtremeInitiativeView';
 import DocIntelView from '@/components/docIntel/DocIntelView';
 import { IssueRefineryView } from '@/components/issueRefinery/IssueRefineryView';
+import { BrpView } from '@/components/brp/BrpView';
 
 // ─── Planner View ───────────────────────────────────────────
 
@@ -67,6 +68,16 @@ function AnalyticsView() {
   );
 }
 
+// ─── BRP View ───────────────────────────────────────────────
+
+function BrpViewWrapper() {
+  return (
+    <div data-testid="brp-view-wrapper" style={{ display: 'flex', flex: 1, overflow: 'auto' }}>
+      <BrpView />
+    </div>
+  );
+}
+
 // ─── Router ─────────────────────────────────────────────────
 
 export function ViewRouter() {
@@ -87,6 +98,8 @@ export function ViewRouter() {
       return <ErrorBoundary viewName="Document Intelligence"><div data-testid="docintel-view-wrapper" style={{ flex: 1, overflow: 'auto' }}><DocIntelView /></div></ErrorBoundary>;
     case 'issueRefinery':
       return <ErrorBoundary viewName="Issue Refinery"><div data-testid="issue-refinery-wrapper" style={{ flex: 1, overflow: 'auto' }}><IssueRefineryView /></div></ErrorBoundary>;
+    case 'brp':
+      return <ErrorBoundary viewName="BRP"><BrpViewWrapper /></ErrorBoundary>;
     default:
       return <ErrorBoundary viewName="Epic Planner"><PlannerView /></ErrorBoundary>;
   }
