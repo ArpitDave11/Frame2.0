@@ -27,21 +27,19 @@ import { useMemo } from 'react';
 import {
   ArrowRight,
   CheckCircle,
-  Compass,
   Funnel,
+  Sparkle,
   X,
 } from '@phosphor-icons/react';
 import {
   computeCrewMetrics,
-  computeDelta,
   computePodMetrics,
   computeVariance,
 } from '@/domain/brp';
-import type { Crew, Epic, Pod, VarianceBand } from '@/domain/brp';
+import type { Crew, Pod, VarianceBand } from '@/domain/brp';
 import { CrewSelector } from './CrewSelector';
 import { SummaryStrip } from './SummaryStrip';
-import { VarianceBadge } from './VarianceBadge';
-import { color, font, fontSize, fontWeight, radius, shadow, transition } from '@/theme/tokens';
+import { color, cssVar, font, fontSize, fontWeight, radius, shadow, transition } from '@/theme/tokens';
 
 export interface PortfolioViewProps {
   crews: Crew[];
@@ -63,6 +61,12 @@ export interface PortfolioViewProps {
   onToggleReGroomFilter?: () => void;
   /** Active PI name. Shows a small badge next to the title when provided. */
   piName?: string | null;
+
+  // Portfolio-level analysis (reference UI parity) —————————
+  /** Trigger analysis across all visible pods. */
+  onRunAnalysis?: () => void;
+  /** True while a portfolio-level analysis is in flight. */
+  analysisRunning?: boolean;
 
   // Existing load-action wiring (post-B-42) ————————————————
 
@@ -92,17 +96,27 @@ const BAND_LABEL: Record<VarianceBand, string> = {
   pending: 'Pending',
 };
 
-const GRID_TEMPLATE = '2fr 140px 140px 100px 180px';
+// Variance distribution segment colours for each pod card's mini health
+// bar. Mirrors BAND_COLOR plus a muted grey for the pending band so the
+// card summarises a pod's epics without listing every row.
+const SEG_COLOR: Record<VarianceBand, string> = {
+  agree: color.semanticGreenText,
+  caution: color.semanticAmberText,
+  're-groom': color.red,
+  flagged: color.semanticPurpleText,
+  pending: color.grayIII,
+};
 
 export function PortfolioView({
   crews,
   crewFilterId,
   onSelectCrew,
   onSelectPod,
-  onSelectEpicInPod,
   reGroomOnlyFilter = false,
   onToggleReGroomFilter,
   piName,
+  onRunAnalysis,
+  analysisRunning = false,
   onLoadCrews,
   onLoadPods,
   loadCrewsState = 'idle',
@@ -157,17 +171,20 @@ export function PortfolioView({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 24,
-        padding: '24px 32px',
         flex: 1,
+        minWidth: 0,
+        height: '100%',
         background: color.neutral50,
-        overflowY: 'auto',
         fontFamily: font.sans,
       }}
     >
-      {/* Header */}
+      {/* Top bar — white background, matches reference layout */}
       <header
         style={{
+          background: color.white,
+          borderBottom: `1px solid ${color.neutral200}`,
+          padding: '24px 40px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
           display: 'flex',
           flexDirection: 'column',
           gap: 18,
@@ -177,75 +194,113 @@ export function PortfolioView({
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 16,
-            flexWrap: 'wrap',
+            alignItems: 'flex-start',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Compass size={22} weight="bold" color={color.red} aria-hidden="true" />
-            <h2
-              data-testid="portfolio-view-title"
-              style={{
-                margin: 0,
-                fontSize: fontSize.xl,
-                fontWeight: fontWeight.medium,
-                color: color.black,
-                letterSpacing: '-0.3px',
-              }}
-            >
-              Portfolio
-            </h2>
-            {piName ? (
-              <span
-                data-testid="portfolio-pi-badge"
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+              <h1
+                data-testid="portfolio-view-title"
                 style={{
-                  padding: '4px 12px',
-                  border: `1px solid ${color.neutral200}`,
-                  borderRadius: radius.sm,
-                  background: color.neutral50,
-                  fontSize: fontSize.xs,
-                  fontWeight: fontWeight.semibold,
-                  color: color.grayV,
-                  letterSpacing: '0.3px',
+                  margin: 0,
+                  fontSize: fontSize['2xl'],
+                  fontWeight: fontWeight.light,
+                  color: color.black,
+                  letterSpacing: '-0.5px',
                 }}
               >
-                {piName}
-              </span>
-            ) : null}
+                Portfolio view
+              </h1>
+              {piName ? (
+                <span
+                  data-testid="portfolio-pi-badge"
+                  style={{
+                    padding: '4px 12px',
+                    border: `1px solid ${color.neutral200}`,
+                    borderRadius: radius.sm,
+                    background: color.neutral50,
+                    fontSize: fontSize.xs,
+                    fontWeight: fontWeight.medium,
+                    color: color.grayV,
+                  }}
+                >
+                  {piName}
+                </span>
+              ) : null}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <CrewSelector
+                crews={crews}
+                selectedCrewId={crewFilterId}
+                onSelect={onSelectCrew}
+              />
+              {onToggleReGroomFilter ? (
+                <FilterButton
+                  active={reGroomOnlyFilter}
+                  onClick={onToggleReGroomFilter}
+                />
+              ) : null}
+              {onLoadCrews ? (
+                <LoadButton
+                  testid="portfolio-load-crews"
+                  onClick={onLoadCrews}
+                  state={loadCrewsState}
+                  label={crews.length === 0 ? 'Load crews' : 'Refresh crews'}
+                  loadingLabel="Loading…"
+                />
+              ) : null}
+              {onLoadPods && crewFilterId ? (
+                <LoadButton
+                  testid="portfolio-load-pods"
+                  onClick={onLoadPods}
+                  state={loadPodsState}
+                  label="Load pods"
+                  loadingLabel="Loading…"
+                />
+              ) : null}
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-            {onToggleReGroomFilter ? (
-              <FilterButton
-                active={reGroomOnlyFilter}
-                onClick={onToggleReGroomFilter}
-              />
-            ) : null}
-            <CrewSelector
-              crews={crews}
-              selectedCrewId={crewFilterId}
-              onSelect={onSelectCrew}
-            />
-            {onLoadCrews ? (
-              <LoadButton
-                testid="portfolio-load-crews"
-                onClick={onLoadCrews}
-                state={loadCrewsState}
-                label={crews.length === 0 ? 'Load crews' : 'Refresh crews'}
-                loadingLabel="Loading…"
-              />
-            ) : null}
-            {onLoadPods && crewFilterId ? (
-              <LoadButton
-                testid="portfolio-load-pods"
-                onClick={onLoadPods}
-                state={loadPodsState}
-                label="Load pods"
-                loadingLabel="Loading…"
-              />
-            ) : null}
-          </div>
+          {onRunAnalysis ? (
+            <button
+              type="button"
+              data-testid="portfolio-run-analysis"
+              disabled={analysisRunning || crews.length === 0}
+              onClick={onRunAnalysis}
+              style={{
+                background: analysisRunning ? color.grayIII : color.red,
+                color: color.white,
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: radius.md,
+                fontSize: fontSize.sm,
+                fontWeight: fontWeight.medium,
+                cursor: analysisRunning ? 'not-allowed' : 'pointer',
+                transition: transition.fast,
+                boxShadow: '0 2px 4px rgba(230, 0, 0, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                opacity: analysisRunning ? 0.7 : 1,
+                fontFamily: font.sans,
+              }}
+              onMouseEnter={(e) => {
+                if (!analysisRunning) {
+                  e.currentTarget.style.boxShadow = '0 3px 6px rgba(230, 0, 0, 0.25)';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!analysisRunning) {
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(230, 0, 0, 0.15)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }
+              }}
+            >
+              <Sparkle size={16} weight="fill" aria-hidden="true" />
+              {analysisRunning ? 'Analyzing…' : 'Analysis'}
+            </button>
+          ) : null}
         </div>
 
         {crewMetrics ? (
@@ -261,13 +316,15 @@ export function PortfolioView({
         ) : null}
       </header>
 
+      {/* Content area */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '24px 40px' }}>
       {loadCrewsError ? (
-        <div data-testid="portfolio-load-crews-error" role="alert" style={errorBannerStyle}>
+        <div data-testid="portfolio-load-crews-error" role="alert" style={{ ...errorBannerStyle, marginBottom: 16 }}>
           Crews failed to load: {loadCrewsError}
         </div>
       ) : null}
       {loadPodsError ? (
-        <div data-testid="portfolio-load-pods-error" role="alert" style={errorBannerStyle}>
+        <div data-testid="portfolio-load-pods-error" role="alert" style={{ ...errorBannerStyle, marginBottom: 16 }}>
           Pods failed to load: {loadPodsError}
         </div>
       ) : null}
@@ -327,38 +384,40 @@ export function PortfolioView({
       ) : (
         <div
           data-testid="portfolio-view-pod-list"
-          style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: 20,
+            alignItems: 'start',
+          }}
         >
           {visiblePods.map(({ crew, pod }) => (
-            <PodSection
-              key={pod.id}
-              crew={crew}
-              pod={pod}
-              reGroomOnlyFilter={reGroomOnlyFilter}
-              onSelectPod={onSelectPod}
-              onSelectEpicInPod={onSelectEpicInPod}
-            />
+            <PodCard key={pod.id} crew={crew} pod={pod} onSelectPod={onSelectPod} />
           ))}
         </div>
       )}
+      </div>
     </section>
   );
 }
 
-// ─── Pod section + epic row ─────────────────────────────────
+// ─── Pod card ───────────────────────────────────────────────
+//
+// One card per pod. Summarises the pod's epics as a variance
+// distribution bar + count chips instead of listing every row, so the
+// portfolio stays scannable at 20-30 pods. Full epic detail lives one
+// click away in PodView (Open). Derived values flow through
+// computePodMetrics / computeVariance so the card cannot drift on the
+// formulae.
 
-function PodSection({
+function PodCard({
   crew,
   pod,
-  reGroomOnlyFilter,
   onSelectPod,
-  onSelectEpicInPod,
 }: {
   crew: Crew;
   pod: Pod;
-  reGroomOnlyFilter: boolean;
   onSelectPod: (podId: string) => void;
-  onSelectEpicInPod?: (podId: string, epicId: string) => void;
 }) {
   const metrics = useMemo(() => computePodMetrics(pod), [pod]);
   const overCommit = metrics.balance < 0;
@@ -367,313 +426,274 @@ function PodSection({
     100,
   );
   const confidencePct = Math.round(metrics.avgConfidence * 100);
-  const visibleEpics = useMemo(
-    () =>
-      reGroomOnlyFilter
-        ? pod.epics.filter((e) => computeVariance(e) === 're-groom')
-        : pod.epics,
-    [pod.epics, reGroomOnlyFilter],
-  );
+  const total = pod.epics.length;
+
+  // Per-band epic counts drive the distribution bar + summary chips.
+  const counts = useMemo(() => {
+    const c: Record<VarianceBand, number> = {
+      agree: 0,
+      caution: 0,
+      're-groom': 0,
+      flagged: 0,
+      pending: 0,
+    };
+    for (const e of pod.epics) c[computeVariance(e)] += 1;
+    return c;
+  }, [pod.epics]);
+
+  const segments = (
+    ['agree', 'caution', 're-groom', 'flagged', 'pending'] as VarianceBand[]
+  ).filter((b) => counts[b] > 0);
+
+  const alerts: string[] = [];
+  if (counts['re-groom'] > 0) alerts.push(`${counts['re-groom']} re-groom`);
+  if (counts.flagged > 0) alerts.push(`${counts.flagged} needs detail`);
+  if (counts.pending > 0) alerts.push(`${counts.pending} pending`);
+  const chips =
+    total === 0
+      ? 'No epics loaded yet'
+      : `${total} epic${total === 1 ? '' : 's'}${
+          alerts.length ? ` · ${alerts.join(' · ')}` : ''
+        }`;
+
+  const balancePrefix = metrics.balance > 0 ? '+' : '';
+  const pillLabel = overCommit
+    ? `${-metrics.balance} SP over`
+    : `${balancePrefix}${metrics.balance} SP free`;
 
   return (
     <article
       data-testid={`portfolio-pod-section-${pod.id}`}
       data-overcommitted={overCommit ? 'true' : 'false'}
       style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
         background: color.white,
         border: `1px solid ${overCommit ? color.bordeauxI : color.neutral200}`,
-        borderRadius: radius.md,
-        overflow: 'hidden',
+        borderRadius: radius.xl,
+        padding: 20,
         boxShadow: shadow.xs,
+        minWidth: 0,
       }}
     >
-      {/* Header row */}
+      {/* Header: crew + name | balance pill */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: GRID_TEMPLATE,
-          padding: '18px 24px',
-          background: color.neutral50,
-          borderBottom: `1px solid ${color.neutral200}`,
-          alignItems: 'center',
-          gap: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 10,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-          <div style={{ minWidth: 0, overflow: 'hidden' }}>
-            <div
-              data-testid={`portfolio-pod-crew-${pod.id}`}
-              style={{
-                fontSize: '0.6875rem',
-                color: color.grayIII,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                marginBottom: 2,
-              }}
-            >
-              {crew.name}
-            </div>
-            <h3
-              data-testid={`portfolio-pod-name-${pod.id}`}
-              style={{
-                fontSize: fontSize.base,
-                fontWeight: fontWeight.medium,
-                color: color.black,
-                margin: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {pod.name}
-            </h3>
+        <div style={{ minWidth: 0 }}>
+          <div
+            data-testid={`portfolio-pod-crew-${pod.id}`}
+            style={{
+              fontSize: '0.6875rem',
+              color: color.grayIII,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              marginBottom: 2,
+            }}
+          >
+            {crew.name}
           </div>
+          <h3
+            data-testid={`portfolio-pod-name-${pod.id}`}
+            style={{
+              fontSize: fontSize.base,
+              fontWeight: fontWeight.medium,
+              color: color.black,
+              margin: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {pod.name}
+          </h3>
         </div>
-
-        <div
-          data-testid={`portfolio-pod-capacity-${pod.id}`}
+        <span
+          data-testid={`portfolio-pod-balance-${pod.id}`}
+          data-overcommitted={overCommit ? 'true' : 'false'}
           style={{
-            textAlign: 'right',
-            fontFamily: font.mono,
-            fontSize: fontSize.sm,
-            fontWeight: fontWeight.medium,
-            color: color.grayV,
+            flexShrink: 0,
+            padding: '4px 10px',
+            borderRadius: radius.full,
+            fontSize: fontSize.xs,
+            fontWeight: fontWeight.semibold,
+            whiteSpace: 'nowrap',
+            background: overCommit ? color.semanticRedBg : color.semanticGreenBg,
+            color: overCommit ? color.red : color.semanticGreenText,
           }}
         >
-          {metrics.totalCapacity} SP
-        </div>
+          {pillLabel}
+        </span>
+      </div>
 
-        <div
-          data-testid={`portfolio-pod-frameload-${pod.id}`}
-          style={{
-            textAlign: 'right',
-            fontFamily: font.mono,
-            fontSize: fontSize.sm,
-            fontWeight: fontWeight.medium,
-            color: overCommit ? color.red : color.grayV,
-          }}
+      {/* Metrics */}
+      <div style={{ display: 'flex', gap: 24 }}>
+        <CardMetric label="Capacity" testid={`portfolio-pod-capacity-${pod.id}`}>
+          {metrics.totalCapacity} SP
+        </CardMetric>
+        <CardMetric
+          label="FRAME load"
+          testid={`portfolio-pod-frameload-${pod.id}`}
+          valueColor={overCommit ? color.red : color.black}
         >
           {metrics.frameLoad} SP
-        </div>
+        </CardMetric>
+        <CardMetric label="Confidence" testid={`portfolio-pod-confidence-${pod.id}`}>
+          {total === 0 ? '—' : `${confidencePct}%`}
+        </CardMetric>
+      </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div
-            data-testid={`portfolio-pod-loadbar-${pod.id}`}
-            style={{
-              width: 80,
-              height: 6,
-              background: color.neutral200,
-              borderRadius: 3,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              data-testid={`portfolio-pod-loadbar-fill-${pod.id}`}
-              style={{
-                height: '100%',
-                width: `${loadPct}%`,
-                background: overCommit ? color.red : color.bordeauxI,
-                transition: 'width 0.3s ease',
-              }}
-            />
-          </div>
+      {/* Load bar */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: fontSize.xs }}>
+          <span style={{ color: color.grayV, fontWeight: fontWeight.medium }}>Load</span>
           <span
-            data-testid={`portfolio-pod-confidence-${pod.id}`}
             style={{
-              fontSize: fontSize.xs,
               fontFamily: font.mono,
               fontWeight: fontWeight.medium,
-              color: color.grayIII,
+              color: overCommit ? color.red : color.grayV,
             }}
           >
-            {pod.epics.length === 0 ? '—' : `${confidencePct}%`}
+            {loadPct}%
           </span>
         </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            data-testid={`portfolio-pod-open-${pod.id}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelectPod(pod.id);
-            }}
-            aria-label={`Open ${pod.name}`}
+        <div
+          data-testid={`portfolio-pod-loadbar-${pod.id}`}
+          style={{
+            height: 8,
+            background: color.neutral200,
+            borderRadius: radius.full,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            data-testid={`portfolio-pod-loadbar-fill-${pod.id}`}
             style={{
-              background: color.white,
-              border: `1px solid ${color.neutral200}`,
-              borderRadius: radius.sm,
-              padding: '6px 12px',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: fontSize.sm,
-              fontWeight: fontWeight.medium,
-              color: color.red,
-              transition: transition.fast,
-              fontFamily: font.sans,
+              width: `${loadPct}%`,
+              height: '100%',
+              background: overCommit ? cssVar.destructive : color.red,
+              transition: 'width 0.3s ease',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = color.semanticRedBg;
-              e.currentTarget.style.borderColor = color.red;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = color.white;
-              e.currentTarget.style.borderColor = color.neutral200;
-            }}
-          >
-            Open
-            <ArrowRight size={14} weight="bold" aria-hidden="true" />
-          </button>
+          />
         </div>
       </div>
 
-      {/* Epic rows — always rendered (no collapse) */}
-      {visibleEpics.length === 0 ? (
+      {/* Variance distribution + summary chips */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div
-          data-testid={`portfolio-pod-empty-${pod.id}`}
+          data-testid={`portfolio-pod-distribution-${pod.id}`}
+          role="img"
+          aria-label={`Variance distribution — ${chips}`}
           style={{
-            padding: '20px 24px 20px 24px',
-            fontSize: fontSize.xs,
-            color: color.grayIII,
-            fontStyle: 'italic',
+            display: 'flex',
+            height: 10,
+            background: color.neutral200,
+            borderRadius: radius.full,
+            overflow: 'hidden',
           }}
         >
-          {reGroomOnlyFilter && pod.epics.length > 0
-            ? 'No epics in this pod need re-grooming.'
-            : 'No epics loaded yet.'}
+          {segments.map((b) => (
+            <div
+              key={b}
+              data-band={b}
+              style={{ flexGrow: counts[b], background: SEG_COLOR[b] }}
+            />
+          ))}
         </div>
-      ) : (
-        visibleEpics.map((epic) => (
-          <EpicRowCondensed
-            key={epic.id}
-            epic={epic}
-            podId={pod.id}
-            onSelect={onSelectEpicInPod}
-          />
-        ))
-      )}
+        <div
+          data-testid={
+            total === 0 ? `portfolio-pod-empty-${pod.id}` : `portfolio-pod-chips-${pod.id}`
+          }
+          style={{
+            fontSize: fontSize.xs,
+            color: color.grayV,
+            fontStyle: total === 0 ? 'italic' : 'normal',
+          }}
+        >
+          {chips}
+        </div>
+      </div>
+
+      {/* Open → PodView (the full epic table lives there) */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto' }}>
+        <button
+          type="button"
+          data-testid={`portfolio-pod-open-${pod.id}`}
+          onClick={() => onSelectPod(pod.id)}
+          aria-label={`Open ${pod.name}`}
+          style={{
+            background: color.white,
+            border: `1px solid ${color.neutral200}`,
+            borderRadius: radius.sm,
+            padding: '6px 12px',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: fontSize.sm,
+            fontWeight: fontWeight.medium,
+            color: color.red,
+            transition: transition.fast,
+            fontFamily: font.sans,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = color.semanticRedBg;
+            e.currentTarget.style.borderColor = color.red;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = color.white;
+            e.currentTarget.style.borderColor = color.neutral200;
+          }}
+        >
+          Open
+          <ArrowRight size={14} weight="bold" aria-hidden="true" />
+        </button>
+      </div>
     </article>
   );
 }
 
-function EpicRowCondensed({
-  epic,
-  podId,
-  onSelect,
+function CardMetric({
+  label,
+  testid,
+  valueColor = color.black,
+  children,
 }: {
-  epic: Epic;
-  podId: string;
-  onSelect?: (podId: string, epicId: string) => void;
+  label: string;
+  testid: string;
+  valueColor?: string;
+  children: React.ReactNode;
 }) {
-  const variance = computeVariance(epic);
-  const delta = computeDelta(epic);
-  const frame = epic.frameResult?.frameEstimate ?? null;
-  const deltaColor =
-    delta === null
-      ? color.grayIII
-      : delta > 0
-        ? color.red
-        : delta < 0
-          ? color.semanticGreenText
-          : color.grayV;
-  const deltaLabel = delta === null ? '—' : delta > 0 ? `+${delta}` : String(delta);
-  const handleClick = onSelect ? () => onSelect(podId, epic.id) : undefined;
-  const handleKey: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
-    if (!onSelect) return;
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onSelect(podId, epic.id);
-    }
-  };
-
   return (
-    <div
-      role={onSelect ? 'button' : undefined}
-      tabIndex={onSelect ? 0 : undefined}
-      data-testid={`portfolio-epic-row-${epic.id}`}
-      data-variance={variance}
-      onClick={handleClick}
-      onKeyDown={onSelect ? handleKey : undefined}
-      onMouseEnter={(e) => {
-        if (onSelect) e.currentTarget.style.background = color.neutral50;
-      }}
-      onMouseLeave={(e) => {
-        if (onSelect) e.currentTarget.style.background = 'transparent';
-      }}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: GRID_TEMPLATE,
-        padding: '12px 24px 12px 52px',
-        borderBottom: `1px solid ${color.neutral200}`,
-        alignItems: 'center',
-        cursor: onSelect ? 'pointer' : 'default',
-        transition: 'background 0.12s ease',
-        gap: 12,
-      }}
-    >
-      <div style={{ minWidth: 0, overflow: 'hidden' }}>
-        <div
-          data-testid={`portfolio-epic-title-${epic.id}`}
-          style={{
-            fontSize: fontSize.sm,
-            color: color.black,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {epic.title}
-        </div>
-        <div
-          style={{
-            fontSize: '0.6875rem',
-            color: color.grayIII,
-            fontFamily: font.mono,
-          }}
-        >
-          !{epic.iid}
-        </div>
-      </div>
-      <div
-        data-testid={`portfolio-epic-human-${epic.id}`}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+      <span
         style={{
-          textAlign: 'right',
-          fontFamily: font.mono,
-          fontSize: fontSize.sm,
-          color: color.grayV,
+          fontSize: '0.625rem',
+          fontWeight: fontWeight.semibold,
+          color: color.grayIII,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
         }}
       >
-        {epic.humanEstimate ?? '—'}
-      </div>
-      <div
-        data-testid={`portfolio-epic-frame-${epic.id}`}
+        {label}
+      </span>
+      <span
+        data-testid={testid}
         style={{
-          textAlign: 'right',
-          fontFamily: font.mono,
-          fontSize: fontSize.sm,
+          fontSize: fontSize.base,
           fontWeight: fontWeight.medium,
-          color: color.black,
-        }}
-      >
-        {frame ?? '—'}
-      </div>
-      <div
-        data-testid={`portfolio-epic-delta-${epic.id}`}
-        style={{
-          textAlign: 'center',
           fontFamily: font.mono,
-          fontSize: fontSize.sm,
-          fontWeight: fontWeight.medium,
-          color: deltaColor,
+          color: valueColor,
         }}
       >
-        {deltaLabel}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <VarianceBadge variance={variance} />
-      </div>
+        {children}
+      </span>
     </div>
   );
 }

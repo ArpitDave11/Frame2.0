@@ -72,7 +72,7 @@ describe('BrpView routing', () => {
     expect(screen.getByTestId('portfolio-view')).toBeTruthy();
   });
 
-  it('switches to PodView when the Open button on a pod section is clicked', () => {
+  it('switches to PodView when the Open button on a pod card is clicked', () => {
     seedCrews([makeCrew('1', 'Alpha', [makePod('p1', 'Pod A', [makeEpic('1', 'p1')])])]);
     render(<BrpView />);
     fireEvent.click(screen.getByTestId('portfolio-pod-open-p1'));
@@ -97,14 +97,6 @@ describe('BrpView routing', () => {
     fireEvent.click(screen.getByTestId('pod-view-back'));
     expect(useBrpStore.getState().selectedPodId).toBeNull();
     expect(screen.getByTestId('brp-view').getAttribute('data-mode')).toBe('portfolio');
-  });
-
-  it('clicking a portfolio epic row jumps to PodView with that epic selected', () => {
-    seedCrews([makeCrew('1', 'Alpha', [makePod('p1', 'Pod A', [makeEpic('e1', 'p1')])])]);
-    render(<BrpView />);
-    fireEvent.click(screen.getByTestId('portfolio-epic-row-e1'));
-    expect(useBrpStore.getState().selectedPodId).toBe('p1');
-    expect(useBrpStore.getState().selectedEpicId).toBe('e1');
   });
 });
 

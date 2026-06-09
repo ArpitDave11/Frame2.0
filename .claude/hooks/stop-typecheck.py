@@ -12,6 +12,7 @@ would infinite-loop the Stop hook.
 
 Kit reference: docs/runbooks/kit-hardening-v1.md
 """
+
 import json
 import subprocess
 import sys
@@ -37,7 +38,9 @@ def main() -> int:
     try:
         status = subprocess.run(
             ["git", "-C", str(proj), "status", "--porcelain"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         changed = status.stdout
     except Exception:
@@ -62,7 +65,10 @@ def main() -> int:
     try:
         r = subprocess.run(
             ["npx", "--no", "tsc", "-b", "--noEmit"],
-            capture_output=True, text=True, timeout=90, cwd=str(proj),
+            capture_output=True,
+            text=True,
+            timeout=90,
+            cwd=str(proj),
         )
     except subprocess.TimeoutExpired:
         return 0  # Toolchain issue, don't block on infrastructure.
@@ -74,21 +80,26 @@ def main() -> int:
 
     # Block the stop. stderr becomes Claude's feedback.
     tail = (r.stdout + r.stderr)[-1800:]
-    print(json.dumps({
-        "decision": "block",
-        "reason": (
-            "TypeScript typecheck is failing on DocMining-scoped files. "
-            "Fix before stopping. Last output:\n\n"
-            f"{tail}\n\n"
-            "To override (human-only): set KIT_SKIP_STOP_TYPECHECK=1 and retry."
-        ),
-    }))
+    print(
+        json.dumps(
+            {
+                "decision": "block",
+                "reason": (
+                    "TypeScript typecheck is failing on DocMining-scoped files. "
+                    "Fix before stopping. Last output:\n\n"
+                    f"{tail}\n\n"
+                    "To override (human-only): set KIT_SKIP_STOP_TYPECHECK=1 and retry."
+                ),
+            }
+        )
+    )
     return 0
 
 
 if __name__ == "__main__":
     # Human override (TTY + env var).
     import os
+
     if os.environ.get("KIT_SKIP_STOP_TYPECHECK") == "1" and sys.stdin.isatty():
         sys.exit(0)
     sys.exit(main())

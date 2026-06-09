@@ -177,7 +177,10 @@ export const radius = {
 // UBS brand: Frutiger family. Fallback chain per theme instructions.
 
 export const font = {
-  sans: "Frutiger, Arial, Helvetica, sans-serif",
+  // Exact chain mandated by UBS_Theme_Instructions.docx §1 — never
+  // substitute or reorder. Frutiger first, then Arial → Helvetica →
+  // system sans-serif as graceful fallbacks.
+  sans: 'Frutiger, Arial, Helvetica, sans-serif',
   mono: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
 } as const;
 

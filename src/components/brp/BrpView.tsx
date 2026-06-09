@@ -171,6 +171,26 @@ export function BrpView() {
     }
   };
 
+  // ─── Portfolio-level analysis (reference UI parity) ─────────
+  // Runs analysis sequentially across every pod in the selected crew.
+  const [portfolioAnalysisRunning, setPortfolioAnalysisRunning] = useState(false);
+
+  const handlePortfolioAnalysis = async () => {
+    const targetCrews = selectedCrewId
+      ? crews.filter((c) => c.id === selectedCrewId)
+      : crews;
+    const allPods = targetCrews.flatMap((c) => c.pods);
+    if (allPods.length === 0) return;
+    setPortfolioAnalysisRunning(true);
+    try {
+      for (const p of allPods) {
+        await runAnalysisForPodAction(p.id);
+      }
+    } finally {
+      setPortfolioAnalysisRunning(false);
+    }
+  };
+
   // ─── AI-assist (B-34) ──────────────────────────────────────
   // Duplicate detection runs per-pod whenever the pod's epics list
   // changes. The result is a Set<string> the EpicRow can use to flag
@@ -257,6 +277,8 @@ export function BrpView() {
           reGroomOnlyFilter={reGroomOnlyFilter}
           onToggleReGroomFilter={() => setReGroomOnlyFilter(!reGroomOnlyFilter)}
           piName={currentPI?.name ?? null}
+          onRunAnalysis={handlePortfolioAnalysis}
+          analysisRunning={portfolioAnalysisRunning}
           onLoadCrews={handleLoadCrews}
           onLoadPods={handleLoadPods}
           loadCrewsState={loadCrewsState}

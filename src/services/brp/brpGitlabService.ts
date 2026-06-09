@@ -37,6 +37,7 @@ import type {
 import {
   fetchGitLabSubgroups,
   fetchGroupEpics,
+  fetchGroupMetadata,
 } from '../gitlab/gitlabClient';
 import type {
   CapacityInputs,
@@ -230,9 +231,16 @@ function gitlabEpicToReference(e: GitLabEpic): ReferenceEpic {
 // ─── Public API ─────────────────────────────────────────────
 
 /**
- * Fetch the top-level crews available to the planner: the subgroups
- * directly under `config.rootGroupId`. Each crew comes back with empty
- * `pods` — call `fetchPods(crewGroupId)` to populate.
+ * Fetch the crews for the BRP portfolio.
+ *
+ * BRP anchors the portfolio one level ABOVE the configured group: the
+ * Settings `rootGroupId` (used as-is by the Requirement model) is itself
+ * a crew, so its PARENT is the group that contains every crew. We resolve
+ * that parent via the group metadata's `parent_id`, then return the
+ * parent's subgroups as crews. Falls back to `rootGroupId` itself when
+ * there is no parent (already top-level) or the metadata lookup fails, so
+ * BRP never hard-breaks. Each crew comes back with empty `pods` — call
+ * `fetchPods(crewGroupId)` to populate.
  *
  * Returns an error result (not a throw) when:
  *   - rootGroupId is empty
@@ -245,7 +253,19 @@ export async function fetchCrews(config: GitLabConfig): Promise<Result<Crew[]>> 
       error: { code: 'unknown', message: 'GitLab rootGroupId is not configured' },
     };
   }
-  const result = await fetchGitLabSubgroups(config, config.rootGroupId);
+  // BRP root = parent of the configured group (the configured group is a
+  // crew; its parent holds every crew). Fall back to rootGroupId when
+  // there is no parent or the lookup fails.
+  let brpRootId = config.rootGroupId;
+  try {
+    const meta = await fetchGroupMetadata(config, config.rootGroupId);
+    if (meta?.success && meta.data?.parent_id != null) {
+      brpRootId = String(meta.data.parent_id);
+    }
+  } catch {
+    // keep the configured rootGroupId as the fallback
+  }
+  const result = await fetchGitLabSubgroups(config, brpRootId);
   if (!result.success) {
     return toErrorResult(result.error, 'Failed to fetch crews');
   }

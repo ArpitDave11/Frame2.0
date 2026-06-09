@@ -18,7 +18,7 @@ import type { Crew, Epic, Pod } from '@/domain/brp';
 import { EpicRow } from './EpicRow';
 import { DetailPanel } from './DetailPanel';
 import { AnalysisProgress, type AnalysisFailure } from './AnalysisProgress';
-import { color, font, fontSize, fontWeight, radius, shadow, transition } from '@/theme/tokens';
+import { color, cssVar, font, fontSize, fontWeight, radius, shadow, transition } from '@/theme/tokens';
 
 export interface PodViewProps {
   pod: Pod;
@@ -111,7 +111,7 @@ export function PodView({
       {/* Header */}
       <header
         style={{
-          padding: '20px 28px',
+          padding: '20px 32px',
           borderBottom: `1px solid ${color.neutral200}`,
           display: 'flex',
           justifyContent: 'space-between',
@@ -137,6 +137,13 @@ export function PodView({
               gap: 6,
               fontSize: fontSize.xs,
               color: color.grayV,
+              transition: transition.fast,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = color.grayIII;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = color.neutral200;
             }}
           >
             <ArrowLeft size={12} weight="bold" aria-hidden="true" />
@@ -155,18 +162,18 @@ export function PodView({
               {crew.name}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h2
+              <h1
                 data-testid="pod-view-title"
                 style={{
                   margin: 0,
-                  fontSize: fontSize.lg,
-                  fontWeight: fontWeight.medium,
+                  fontSize: '22px',
+                  fontWeight: fontWeight.normal,
                   color: color.black,
-                  letterSpacing: '-0.2px',
+                  letterSpacing: '-0.3px',
                 }}
               >
                 {pod.name}
-              </h2>
+              </h1>
               {piName ? (
                 <span
                   data-testid="pod-view-pi-badge"
@@ -224,7 +231,7 @@ export function PodView({
         style={{
           display: 'flex',
           gap: 24,
-          padding: '12px 28px',
+          padding: '12px 32px',
           borderBottom: `1px solid ${color.neutral200}`,
           background: color.white,
           fontSize: fontSize.sm,
@@ -265,7 +272,7 @@ export function PodView({
       </div>
 
       {/* Analysis progress (only renders when active or completed) */}
-      <div style={{ padding: '12px 28px 0 28px' }}>
+      <div style={{ padding: '12px 32px 0 32px' }}>
         <AnalysisProgress
           completed={analysisCompleted}
           total={analysisTotal}
@@ -289,7 +296,7 @@ export function PodView({
             flexDirection: 'column',
           }}
         >
-          <div style={{ padding: 28, flex: 1, minHeight: 0 }}>
+          <div style={{ padding: '24px 32px', flex: 1, minHeight: 0 }}>
           {pod.epics.length === 0 ? (
             <div
               data-testid="pod-view-empty-epics"
@@ -586,7 +593,7 @@ function CapacityBreakdown({
             style={{
               width: `${loadPct}%`,
               height: '100%',
-              background: overCommit ? color.red : color.bordeauxI,
+              background: overCommit ? cssVar.destructive : color.red,
               transition: 'width 0.3s ease',
             }}
           />

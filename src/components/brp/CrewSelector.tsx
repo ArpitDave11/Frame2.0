@@ -6,7 +6,6 @@
  * the planner should run the Load action first.
  */
 
-import { CaretDown } from '@phosphor-icons/react';
 import type { Crew } from '@/domain/brp';
 import { color, font, fontSize, fontWeight, radius } from '@/theme/tokens';
 
@@ -27,65 +26,43 @@ export function CrewSelector({
   const effectiveDisabled = disabled || empty;
 
   return (
-    <label
+    <span
       data-testid="crew-selector"
       style={{
+        position: 'relative',
         display: 'inline-flex',
-        flexDirection: 'column',
-        gap: 4,
+        alignItems: 'center',
         fontFamily: font.sans,
-        fontSize: fontSize.xs,
-        color: color.grayV,
       }}
     >
-      <span style={{ fontWeight: fontWeight.medium }}>Crew</span>
-      <span
+      <select
+        data-testid="crew-selector-select"
+        aria-label="Crew"
+        value={selectedCrewId ?? ''}
+        disabled={effectiveDisabled}
+        onChange={(e) => onSelect(e.target.value === '' ? null : e.target.value)}
         style={{
-          position: 'relative',
-          display: 'inline-flex',
-          alignItems: 'center',
+          padding: '6px 12px',
+          border: `1px solid ${color.neutral200}`,
+          borderRadius: radius.sm,
+          fontSize: fontSize.sm,
+          fontWeight: fontWeight.normal,
+          background: color.white,
+          color: color.black,
+          cursor: effectiveDisabled ? 'not-allowed' : 'pointer',
+          opacity: effectiveDisabled ? 0.5 : 1,
+          fontFamily: font.sans,
         }}
       >
-        <select
-          data-testid="crew-selector-select"
-          value={selectedCrewId ?? ''}
-          disabled={effectiveDisabled}
-          onChange={(e) => onSelect(e.target.value === '' ? null : e.target.value)}
-          style={{
-            appearance: 'none',
-            background: color.white,
-            border: `1px solid ${color.neutral200}`,
-            borderRadius: radius.sm,
-            padding: '8px 32px 8px 12px',
-            fontFamily: font.sans,
-            fontSize: fontSize.sm,
-            color: color.black,
-            minWidth: 220,
-            cursor: effectiveDisabled ? 'not-allowed' : 'pointer',
-            opacity: effectiveDisabled ? 0.5 : 1,
-          }}
-        >
-          <option value="">
-            {empty ? 'No crews loaded' : 'Select a crew…'}
+        <option value="">
+          {empty ? 'No crews loaded' : 'Select a crew…'}
+        </option>
+        {crews.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
           </option>
-          {crews.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <CaretDown
-          size={14}
-          weight="bold"
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            right: 10,
-            color: color.grayIII,
-            pointerEvents: 'none',
-          }}
-        />
-      </span>
-    </label>
+        ))}
+      </select>
+    </span>
   );
 }

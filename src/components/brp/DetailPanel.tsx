@@ -19,7 +19,7 @@
 import { X } from '@phosphor-icons/react';
 import { computeVariance } from '@/domain/brp';
 import type { Epic } from '@/domain/brp';
-import { color, font, fontSize, fontWeight, radius } from '@/theme/tokens';
+import { color, font, fontSize, fontWeight, radius, transition } from '@/theme/tokens';
 
 /**
  * B-32 I4: only http(s) URLs are safe targets for the GitLab link.
@@ -103,7 +103,7 @@ export function DetailPanel({
           <h2
             data-testid="detail-panel-title"
             style={{
-              fontSize: fontSize.base,
+              fontSize: '17px',
               fontWeight: fontWeight.medium,
               color: color.black,
               margin: '0 0 6px 0',
@@ -353,6 +353,16 @@ export function DetailPanel({
                 fontSize: fontSize.sm,
                 fontWeight: fontWeight.medium,
                 cursor: 'pointer',
+                transition: transition.fast,
+                boxShadow: '0 2px 4px rgba(230, 0, 0, 0.15)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 3px 6px rgba(230, 0, 0, 0.25)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(230, 0, 0, 0.15)';
+                e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
               Send to detailed grooming

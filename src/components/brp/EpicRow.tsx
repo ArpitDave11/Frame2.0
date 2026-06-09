@@ -111,7 +111,7 @@ export function EpicRow({
       : delta > 0
         ? color.red
         : delta < 0
-          ? color.grayV
+          ? color.semanticGreenText
           : color.black;
 
   const deltaLabel =

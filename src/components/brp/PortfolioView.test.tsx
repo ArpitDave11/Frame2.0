@@ -1,9 +1,10 @@
 /**
- * PortfolioView tests — post-quality-remediation Phase 2.
+ * PortfolioView tests — card-grid view.
  *
- * Pinned shape: vertical list of always-expanded pod sections.
- * Each section renders a header row + a list of EpicRowCondensed
- * elements. The previous PodCard grid is gone — testids changed.
+ * Pinned shape: a responsive grid of pod cards. Each card summarises a
+ * pod (metrics + a variance distribution bar + count chips) and drills
+ * into PodView via Open. Individual epics are no longer listed in the
+ * portfolio — that detail lives in PodView.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -56,7 +57,7 @@ const crew = (id: string, name: string, pods: Pod[] = []): Crew => ({
   pods,
 });
 
-describe('PortfolioView (Phase 2 remediation)', () => {
+describe('PortfolioView (card grid)', () => {
   it('renders the empty-crews state when there are no crews', () => {
     render(
       <PortfolioView
@@ -81,7 +82,7 @@ describe('PortfolioView (Phase 2 remediation)', () => {
     expect(screen.getByTestId('portfolio-view-empty-pods')).toBeTruthy();
   });
 
-  it('renders one pod section per pod across crews when no filter', () => {
+  it('renders one pod card per pod across crews when no filter', () => {
     render(
       <PortfolioView
         crews={[
@@ -144,7 +145,7 @@ describe('PortfolioView (Phase 2 remediation)', () => {
     expect(onSelectCrew).toHaveBeenCalledWith('2');
   });
 
-  it('pod header shows capacity + FRAME load + confidence from computePodMetrics', () => {
+  it('pod card shows capacity + FRAME load + confidence from computePodMetrics', () => {
     // 5×10×6 = 300 gross; 2×5 = 10 holiday; 4 leave; total = 286.
     // Two agree epics (human=5,frame=5) → frameLoad=10; conf 0.8 → 80%.
     const e1 = epic('1', { humanEstimate: 5, frameResult: frameResult(5, 0.8) });
@@ -162,7 +163,7 @@ describe('PortfolioView (Phase 2 remediation)', () => {
     expect(screen.getByTestId('portfolio-pod-confidence-p1').textContent).toBe('80%');
   });
 
-  it('pod section flips to over-committed styling when balance is negative', () => {
+  it('pod card flips to over-committed styling when balance is negative', () => {
     const epics = Array.from({ length: 6 }, (_, i) =>
       epic(String(i + 1), { humanEstimate: 13, frameResult: frameResult(89) }),
     );
@@ -178,7 +179,7 @@ describe('PortfolioView (Phase 2 remediation)', () => {
     expect(section.getAttribute('data-overcommitted')).toBe('true');
   });
 
-  it('always renders epic rows (no collapse) when pod has epics', () => {
+  it('summarises epics as a variance distribution + count chips (no inline rows)', () => {
     const e1 = epic('row-1', { humanEstimate: 5, frameResult: frameResult(5) });
     const e2 = epic('row-2', { humanEstimate: 3, frameResult: frameResult(8) });
     render(
@@ -189,42 +190,25 @@ describe('PortfolioView (Phase 2 remediation)', () => {
         onSelectPod={() => {}}
       />,
     );
-    expect(screen.getByTestId('portfolio-epic-row-row-1')).toBeTruthy();
-    expect(screen.getByTestId('portfolio-epic-row-row-2')).toBeTruthy();
+    // Epics are summarised on the card — no inline rows in the portfolio.
+    expect(screen.queryByTestId('portfolio-epic-row-row-1')).toBeNull();
+    expect(screen.getByTestId('portfolio-pod-distribution-p1')).toBeTruthy();
+    expect(screen.getByTestId('portfolio-pod-chips-p1').textContent).toContain('2 epics');
   });
 
-  it('epic row click calls onSelectEpicInPod with (podId, epicId)', () => {
-    const onSelectEpicInPod = vi.fn();
-    const e1 = epic('e1', { humanEstimate: 5, frameResult: frameResult(5) });
+  it('shows a balance pill (free vs over) on each card', () => {
+    const ok = epic('ok', { humanEstimate: 5, frameResult: frameResult(5) });
     render(
       <PortfolioView
-        crews={[crew('1', 'Alpha', [pod('p1', 'Pod A', [e1])])]}
-        crewFilterId={null}
-        onSelectCrew={() => {}}
-        onSelectPod={() => {}}
-        onSelectEpicInPod={onSelectEpicInPod}
-      />,
-    );
-    fireEvent.click(screen.getByTestId('portfolio-epic-row-e1'));
-    expect(onSelectEpicInPod).toHaveBeenCalledWith('p1', 'e1');
-  });
-
-  it('epic row shows human, frame, delta, and a VarianceBadge', () => {
-    // human=5, frame=8 → delta=+3 → caution band.
-    const e = epic('eA', { humanEstimate: 5, frameResult: frameResult(8, 0.8) });
-    render(
-      <PortfolioView
-        crews={[crew('1', 'Alpha', [pod('p1', 'Pod A', [e])])]}
+        crews={[crew('1', 'Alpha', [pod('p1', 'Pod A', [ok])])]}
         crewFilterId={null}
         onSelectCrew={() => {}}
         onSelectPod={() => {}}
       />,
     );
-    expect(screen.getByTestId('portfolio-epic-human-eA').textContent).toBe('5');
-    expect(screen.getByTestId('portfolio-epic-frame-eA').textContent).toBe('8');
-    expect(screen.getByTestId('portfolio-epic-delta-eA').textContent).toBe('+3');
-    expect(screen.getByTestId('portfolio-epic-row-eA').getAttribute('data-variance')).toBe('caution');
-    expect(screen.getByTestId('variance-badge')).toBeTruthy();
+    const pill = screen.getByTestId('portfolio-pod-balance-p1');
+    expect(pill.getAttribute('data-overcommitted')).toBe('false');
+    expect(pill.textContent).toMatch(/free/i);
   });
 
   it('pod with no epics shows a "no epics loaded yet" placeholder', () => {
@@ -293,9 +277,6 @@ describe('PortfolioView — re-groom filter (Phase 3)', () => {
     );
     expect(screen.getByTestId('portfolio-pod-section-p1')).toBeTruthy();
     expect(screen.queryByTestId('portfolio-pod-section-p2')).toBeNull();
-    // Only the re-groom epic visible inside p1.
-    expect(screen.getByTestId('portfolio-epic-row-rg')).toBeTruthy();
-    expect(screen.queryByTestId('portfolio-epic-row-ok')).toBeNull();
   });
 
   it('shows the celebratory empty-state when filter is on AND no re-groom epics anywhere', () => {
