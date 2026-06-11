@@ -59,6 +59,13 @@ export interface GitLabIssue {
   time_stats?: { time_estimate: number; total_time_spent: number } | null;
   user_notes_count?: number;
   weight?: number | null;
+  iteration?: {
+    id: number;
+    iid: number;
+    title: string | null;
+    start_date?: string | null;
+    due_date?: string | null;
+  } | null;
   epic?: {
     id: number;
     iid: number;
@@ -132,6 +139,8 @@ export interface GitLabProject {
   name: string;
   path_with_namespace: string;
   web_url: string;
+  /** GitLab returns this; false means the project can't hold issues. */
+  issues_enabled?: boolean;
 }
 
 export interface GitLabProjectListResult {
@@ -252,4 +261,8 @@ export interface UpdateIssuePayload {
   description?: string;
   title?: string;
   labels?: string[];
+  /** Story-point weight (GitLab issue weight). null clears it. */
+  weight?: number | null;
+  /** Replace the issue's assignees. [] unassigns. */
+  assigneeIds?: number[];
 }

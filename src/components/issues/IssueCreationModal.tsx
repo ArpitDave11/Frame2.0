@@ -13,7 +13,8 @@ import { parseUserStories } from '@/pipeline/utils/parseUserStories';
 import { analyzeStoryDuplicates } from '@/services/ai/analyzeStoryDuplicates';
 import { createIssuesAction } from '@/actions/createIssuesAction';
 import { fetchIssuesAction } from '@/actions/fetchIssuesAction';
-import { fetchGroupProjects, fetchLabelsWithSearch } from '@/services/gitlab/gitlabClient';
+import { fetchLabelsWithSearch } from '@/services/gitlab/gitlabClient';
+import { resolveHomeProject } from '@/services/gitlab/resolveHomeProject';
 import type { GitLabProject, GitLabLabel } from '@/services/gitlab/types';
 import type { ParsedUserStory } from '@/pipeline/utils/parseUserStories';
 import type { DuplicateAnalysis } from '@/services/ai/analyzeStoryDuplicates';
@@ -74,20 +75,24 @@ export function IssueCreationModal() {
     let cancelled = false;
     setLoadingProjects(true);
 
-    fetchGroupProjects(cfg.gitlab, loadedGroupId).then((result) => {
+    // Descend into subgroups (incl. `commons`) and default to the team's
+    // canonical "home" project, so user stories save to <group>/commons/home
+    // without the user hunting for a nested project.
+    resolveHomeProject(cfg.gitlab, loadedGroupId).then((result) => {
       if (cancelled) return;
       setLoadingProjects(false);
-      if (result.success && result.data) {
-        setProjects(result.data);
-        // Auto-select if only 1 project
-        if (result.data.length === 1) {
-          setProjectId(String(result.data[0]!.id));
+      if (result.success) {
+        setProjects(result.projects);
+        if (result.home) {
+          setProjectId(String(result.home.id));
+        } else if (result.projects.length === 1) {
+          setProjectId(String(result.projects[0]!.id));
         }
       }
     }).catch((err) => {
       if (!cancelled) {
         setLoadingProjects(false);
-        console.error('[IssueCreationModal] fetchGroupProjects failed:', err);
+        console.error('[IssueCreationModal] resolveHomeProject failed:', err);
       }
     });
 

@@ -259,8 +259,13 @@ export async function fetchGroupLabels(
 export async function fetchGroupProjects(
   config: GitLabConfig,
   groupId: string,
+  opts: { includeSubgroups?: boolean } = {},
 ): Promise<{ success: boolean; data?: GitLabProject[]; error?: string }> {
-  const result = await gitlabGet<GitLabProject[]>(config, `/groups/${groupId}/projects?per_page=100&include_subgroups=false`);
+  // Default stays direct-children-only (legacy behaviour). Pass includeSubgroups
+  // to descend into nested subgroups — needed to reach a `<group>/commons/home`
+  // project, which is two levels down from the pod group. See resolveHomeProject.
+  const includeSubgroups = opts.includeSubgroups ? 'true' : 'false';
+  const result = await gitlabGet<GitLabProject[]>(config, `/groups/${groupId}/projects?per_page=100&include_subgroups=${includeSubgroups}`);
   if (!result.ok) return { success: false, error: result.error };
   return { success: true, data: result.data };
 }
@@ -316,6 +321,8 @@ export async function updateIssue(
   if (payload.description !== undefined) body.description = payload.description;
   if (payload.title !== undefined) body.title = payload.title;
   if (payload.labels !== undefined) body.labels = payload.labels.join(',');
+  if (payload.weight !== undefined) body.weight = payload.weight;
+  if (payload.assigneeIds !== undefined) body.assignee_ids = payload.assigneeIds;
 
   const encodedProjectId = encodeURIComponent(String(projectId));
   const result = await gitlabPut<GitLabIssue>(config, `/projects/${encodedProjectId}/issues/${issueIid}`, body);
