@@ -12,6 +12,7 @@ import { BlueprintView as BlueprintViewComponent } from '@/components/blueprint/
 import { AnalyticsPanel } from '@/components/views/AnalyticsPanel';
 import { IssueManagerView } from '@/components/issues/IssueManagerView';
 import { WorkspaceHeader } from '@/components/editor/WorkspaceHeader';
+import { RefineReviewBar } from '@/components/editor/RefineReviewBar';
 import { SplitPane } from '@/components/layout/SplitPane';
 import { EditorPane } from '@/components/editor/EditorPane';
 import { PreviewPane } from '@/components/editor/PreviewPane';
@@ -30,6 +31,7 @@ function PlannerView() {
       style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}
     >
       <WorkspaceHeader />
+      <RefineReviewBar />
       <SplitPane
         left={<EditorPane />}
         right={<PreviewPane />}

@@ -32,19 +32,19 @@ export interface PipelineResult {
 interface StageEntry {
   status: StageStatus;
   message: string;
+  /** Start of the latest pass over this stage (iterative stages re-run 4→6). */
+  startedAt?: number | null;
+  finishedAt?: number | null;
 }
 
 type StageNumber = 1 | 2 | 3 | 4 | 5 | 6;
 
+function pendingStage(): StageEntry {
+  return { status: 'pending', message: '', startedAt: null, finishedAt: null };
+}
+
 function createPendingStages(): Record<StageNumber, StageEntry> {
-  return {
-    1: { status: 'pending', message: '' },
-    2: { status: 'pending', message: '' },
-    3: { status: 'pending', message: '' },
-    4: { status: 'pending', message: '' },
-    5: { status: 'pending', message: '' },
-    6: { status: 'pending', message: '' },
-  };
+  return { 1: pendingStage(), 2: pendingStage(), 3: pendingStage(), 4: pendingStage(), 5: pendingStage(), 6: pendingStage() };
 }
 
 // ─── State & Actions ────────────────────────────────────────
@@ -58,6 +58,10 @@ interface PipelineState {
   currentIteration: number;
   maxIterations: number;
   lastValidation: ValidationOutput | null;
+  /** Wall-clock start of the current run (drives the elapsed display). */
+  runStartedAt: number | null;
+  /** Human explanation of the current loop state, e.g. "Score 62 < 75 — re-refining (pass 2/3)". */
+  statusNote: string | null;
 }
 
 interface PipelineActions {
@@ -69,6 +73,7 @@ interface PipelineActions {
   setCurrentIteration: (n: number) => void;
   setMaxIterations: (n: number) => void;
   setLastValidation: (v: ValidationOutput | null) => void;
+  setStatusNote: (note: string | null) => void;
   reset: () => void;
 }
 
@@ -85,6 +90,8 @@ const INITIAL_STATE: PipelineState = {
   currentIteration: 0,
   maxIterations: 3,
   lastValidation: null,
+  runStartedAt: null,
+  statusNote: null,
 };
 
 // ─── Store ──────────────────────────────────────────────────
@@ -103,13 +110,23 @@ export const usePipelineStore = create<PipelineStore>()((set, get) => ({
       currentIteration: 0,
       maxIterations: 3,
       lastValidation: null,
+      runStartedAt: Date.now(),
+      statusNote: null,
     });
   },
 
   updateStage: (stage, status, message) => {
     const { stages } = get();
+    const prev = stages[stage];
+    const now = Date.now();
+    // A stage re-entering 'running' (iterative loop) restarts its pass timer
+    const startedAt =
+      status === 'running'
+        ? prev.status === 'running' ? (prev.startedAt ?? now) : now
+        : (prev.startedAt ?? now);
+    const finishedAt = status === 'complete' || status === 'error' ? now : null;
     set({
-      stages: { ...stages, [stage]: { status, message } },
+      stages: { ...stages, [stage]: { status, message, startedAt, finishedAt } },
     });
   },
 
@@ -136,6 +153,10 @@ export const usePipelineStore = create<PipelineStore>()((set, get) => ({
 
   setLastValidation: (v) => {
     set({ lastValidation: v });
+  },
+
+  setStatusNote: (note) => {
+    set({ statusNote: note });
   },
 
   reset: () => {

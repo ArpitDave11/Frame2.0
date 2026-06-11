@@ -46,4 +46,6 @@ export interface AIClientConfig {
   azure: AzureOpenAIConfig;
   openai: OpenAIConfig;
   endpoints: APIEndpoints;
+  /** Aborts in-flight AI requests (pipeline cancel). Rides with the config so stages need no changes. */
+  signal?: AbortSignal;
 }

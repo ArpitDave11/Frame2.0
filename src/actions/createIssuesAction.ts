@@ -3,24 +3,40 @@
  *
  * For each selected story:
  * 1. Generate AI issue description
- * 2. Create issue in GitLab project
- * 3. Link issue to the loaded epic
+ * 2. Create issue in GitLab project (weight/assignee defaults applied)
+ * 3. Link issue to the loaded epic — failures are recorded, not swallowed
+ * 4. Apply default iteration via quick-action note (best-effort, recorded)
  */
 
 import { useConfigStore } from '@/stores/configStore';
 import { useGitlabStore } from '@/stores/gitlabStore';
 import { useUiStore } from '@/stores/uiStore';
-import { createGitLabIssue, linkIssueToEpic } from '@/services/gitlab/gitlabClient';
+import { createGitLabIssue, linkIssueToEpic, addIssueNote } from '@/services/gitlab/gitlabClient';
 import { generateIssueDescription } from '@/services/ai/generateIssueDescription';
 import type { AIClientConfig } from '@/services/ai/types';
+import type { GitLabUser, GitLabIteration } from '@/services/gitlab/types';
 import type { ParsedUserStory } from '@/pipeline/utils/parseUserStories';
+
+export interface CreatedIssueRef {
+  iid: number;
+  title: string;
+  webUrl: string;
+}
 
 export interface CreationProgress {
   current: number;
   total: number;
   currentTitle: string;
   createdIds: string[];
+  createdIssues: CreatedIssueRef[];
   errors: string[];
+}
+
+/** Defaults applied to every created issue (weight only when a story has no points). */
+export interface IssueCreationDefaults {
+  weight: number | null;
+  assignee: GitLabUser | null;
+  iteration: GitLabIteration | null;
 }
 
 export async function createIssuesAction(
@@ -30,7 +46,8 @@ export async function createIssuesAction(
   projectId: string,
   onProgress?: (progress: CreationProgress) => void,
   extraLabels?: string[],
-): Promise<{ success: boolean; created: number; errors: string[] }> {
+  defaults?: IssueCreationDefaults,
+): Promise<{ success: boolean; created: number; createdIssues: CreatedIssueRef[]; errors: string[] }> {
   const cfg = useConfigStore.getState().config;
   const { loadedEpicIid, loadedGroupId } = useGitlabStore.getState();
   const addToast = useUiStore.getState().addToast;
@@ -47,6 +64,7 @@ export async function createIssuesAction(
     total: stories.length,
     currentTitle: '',
     createdIds: [],
+    createdIssues: [],
     errors: [],
   };
 
@@ -64,15 +82,43 @@ export async function createIssuesAction(
         title: story.id.startsWith('custom-') ? story.title : `${story.id}: ${story.title}`,
         description,
         labels: ['HALLMARK: FRAME', story.priority, ...(extraLabels ?? [])],
-        weight: story.storyPoints ?? undefined,
+        weight: story.storyPoints ?? defaults?.weight ?? undefined,
+        assigneeIds: defaults?.assignee ? [defaults.assignee.id] : undefined,
       });
 
       if (result.success && result.data) {
-        progress.createdIds.push(String(result.data.iid));
+        const iid = result.data.iid;
+        progress.createdIds.push(String(iid));
+        progress.createdIssues.push({
+          iid,
+          title: result.data.title ?? story.title,
+          webUrl: result.data.web_url ?? '',
+        });
 
-        // Link to epic if we have epic context
+        // Link to epic if we have epic context — a silent failure here used to
+        // leave orphan issues while the toast claimed full success
         if (loadedEpicIid && loadedGroupId) {
-          await linkIssueToEpic(cfg.gitlab, loadedGroupId, loadedEpicIid, result.data.id);
+          const link = await linkIssueToEpic(cfg.gitlab, loadedGroupId, loadedEpicIid, result.data.id);
+          if (!link.success) {
+            progress.errors.push(
+              `#${iid}: issue created but NOT linked to epic — ${link.error ?? 'unknown error'}`,
+            );
+          }
+        }
+
+        // Default iteration via quick-action note (no stable REST field)
+        if (defaults?.iteration) {
+          const note = await addIssueNote(
+            cfg.gitlab,
+            Number(projectId),
+            iid,
+            `/iteration *iteration:${defaults.iteration.id}`,
+          );
+          if (!note.success) {
+            progress.errors.push(
+              `#${iid}: created but iteration not set — ${note.error ?? 'unknown error'}`,
+            );
+          }
         }
       } else {
         progress.errors.push(`${story.id}: ${result.error ?? 'Unknown error'}`);
@@ -84,10 +130,18 @@ export async function createIssuesAction(
 
   onProgress?.({ ...progress });
 
-  if (progress.createdIds.length > 0) {
+  if (progress.createdIssues.length > 0) {
+    const first = progress.createdIssues[0]!;
     addToast({
       type: progress.errors.length > 0 ? 'warning' : 'success',
-      title: `Created ${progress.createdIds.length}/${stories.length} issues`,
+      title:
+        progress.errors.length > 0
+          ? `Created ${progress.createdIssues.length}/${stories.length} issues — ${progress.errors.length} problem(s), see details in the dialog`
+          : `Created ${progress.createdIssues.length}/${stories.length} issues`,
+      link:
+        progress.createdIssues.length === 1 && first.webUrl
+          ? { href: first.webUrl, label: `Open issue #${first.iid} in GitLab` }
+          : undefined,
     });
   } else {
     addToast({ type: 'error', title: 'Failed to create any issues' });
@@ -95,7 +149,8 @@ export async function createIssuesAction(
 
   return {
     success: progress.errors.length === 0,
-    created: progress.createdIds.length,
+    created: progress.createdIssues.length,
+    createdIssues: progress.createdIssues,
     errors: progress.errors,
   };
 }

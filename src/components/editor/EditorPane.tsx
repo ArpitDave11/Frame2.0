@@ -3,8 +3,9 @@
  * Pixel-matched to UI_Prototype EditorPane.tsx.
  */
 
-import { PencilSimple } from '@phosphor-icons/react';
+import { PencilSimple, LockSimple } from '@phosphor-icons/react';
 import { useEpicStore } from '@/stores/epicStore';
+import { usePipelineStore } from '@/stores/pipelineStore';
 import { EPIC_CATEGORIES } from '@/domain/categoryConstants';
 import { ImpulseLine, Keyline } from '@/components/shared/ImpulseLine';
 
@@ -14,6 +15,7 @@ const MONO = "'JetBrains Mono', 'Fira Code', 'SF Mono', monospace";
 export function EditorPane() {
   const markdown = useEpicStore((s) => s.markdown);
   const setMarkdown = useEpicStore((s) => s.setMarkdown);
+  const isRefining = usePipelineStore((s) => s.isRunning);
   const lines = markdown ? markdown.split('\n').length : 0;
   const hasContent = !!markdown.trim();
 
@@ -203,27 +205,60 @@ export function EditorPane() {
           </div>
         ) : (
           /* Active state */
-          <textarea
-            value={markdown}
-            onChange={(e) => setMarkdown(e.target.value)}
-            spellCheck={false}
-            data-testid="editor-textarea"
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              outline: 'none',
-              resize: 'none',
-              padding: '20px 24px',
-              fontSize: 13,
-              fontFamily: MONO,
-              fontWeight: 300,
-              lineHeight: 1.8,
-              color: '#d4d4d4',
-              background: '#1a1a1a',
-              letterSpacing: '.01em',
-            }}
-          />
+          <div style={{ position: 'relative', height: '100%' }}>
+            {/* Refine lock — edits during a run would be overwritten by the result */}
+            {isRefining && (
+              <div
+                data-testid="editor-refine-lock"
+                role="status"
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 14px',
+                  borderRadius: 999,
+                  background: 'rgba(42,42,42,0.95)',
+                  border: '1px solid #3a3a3a',
+                  color: '#aaa',
+                  fontSize: 11,
+                  fontWeight: 400,
+                  fontFamily: F,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <LockSimple size={11} weight="fill" color="#f59e0b" />
+                Refine in progress — editing locked
+              </div>
+            )}
+            <textarea
+              value={markdown}
+              onChange={(e) => setMarkdown(e.target.value)}
+              readOnly={isRefining}
+              spellCheck={false}
+              data-testid="editor-textarea"
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                padding: '20px 24px',
+                fontSize: 13,
+                fontFamily: MONO,
+                fontWeight: 300,
+                lineHeight: 1.8,
+                color: isRefining ? '#8a8a8a' : '#d4d4d4',
+                background: '#1a1a1a',
+                letterSpacing: '.01em',
+                cursor: isRefining ? 'not-allowed' : 'text',
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

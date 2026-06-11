@@ -6,7 +6,7 @@
  * optional preventClose for pipeline modal.
  */
 
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { X } from '@phosphor-icons/react';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
@@ -28,6 +28,16 @@ export function Modal({
   width = 480,
   preventClose = false,
 }: ModalProps) {
+  // Escape closes the modal (unless a running operation prevents it)
+  useEffect(() => {
+    if (!open || preventClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, preventClose, onClose]);
+
   if (!open) return null;
 
   return (

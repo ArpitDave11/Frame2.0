@@ -195,8 +195,13 @@ export async function runDocIntelAnalysis(file: File): Promise<void> {
   const baseCfg = getBaseConfig();
 
   // Step 1: Upload + extract via backend
+  store.setUploadError(null);
   const uploadResult = await callAnalyzeAPI(file);
   if (!uploadResult.ok) {
+    // Persistent inline error — a transient toast alone reads as "nothing happened"
+    useDocIntelStore.getState().setUploadError(
+      `Analysis failed: ${uploadResult.error}. The DocMining backend may not be running — check that the service is up, then try again.`,
+    );
     addToast({ type: 'error', title: `Upload failed: ${uploadResult.error}` });
     return;
   }

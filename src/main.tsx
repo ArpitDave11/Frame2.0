@@ -3,10 +3,14 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { useConfigStore } from '@/stores/configStore';
+import { initEpicDraftPersistence } from '@/services/draft/epicDraft';
 import './styles/global.css';
 
 // Hydrate persisted settings before first render
 useConfigStore.getState().loadFromStorage();
+
+// Restore any unsaved epic draft + start autosave (data-loss guard)
+initEpicDraftPersistence();
 
 // DEV-only: route all AI calls through the local Claude headless proxy.
 // Gated on VITE_LOCAL_LLM=1 (set in .env.local, never committed). Seeds only the

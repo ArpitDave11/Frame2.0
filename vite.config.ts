@@ -34,6 +34,12 @@ export default defineConfig(({ mode }) => {
     allowedHosts: true,
     cors: true,
 
+    // Screenshots/artifacts dropped into the repo root (Playwright, design refs)
+    // must not trigger a full page reload — that wipes all in-memory app state.
+    watch: {
+      ignored: ['**/.playwright-mcp/**', '**/*.png', '**/.llm-proxy/**', '**/exports/**'],
+    },
+
     proxy: {
       '/gitlab-api': {
         target: env.VITE_GITLAB_BASE_URL || 'https://devcloud.ubs.net/api/v4',

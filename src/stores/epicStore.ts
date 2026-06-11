@@ -16,6 +16,10 @@ interface EpicState {
   markdown: string;
   isDirty: boolean;
   previousMarkdown: string | null;
+  /** Snapshots taken before each refine — newest last. previousMarkdown mirrors the top. */
+  undoStack: string[];
+  /** Pre-refine markdown while the latest refine awaits Keep/Revert; null once decided. */
+  reviewBaseline: string | null;
   complexity: ComplexityLevel;
   userEditedSections: string[];
   sla: number | null;
@@ -33,6 +37,8 @@ interface EpicActions {
   setSla: (days: number | null) => void;
   replaceArchitectureSection: (mermaidCode: string) => void;
   undo: () => void;
+  acceptRefine: () => void;
+  revertRefine: () => void;
   reset: () => void;
 }
 
@@ -45,10 +51,14 @@ const INITIAL_STATE: EpicState = {
   markdown: '',
   isDirty: false,
   previousMarkdown: null,
+  undoStack: [],
+  reviewBaseline: null,
   complexity: 'moderate',
   userEditedSections: [],
   sla: null,
 };
+
+const MAX_UNDO_DEPTH = 20;
 
 // ─── Store ──────────────────────────────────────────────────
 
@@ -91,10 +101,13 @@ export const useEpicStore = create<EpicStore>()((set, get) => ({
   },
 
   applyRefinedEpic: (md) => {
-    const { markdown: current } = get();
+    const { markdown: current, undoStack } = get();
     const doc = markdownToEpic(md);
+    const stack = [...undoStack, current].slice(-MAX_UNDO_DEPTH);
     set({
       previousMarkdown: current,
+      undoStack: stack,
+      reviewBaseline: current,
       markdown: md,
       document: doc,
       isDirty: true,
@@ -159,13 +172,38 @@ export const useEpicStore = create<EpicStore>()((set, get) => ({
   },
 
   undo: () => {
-    const { previousMarkdown } = get();
-    if (previousMarkdown === null) return;
-    const doc = previousMarkdown.trim() ? markdownToEpic(previousMarkdown) : null;
+    const { undoStack } = get();
+    if (undoStack.length === 0) return;
+    const restored = undoStack[undoStack.length - 1]!;
+    const stack = undoStack.slice(0, -1);
+    const doc = restored.trim() ? markdownToEpic(restored) : null;
     set({
-      markdown: previousMarkdown,
+      markdown: restored,
       document: doc,
-      previousMarkdown: null,
+      undoStack: stack,
+      previousMarkdown: stack[stack.length - 1] ?? null,
+      reviewBaseline: null,
+      isDirty: true,
+    });
+  },
+
+  acceptRefine: () => {
+    set({ reviewBaseline: null });
+  },
+
+  revertRefine: () => {
+    const { reviewBaseline, undoStack } = get();
+    if (reviewBaseline === null) return;
+    const doc = reviewBaseline.trim() ? markdownToEpic(reviewBaseline) : null;
+    // The reverted refine's snapshot is the baseline itself — drop it from the stack
+    const stack =
+      undoStack[undoStack.length - 1] === reviewBaseline ? undoStack.slice(0, -1) : undoStack;
+    set({
+      markdown: reviewBaseline,
+      document: doc,
+      undoStack: stack,
+      previousMarkdown: stack[stack.length - 1] ?? null,
+      reviewBaseline: null,
       isDirty: true,
     });
   },

@@ -275,12 +275,13 @@ export async function fetchGroupProjects(
 export async function createGitLabIssue(
   config: GitLabConfig,
   projectId: string,
-  params: { title: string; description?: string; labels?: string[]; weight?: number },
+  params: { title: string; description?: string; labels?: string[]; weight?: number; assigneeIds?: number[] },
 ): Promise<GitLabIssueResult> {
   const body: Record<string, unknown> = { title: params.title };
   if (params.description) body.description = params.description;
   if (params.labels?.length) body.labels = params.labels.join(',');
   if (params.weight != null) body.weight = params.weight;
+  if (params.assigneeIds?.length) body.assignee_ids = params.assigneeIds;
 
   const result = await gitlabPost<GitLabIssue>(config, `/projects/${projectId}/issues`, body);
   if (!result.ok) return { success: false, error: result.error };

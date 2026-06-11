@@ -108,7 +108,8 @@ describe('PublishModal', () => {
   });
 
   it('publish button calls createGitLabEpic on click', async () => {
-    useEpicStore.setState({ markdown: '## Test markdown' });
+    // Real body content — heading-only/template scaffolds are now blocked by the publish guardrail
+    useEpicStore.setState({ markdown: '## Test markdown\n\nThis epic describes a real deliverable with enough body content to publish.' });
     useConfigStore.setState({
       config: {
         ...useConfigStore.getState().config,

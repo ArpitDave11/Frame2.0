@@ -69,6 +69,7 @@ export async function callAI(config: AIClientConfig, request: AIRequest): Promis
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body,
+    signal: config.signal,
   });
 
   if (!response.ok) {

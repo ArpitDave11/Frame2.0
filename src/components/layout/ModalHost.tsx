@@ -15,6 +15,7 @@ import { PublishModal } from '@/components/gitlab/PublishModal';
 import { IssueCreationModal } from '@/components/issues/IssueCreationModal';
 import { DocUploadModal } from '@/components/editor/DocUploadModal';
 import { FeedbackModal } from '@/components/settings/FeedbackModal';
+import { RefineDiffModal } from '@/components/editor/RefineDiffModal';
 
 export function ModalHost() {
   const activeModal = useUiStore((s) => s.activeModal);
@@ -70,6 +71,12 @@ export function ModalHost() {
       return (
         <Modal open onClose={closeModal} title="Share Feedback" width={480}>
           <FeedbackModal />
+        </Modal>
+      );
+    case 'refineReview':
+      return (
+        <Modal open onClose={closeModal} title="Review refine changes" width={760}>
+          <RefineDiffModal />
         </Modal>
       );
     default:

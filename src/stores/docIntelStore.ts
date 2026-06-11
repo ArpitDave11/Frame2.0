@@ -63,7 +63,10 @@ interface DocIntelState {
   focusContext: string;
   sections: Section[];
   phase: 'empty' | 'uploaded' | 'analyzing' | 'ready' | 'error';
+  /** Persistent upload/analyze failure shown inline (toasts expire too fast). */
+  uploadError: string | null;
 
+  setUploadError: (error: string | null) => void;
   setDocument: (data: AnalyzeResult) => void;
   setLens: (lens: LensType) => void;
   setFocusContext: (text: string) => void;
@@ -86,6 +89,9 @@ export const useDocIntelStore = create<DocIntelState>((set, get) => ({
   focusContext: '',
   sections: [],
   phase: 'empty',
+  uploadError: null,
+
+  setUploadError: (error) => set({ uploadError: error }),
 
   setDocument: (data) => set({
     fileName: data.fileName,
@@ -142,5 +148,6 @@ export const useDocIntelStore = create<DocIntelState>((set, get) => ({
   reset: () => set({
     fileName: null, documentMarkdown: null, outline: [], tables: [],
     metadata: null, lens: null, focusContext: '', sections: [], phase: 'empty',
+    uploadError: null,
   }),
 }));

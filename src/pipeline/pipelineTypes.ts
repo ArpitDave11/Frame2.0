@@ -179,6 +179,9 @@ export interface PipelineProgress {
   readonly status: 'pending' | 'running' | 'complete' | 'failed' | 'retrying';
   readonly iteration?: number;
   readonly score?: number;
+  /** Quality-gate passing score — set on 'retrying' so the UI can explain the loop. */
+  readonly threshold?: number;
+  readonly maxIterations?: number;
   readonly message?: string;
   readonly timestamp: number;
   /** Section-level streaming: emitted as each section completes in stage 4 */
@@ -203,6 +206,8 @@ export interface PipelineResult {
   readonly validation: ValidationOutput;
   readonly iterations: number;
   readonly totalDuration: number;
+  /** Populated when success=false and the pipeline aborted before producing content. */
+  readonly error?: string;
 }
 
 export type StageFunction<TInput, TOutput> = (

@@ -113,6 +113,17 @@ const STAGE_MAP: Record<string, 1 | 2 | 3 | 4 | 5 | 6> = {
   validation: 6,
 };
 
+// ─── Cancellation ───────────────────────────────────────────
+
+let currentController: AbortController | null = null;
+
+/** Cancel the in-flight refine run. In-flight AI calls abort immediately. */
+export function cancelRefinePipeline(): void {
+  if (!currentController || currentController.signal.aborted) return;
+  usePipelineStore.getState().setStatusNote?.('Cancelling…');
+  currentController.abort();
+}
+
 // ─── Action Function ────────────────────────────────────────
 
 export async function refinePipelineAction(): Promise<void> {
@@ -156,6 +167,8 @@ export async function refinePipelineAction(): Promise<void> {
 
   // ─── Start Pipeline ───────────────────────────────────────
   pipelineStore.startPipeline();
+  const controller = new AbortController();
+  currentController = controller;
 
   // ─── Progress Callback ────────────────────────────────────
   const onProgress = (progress: PipelineProgress) => {
@@ -174,6 +187,14 @@ export async function refinePipelineAction(): Promise<void> {
     if (progress.iteration != null) {
       store.setCurrentIteration(progress.iteration);
     }
+    // Quality-gate loop: tell the user WHY it's running again
+    if (progress.stageName === 'pipeline' && progress.status === 'retrying') {
+      const max = progress.maxIterations ?? store.maxIterations;
+      store.setStatusNote?.(
+        `Score ${progress.score} < ${progress.threshold} — re-refining (pass ${(progress.iteration ?? 0) + 1}/${max})`,
+      );
+      if (progress.maxIterations != null) store.setMaxIterations?.(progress.maxIterations);
+    }
   };
 
   // ─── Execute Pipeline ─────────────────────────────────────
@@ -185,7 +206,27 @@ export async function refinePipelineAction(): Promise<void> {
       aiConfig,
       onProgress,
       sla: epicStore.sla ?? undefined,
+      signal: controller.signal,
     });
+
+    // Cancelled mid-run — discard results, restore a clean slate
+    if (controller.signal.aborted) {
+      usePipelineStore.getState().reset();
+      useUiStore.getState().closeModal();
+      addToast({ type: 'info', title: 'Refine cancelled — your content is unchanged.' });
+      return;
+    }
+
+    // Hard failure with nothing produced (e.g. AI unreachable) — keep the
+    // modal open with a persistent, actionable error instead of auto-closing
+    if (!result.success && !result.epicContent) {
+      const reason = result.error ?? 'Pipeline failed before producing content';
+      usePipelineStore.getState().setStatusNote?.(null);
+      usePipelineStore.getState().failPipeline(reason);
+      return;
+    }
+
+    usePipelineStore.getState().setStatusNote?.(null);
 
     if (result.success && result.epicContent) {
       // Write refined epic to epicStore (post-processed for consistent GFM)
@@ -275,8 +316,17 @@ export async function refinePipelineAction(): Promise<void> {
       });
     }
   } catch (error) {
+    if (controller.signal.aborted) {
+      usePipelineStore.getState().reset();
+      useUiStore.getState().closeModal();
+      addToast({ type: 'info', title: 'Refine cancelled — your content is unchanged.' });
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
+    usePipelineStore.getState().setStatusNote?.(null);
     usePipelineStore.getState().failPipeline(`Pipeline error: ${message}`);
     addToast({ type: 'error', title: `Pipeline failed: ${message}` });
+  } finally {
+    if (currentController === controller) currentController = null;
   }
 }

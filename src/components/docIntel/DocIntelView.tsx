@@ -33,6 +33,7 @@ export default function DocIntelView() {
   const setFocusContext = useDocIntelStore((s) => s.setFocusContext);
   const fileName = useDocIntelStore((s) => s.fileName);
   const sections = useDocIntelStore((s) => s.sections);
+  const uploadError = useDocIntelStore((s) => s.uploadError);
   const reset = useDocIntelStore((s) => s.reset);
 
   // Warm schema cache on first mount
@@ -157,6 +158,22 @@ export default function DocIntelView() {
                   background: '#fef2f2', color: '#991b1b', fontSize: 13, fontFamily: F,
                 }}>
                   {fileError}
+                </div>
+              )}
+
+              {/* Backend/analysis failure — persistent until retry */}
+              {uploadError && (
+                <div
+                  data-testid="docintel-upload-error"
+                  role="alert"
+                  style={{
+                    padding: 12, marginBottom: 16, borderRadius: 6,
+                    borderLeft: '4px solid #E60000',
+                    background: '#fef2f2', color: '#991b1b', fontSize: 13, fontFamily: F,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {uploadError}
                 </div>
               )}
 

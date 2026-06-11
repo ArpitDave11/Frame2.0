@@ -42,6 +42,8 @@ export interface PipelineOrchestratorOptions {
   readonly aiConfig: AIClientConfig;
   readonly onProgress?: PipelineProgressCallback;
   readonly sla?: number;
+  /** Cancels the run: in-flight AI calls abort and the loop stops at the next stage boundary. */
+  readonly signal?: AbortSignal;
 }
 
 // ─── Config Builder ─────────────────────────────────────────
@@ -108,8 +110,14 @@ export async function runPremiumPipeline(
   options: PipelineOrchestratorOptions,
 ): Promise<PipelineResult> {
   const startTime = Date.now();
-  const { rawContent, title, complexity, aiConfig, onProgress, sla } = options;
+  const { rawContent, title, complexity, onProgress, sla, signal } = options;
+  // Attach the abort signal so every stage's AI calls become cancellable
+  const aiConfig: AIClientConfig = signal ? { ...options.aiConfig, signal } : options.aiConfig;
   const config = buildPipelineConfig(complexity, [], sla);
+
+  const throwIfAborted = () => {
+    if (signal?.aborted) throw new DOMException('Pipeline cancelled', 'AbortError');
+  };
 
   // Empty outputs for failure returns
   const emptyComp: ComprehensionOutput = { keyEntities: [], detectedGaps: [], implicitRisks: [], semanticSections: [], extractedRequirements: [], gapAnalysis: [] };
@@ -145,6 +153,8 @@ export async function runPremiumPipeline(
       return failResult('Stage 2 (Classification) failed', startTime, s1.data, emptyClass, emptyStruct, emptyRefine, emptyMandatory, emptyValidation, 0);
     }
 
+    throwIfAborted();
+
     // Stage 3: Structural (depends on both s1 and s2)
     const s3 = await runStage3Structural(
       { comprehension: s1.data, classification: s2.data, rawContent }, config, aiConfig, onProgress,
@@ -164,6 +174,7 @@ export async function runPremiumPipeline(
 
     for (let i = 0; i < config.maxIterations; i++) {
       iterations = i + 1;
+      throwIfAborted();
 
       // Stage 4: Refinement (targeted repair on retry — only re-refine failed sections)
       const s4 = await runStage4Refinement(
@@ -269,6 +280,8 @@ export async function runPremiumPipeline(
         status: 'retrying',
         iteration: iterations,
         score: validation.overallScore,
+        threshold: config.passingScore,
+        maxIterations: config.maxIterations,
         message: `Iteration ${iterations} scored ${validation.overallScore}/${config.passingScore} — retrying`,
         timestamp: Date.now(),
       });
@@ -324,7 +337,7 @@ function assembleEpicMarkdown(mandatory: MandatoryOutput): string {
 }
 
 function failResult(
-  _message: string,
+  message: string,
   startTime: number,
   comprehension: ComprehensionOutput,
   classification: ClassificationOutput,
@@ -345,5 +358,6 @@ function failResult(
     validation,
     iterations,
     totalDuration: Date.now() - startTime,
+    error: message,
   };
 }

@@ -5,13 +5,15 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle, Warning, XCircle, Spinner, ArrowRight, Plus } from '@phosphor-icons/react';
+import { CheckCircle, Warning, XCircle, Spinner, ArrowRight, Plus, CaretRight, ArrowSquareOut } from '@phosphor-icons/react';
 import { useEpicStore } from '@/stores/epicStore';
 import { useGitlabStore } from '@/stores/gitlabStore';
 import { useConfigStore } from '@/stores/configStore';
 import { parseUserStories } from '@/pipeline/utils/parseUserStories';
 import { analyzeStoryDuplicates } from '@/services/ai/analyzeStoryDuplicates';
 import { createIssuesAction } from '@/actions/createIssuesAction';
+import type { IssueCreationDefaults } from '@/actions/createIssuesAction';
+import { IssueDefaultsBar } from '@/components/issues/IssueDefaultsBar';
 import { fetchIssuesAction } from '@/actions/fetchIssuesAction';
 import { fetchLabelsWithSearch } from '@/services/gitlab/gitlabClient';
 import { resolveHomeProject } from '@/services/gitlab/resolveHomeProject';
@@ -59,6 +61,16 @@ export function IssueCreationModal() {
   const [customInput, setCustomInput] = useState('');
   const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
   const [customError, setCustomError] = useState<string | null>(null);
+
+  // Defaults applied to all created issues (weight only when a story has no points)
+  const [defaults, setDefaults] = useState<IssueCreationDefaults>({
+    weight: null,
+    assignee: null,
+    iteration: null,
+  });
+
+  // Per-story content preview (expanded story id)
+  const [previewStoryId, setPreviewStoryId] = useState<string | null>(null);
 
   const loadedGroupId = useGitlabStore((s) => s.loadedGroupId);
   const epicTitle = epicDoc?.title ?? 'Untitled Epic';
@@ -258,6 +270,7 @@ export function IssueCreationModal() {
       projectId.trim(),
       setProgress,
       selectedLabels.length > 0 ? selectedLabels : undefined,
+      defaults,
     );
 
     setPhase('done');
@@ -269,7 +282,7 @@ export function IssueCreationModal() {
     if (result.created > 0) {
       fetchIssuesAction();
     }
-  }, [storiesWithAnalysis, projectId, epicTitle, markdown, selectedLabels]);
+  }, [storiesWithAnalysis, projectId, epicTitle, markdown, selectedLabels, defaults]);
 
   // ─── Loading states ─────────────────────────────────────
   if (phase === 'parsing') {
@@ -314,9 +327,48 @@ export function IssueCreationModal() {
           </div>
         )}
 
-        {progress.createdIds.length > 0 && (
-          <div style={{ fontSize: 12, fontWeight: 300, color: 'var(--col-text-subtle)', textAlign: 'center' }}>
-            Issue IIDs: {progress.createdIds.join(', ')}
+        {progress.createdIssues.length > 0 && (
+          <div
+            data-testid="created-issues-links"
+            style={{
+              border: '1px solid var(--col-border-illustrative)',
+              borderRadius: 8,
+              maxHeight: 220,
+              overflowY: 'auto',
+            }}
+          >
+            {progress.createdIssues.map((issue) => (
+              <a
+                key={issue.iid}
+                href={issue.webUrl || undefined}
+                target="_blank"
+                rel="noreferrer noopener"
+                data-testid={`created-issue-link-${issue.iid}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '9px 14px',
+                  borderBottom: '1px solid #f3f4f6',
+                  fontSize: 12,
+                  fontWeight: 400,
+                  color: 'var(--col-text-primary)',
+                  textDecoration: 'none',
+                }}
+              >
+                <span style={{ fontWeight: 500, color: 'var(--col-text-subtle)', flexShrink: 0 }}>
+                  #{issue.iid}
+                </span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {issue.title}
+                </span>
+                {issue.webUrl && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--col-background-brand)', fontWeight: 500, flexShrink: 0 }}>
+                    Open in GitLab <ArrowSquareOut size={12} weight="regular" />
+                  </span>
+                )}
+              </a>
+            ))}
           </div>
         )}
       </div>
@@ -537,10 +589,11 @@ export function IssueCreationModal() {
           const score = analysis?.similarityScore ?? 0;
           const isDuplicate = score >= 80;
           const isSimilar = score >= 50 && score < 80;
+          const isPreviewOpen = previewStoryId === story.id;
 
           return (
+            <div key={story.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
             <div
-              key={story.id}
               onClick={() => toggleStory(story.id)}
               style={{
                 padding: '10px 16px',
@@ -549,7 +602,6 @@ export function IssueCreationModal() {
                 gap: 10,
                 cursor: 'pointer',
                 background: selected ? '#f0fdf4' : 'transparent',
-                borderBottom: '1px solid #f3f4f6',
                 transition: 'background 0.15s',
               }}
             >
@@ -606,10 +658,94 @@ export function IssueCreationModal() {
                   Unique
                 </div>
               )}
+
+              {/* Preview toggle — see exactly what the issue will contain */}
+              <button
+                data-testid={`preview-toggle-${story.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPreviewStoryId(isPreviewOpen ? null : story.id);
+                }}
+                aria-expanded={isPreviewOpen}
+                aria-label={`Preview issue content for ${story.title}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3,
+                  background: 'transparent', border: '1px solid var(--col-border-illustrative)',
+                  borderRadius: 4, padding: '3px 8px', fontSize: 10, fontWeight: 500,
+                  color: 'var(--col-text-subtle)', cursor: 'pointer', fontFamily: F, flexShrink: 0,
+                }}
+              >
+                <CaretRight
+                  size={9}
+                  weight="bold"
+                  style={{ transform: isPreviewOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}
+                />
+                Preview
+              </button>
+            </div>
+
+            {/* Expanded preview — the content that will be sent to GitLab */}
+            {isPreviewOpen && (
+              <div
+                data-testid={`preview-panel-${story.id}`}
+                style={{
+                  padding: '12px 16px 14px 44px',
+                  background: 'var(--col-background-ui-05, #F7F7F5)',
+                  fontSize: 12,
+                  fontFamily: F,
+                  color: 'var(--col-text-primary)',
+                  lineHeight: 1.6,
+                }}
+              >
+                <div style={{ fontWeight: 500, marginBottom: 6 }}>
+                  {story.id.startsWith('custom-') ? story.title : `${story.id}: ${story.title}`}
+                </div>
+                <div style={{ fontWeight: 300, marginBottom: 8 }}>
+                  <strong style={{ fontWeight: 500 }}>As a</strong> {story.asA},{' '}
+                  <strong style={{ fontWeight: 500 }}>I want</strong> {story.iWant}
+                  {story.soThat && <>, <strong style={{ fontWeight: 500 }}>so that</strong> {story.soThat}</>}
+                </div>
+                {story.acceptanceCriteria.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--col-text-subtle)', marginBottom: 4 }}>
+                      Acceptance criteria
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 18, fontWeight: 300 }}>
+                      {story.acceptanceCriteria.map((ac, i) => (
+                        <li key={i}>{ac}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11, color: 'var(--col-text-subtle)', fontWeight: 300 }}>
+                  <span>Weight: <strong style={{ fontWeight: 500 }}>{story.storyPoints ?? defaults.weight ?? '—'} SP</strong></span>
+                  <span>· Assignee: <strong style={{ fontWeight: 500 }}>{defaults.assignee ? (defaults.assignee.name || defaults.assignee.username) : 'Unassigned'}</strong></span>
+                  <span>· Iteration: <strong style={{ fontWeight: 500 }}>{defaults.iteration?.title ?? 'None'}</strong></span>
+                  <span>· Labels: <strong style={{ fontWeight: 500 }}>{['HALLMARK: FRAME', story.priority, ...selectedLabels].join(', ')}</strong></span>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 10, fontStyle: 'italic', color: 'var(--col-text-subtle)' }}>
+                  The full description is AI-expanded from this story at creation time.
+                </div>
+              </div>
+            )}
             </div>
           );
         })}
       </div>
+      )}
+
+      {/* Defaults — weight / assignee / iteration applied to every created issue */}
+      {isGitLabConfigured && (
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--col-border-illustrative)' }}>
+          <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--col-text-subtle)', display: 'block', marginBottom: 6 }}>
+            Defaults (applied to all issues — story points keep their own estimate when present)
+          </label>
+          <IssueDefaultsBar
+            groupId={loadedGroupId ?? cfg.gitlab.rootGroupId}
+            value={defaults}
+            onChange={setDefaults}
+          />
+        </div>
       )}
 
       {/* A1: Labels typeahead */}

@@ -6,6 +6,7 @@
  */
 
 import {
+  FilePlus,
   FolderSimple,
   FloppyDisk,
   Lightning,
@@ -23,6 +24,7 @@ import { useGitlabStore } from '@/stores/gitlabStore';
 import { EPIC_CATEGORIES } from '@/domain/categoryConstants';
 import { ComplexitySelector } from '@/components/editor/ComplexitySelector';
 import { refinePipelineAction } from '@/pipeline/refinePipelineAction';
+import { saveEpicDraftNow, clearEpicDraft } from '@/services/draft/epicDraft';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
@@ -44,6 +46,7 @@ export function WorkspaceHeader() {
   const setSla = useEpicStore((s) => s.setSla);
   const undo = useEpicStore((s) => s.undo);
   const openModal = useUiStore((s) => s.openModal);
+  const addToast = useUiStore((s) => s.addToast);
 
   // ─── Derived state ──────────────────────────────────────────
   const hasContent = !!markdown.trim();
@@ -60,6 +63,27 @@ export function WorkspaceHeader() {
   const handlePublish = () => openModal('publish');
   const handleIssues = () => openModal('issueCreation');
   const handleSettings = () => openModal('settings');
+  const handleSave = () => {
+    const ok = saveEpicDraftNow();
+    addToast(
+      ok
+        ? { type: 'success', title: 'Draft saved locally' }
+        : { type: 'error', title: 'Could not save draft — browser storage unavailable' },
+    );
+  };
+  const handleNew = () => {
+    if (isRunning) return;
+    if (hasContent) {
+      const confirmed = window.confirm(
+        'Start a new epic? This clears the editor and the saved draft.',
+      );
+      if (!confirmed) return;
+    }
+    useEpicStore.getState().reset();
+    usePipelineStore.getState().reset();
+    useGitlabStore.getState().clearLoadedEpicContext();
+    clearEpicDraft();
+  };
   const handleDownloadMarkdown = () => {
     const safeName = epicTitle.replace(/[^a-z0-9_-]/gi, '_').substring(0, 50);
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
@@ -89,6 +113,31 @@ export function WorkspaceHeader() {
     >
       {/* Left side */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        {/* New — fresh epic without a page refresh */}
+        <button
+          onClick={handleNew}
+          disabled={isRunning}
+          data-testid="btn-new"
+          title="Start a new epic (clears editor and draft)"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 14px',
+            border: '1px solid var(--col-border-illustrative)',
+            borderRadius: '0.375rem',
+            background: 'var(--col-background-ui-10)',
+            color: isRunning ? 'var(--col-text-subtle)' : 'var(--col-text-primary)',
+            fontSize: 13,
+            fontWeight: 400,
+            cursor: isRunning ? 'not-allowed' : 'pointer',
+            fontFamily: F,
+            opacity: isRunning ? 0.4 : 1,
+          }}
+        >
+          <FilePlus size={14} weight="regular" /> New
+        </button>
+
         {/* Load */}
         <button
           onClick={handleLoad}
@@ -216,7 +265,9 @@ export function WorkspaceHeader() {
 
         {/* Save */}
         <button
+          onClick={handleSave}
           data-testid="btn-save"
+          title="Save a local draft (also autosaved as you type)"
           style={{
             display: 'inline-flex',
             alignItems: 'center',

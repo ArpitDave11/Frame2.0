@@ -13,7 +13,7 @@ export type TabId = 'planner' | 'issues' | 'blueprint' | 'analytics' | 'initiati
 
 export type IssueSubTab = 'sprint' | 'epic';
 
-export type ModalId = 'publish' | 'loadEpic' | 'issueCreation' | 'critique' | 'pipeline' | 'settings' | 'docUpload' | 'feedback';
+export type ModalId = 'publish' | 'loadEpic' | 'issueCreation' | 'critique' | 'pipeline' | 'settings' | 'docUpload' | 'feedback' | 'refineReview';
 
 export type ActiveView = 'welcome' | 'workspace';
 
@@ -21,6 +21,8 @@ export interface Toast {
   id: string;
   type: 'success' | 'error' | 'info' | 'warning';
   title: string;
+  /** Optional action link (e.g. "Open epic in GitLab"). Opens in a new tab. */
+  link?: { href: string; label: string };
 }
 
 // ─── State & Actions ────────────────────────────────────────

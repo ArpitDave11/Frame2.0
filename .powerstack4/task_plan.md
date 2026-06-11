@@ -310,3 +310,24 @@ create as a GitLab child work-item via GraphQL (`workItemCreate` + `hierarchyWid
 **Verification:** 10 new unit tests pass; broad sweep 840/840 across 60 files; tsc clean
 for the feature; live: a Task was created as a child of issue US-001 (parent link verified
 via GraphQL) and cleaned up.
+
+---
+
+### 2026-06-11 · UX-hardening fix batch — NOT a DocMining atomic task
+
+Journal entry per H5: the batch touches DocIntel files (`services/docIntel/analyzeAction.ts`,
+`components/docIntel/DocIntelView.tsx`, `stores/docIntelStore.ts`) and `vite.config.ts`,
+but only to surface upload/analyze failures inline (persistent `uploadError` alert instead
+of a transient toast) and to stop artifact files from triggering state-wiping reloads.
+No DocMining pipeline behavior changed.
+**Scope (user-directed fixes after the Playwright UX audit):** draft autosave/restore +
+working Save + beforeunload; New button; pipeline cancel (AbortSignal through orchestrator),
+per-stage elapsed, quality-gate loop explanation, persistent error panel; editor lock during
+refine, multi-level undo, Keep/Revert review bar + line-diff modal; publish guardrails +
+GitLab links in toasts; issue-creation links/preview/default meta chips; Escape closes modals.
+**Files:** 25 modified + 6 new (see commit `feat(ux): ...` for the full list).
+**Verification:** `npm run test:run` → 2065 passed / 14 failed, where all 14 pre-exist on
+HEAD (verified in a clean temp worktree); tsc introduces no new errors (remaining errors
+pre-exist in untouched test fixtures); live Playwright loop: draft survived two reloads,
+cancel aborted a real run with content intact, guardrail blocked a template-only publish,
+chips/preview/diff rendered to spec.

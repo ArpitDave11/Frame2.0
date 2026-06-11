@@ -23,6 +23,28 @@ import { stripRequirementTags } from '@/domain/epicSerializer';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
+// ─── Publish Guardrails ─────────────────────────────────────
+
+const PLACEHOLDER_PATTERNS = [/_Your content here\.\.\._/g, /_Start writing your epic here\.\.\._/g];
+
+/** True when the markdown is still just the template scaffold (headings + placeholders). */
+export function isTemplateOnlyContent(markdown: string): boolean {
+  let body = markdown;
+  for (const p of PLACEHOLDER_PATTERNS) body = body.replace(p, '');
+  body = body
+    .split('\n')
+    .filter((line) => !/^#{1,6}\s/.test(line.trim()) && line.trim() !== '---')
+    .join('')
+    .trim();
+  return body.length < 30;
+}
+
+/** Reject empty/junk titles like "#" or leftover defaults. */
+export function isValidEpicTitle(title: string): boolean {
+  const t = title.trim();
+  return t.length >= 3 && /[a-zA-Z0-9]/.test(t);
+}
+
 export function PublishModal() {
   const markdown = useEpicStore((s) => s.markdown);
   const document = useEpicStore((s) => s.document);
@@ -82,10 +104,24 @@ export function PublishModal() {
       if (result.success && result.data) {
         setParentEpics(result.data);
       }
+    }).catch((err) => {
+      if (!cancelled) {
+        console.error('[PublishModal] fetchGroupEpics failed:', err);
+      }
     });
 
     return () => { cancelled = true; };
   }, [config.gitlab, targetGroup, isUpdate]);
+
+  // Guardrails: don't let template scaffolds or junk titles reach GitLab
+  const titleValid = isValidEpicTitle(title);
+  const templateOnly = isTemplateOnlyContent(markdown);
+  const canPublish = titleValid && !templateOnly && !publishing;
+  const blockReason = !titleValid
+    ? 'Add a real title (at least 3 characters) before publishing.'
+    : templateOnly
+      ? 'The content still looks like an empty template — fill in your sections (or run Refine) before publishing.'
+      : null;
 
   const handlePublish = async () => {
     setPublishing(true);
@@ -103,7 +139,12 @@ export function PublishModal() {
       if (result.success && result.data) {
         // F12: Invalidate cache so Load modal shows fresh data
         useGitlabStore.getState().invalidateGroupCache(loadedGroupId!);
-        addToast({ type: 'success', title: `Epic #${loadedEpicIid} updated in GitLab` });
+        const webUrl = result.data.web_url;
+        addToast({
+          type: 'success',
+          title: `Epic #${loadedEpicIid} updated in GitLab`,
+          link: webUrl ? { href: webUrl, label: `Open epic #${loadedEpicIid} in GitLab` } : undefined,
+        });
         closeModal();
       } else {
         addToast({ type: 'error', title: result.error ?? 'Failed to update epic' });
@@ -130,7 +171,11 @@ export function PublishModal() {
         // F12: Invalidate cache so Load modal shows fresh data
         useGitlabStore.getState().invalidateGroupCache(targetGroup);
         const webUrl = result.data.web_url;
-        addToast({ type: 'success', title: webUrl ? `Epic published to GitLab: ${webUrl}` : 'Epic published to GitLab' });
+        addToast({
+          type: 'success',
+          title: `Epic "${title.trim()}" published to GitLab`,
+          link: webUrl ? { href: webUrl, label: `Open epic #${result.data.iid} in GitLab` } : undefined,
+        });
         closeModal();
       } else {
         addToast({ type: 'error', title: result.error ?? 'Failed to publish epic' });
@@ -297,6 +342,26 @@ export function PublishModal() {
         </div>
       )}
 
+      {/* Guardrail warning — explains why Publish is blocked */}
+      {blockReason && (
+        <div
+          data-testid="publish-block-reason"
+          role="alert"
+          style={{
+            padding: '10px 16px',
+            borderRadius: '0.375rem',
+            borderLeft: '4px solid #f59e0b',
+            background: '#fffbeb',
+            fontSize: 12,
+            fontWeight: 400,
+            color: '#92400e',
+            lineHeight: 1.5,
+          }}
+        >
+          {blockReason}
+        </div>
+      )}
+
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
         <button
@@ -317,17 +382,17 @@ export function PublishModal() {
         </button>
         <button
           data-testid="publish-btn"
-          onClick={handlePublish}
-          disabled={publishing}
+          onClick={canPublish ? handlePublish : undefined}
+          disabled={!canPublish}
           style={{
             padding: '7px 18px',
             border: 'none',
             borderRadius: '0.375rem',
-            background: 'var(--col-background-brand)',
-            color: 'var(--col-text-inverted)',
+            background: canPublish ? 'var(--col-background-brand)' : 'var(--col-border-illustrative)',
+            color: canPublish ? 'var(--col-text-inverted)' : 'var(--col-text-subtle)',
             fontSize: 13,
             fontWeight: 500,
-            cursor: publishing ? 'not-allowed' : 'pointer',
+            cursor: !canPublish ? 'not-allowed' : 'pointer',
             fontFamily: F,
             opacity: publishing ? 0.7 : 1,
           }}

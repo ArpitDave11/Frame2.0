@@ -24,15 +24,18 @@ interface ToastProps {
   duration?: number;
 }
 
-export function Toast({ toast, onDismiss, duration = 4000 }: ToastProps) {
+export function Toast({ toast, onDismiss, duration }: ToastProps) {
   // Ref stabilizes onDismiss so timer doesn't reset when parent re-renders
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
 
+  // Toasts carrying a link stay longer so the user can actually click it
+  const effectiveDuration = duration ?? (toast.link ? 10000 : 4000);
+
   useEffect(() => {
-    const timer = setTimeout(() => onDismissRef.current(), duration);
+    const timer = setTimeout(() => onDismissRef.current(), effectiveDuration);
     return () => clearTimeout(timer);
-  }, [duration]);
+  }, [effectiveDuration]);
 
   const barColor = COLOR_MAP[toast.type];
 
@@ -67,6 +70,24 @@ export function Toast({ toast, onDismiss, duration = 4000 }: ToastProps) {
       <div style={{ flex: 1, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 13, fontWeight: 300, color: 'var(--col-text-primary)', flex: 1 }}>
           {toast.title}
+          {toast.link && (
+            <a
+              href={toast.link.href}
+              target="_blank"
+              rel="noreferrer noopener"
+              data-testid={`toast-link-${toast.id}`}
+              style={{
+                display: 'block',
+                marginTop: 4,
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--col-background-brand)',
+                textDecoration: 'none',
+              }}
+            >
+              {toast.link.label} ↗
+            </a>
+          )}
         </span>
         <button
           onClick={onDismiss}
