@@ -23,9 +23,19 @@ import {
   CheckCircle,
   ArrowRight,
   DotsThree,
+  Lightning,
+  FileMagnifyingGlass,
+  Wrench,
+  Compass,
+  Kanban,
+  ChartBar,
+  GearSix,
 } from '@phosphor-icons/react';
+import type { Icon } from '@phosphor-icons/react';
 import { useUiStore } from '@/stores/uiStore';
+import type { TabId } from '@/stores/uiStore';
 import { useEpicStore } from '@/stores/epicStore';
+import { useOneClickStore } from '@/stores/oneClickStore';
 import { EPIC_CATEGORIES } from '@/domain/categoryConstants';
 import { font } from '@/theme/tokens';
 
@@ -134,7 +144,30 @@ const ACTION_CARDS = [
 const STATS = [
   { label: '6x', sublabel: 'faster than manual', description: 'drafting' },
   { label: '8.2', sublabel: 'average quality', description: 'score' },
-  { label: '7', sublabel: 'ready-made', description: 'templates' },
+  { label: String(EPIC_CATEGORIES.filter((c) => c.id !== 'general').length), sublabel: 'ready-made', description: 'templates' },
+];
+
+// Direct entry to every workspace module — "More tools" grid
+interface MoreTool {
+  id: string;
+  label: string;
+  description: string;
+  icon: Icon;
+  tab?: TabId;
+  oneClick?: boolean;
+  modal?: 'settings';
+  sprint?: boolean;
+}
+
+const MORE_TOOLS: MoreTool[] = [
+  { id: 'one-click-issue', label: 'Single Issue (one-click)', description: 'One prompt → AI-drafted GitLab issue', icon: Sparkle, tab: 'issueRefinery', oneClick: true },
+  { id: 'doc-intel', label: 'Doc Intelligence', description: 'Upload a doc → AI insights & export', icon: FileMagnifyingGlass, tab: 'docIntel' },
+  { id: 'issue-refinery', label: 'Issue Refinery', description: 'Clean up an epic’s child issues', icon: Wrench, tab: 'issueRefinery' },
+  { id: 'brp', label: 'BRP Capacity', description: 'Crew · pod · epic sizing', icon: Compass, tab: 'brp' },
+  { id: 'initiative', label: 'Extreme Initiative', description: 'Split a stream epic across crews', icon: Lightning, tab: 'initiative' },
+  { id: 'sprint', label: 'Sprint Board', description: 'My issues in the current iteration', icon: Kanban, tab: 'issues', sprint: true },
+  { id: 'analytics', label: 'Analytics', description: 'Epic health & velocity', icon: ChartBar, tab: 'analytics' },
+  { id: 'settings', label: 'Settings', description: 'AI provider & GitLab connection', icon: GearSix, modal: 'settings' },
 ];
 
 // Unsplash images from the prototype for primary action cards
@@ -161,6 +194,8 @@ export function WelcomeScreen() {
   const setActiveView = useUiStore((s) => s.setActiveView);
   const setMarkdown = useEpicStore((s) => s.setMarkdown);
   const openModal = useUiStore((s) => s.openModal);
+  const setActiveTab = useUiStore((s) => s.setActiveTab);
+  const setIssueSubTab = useUiStore((s) => s.setIssueSubTab);
 
   const [selectedStage, setSelectedStage] = useState<string>('refine');
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
@@ -191,11 +226,37 @@ export function WelcomeScreen() {
   };
 
   const handleActionClick = (actionId: string) => {
-    if (actionId === 'create-parent' || actionId === 'create-sub-epic') {
+    if (actionId === 'create-parent' || actionId === 'create-sub-epic' || actionId === 'pipeline' || actionId === 'explore') {
       handleCreateModel();
     } else if (actionId === 'modify') {
       handleLoadFromGitLab();
+    } else if (actionId === 'generate-diagrams') {
+      setActiveView('workspace');
+      setActiveTab('blueprint');
+    } else if (actionId === 'create-issues') {
+      setActiveView('workspace');
+      openModal('issueCreation');
+    } else if (actionId === 'publish') {
+      setActiveView('workspace');
+      openModal('publish');
     }
+  };
+
+  const handleMoreTool = (tool: MoreTool) => {
+    if (tool.modal) {
+      openModal(tool.modal);
+      return;
+    }
+    setActiveView('workspace');
+    if (tool.tab) setActiveTab(tool.tab);
+    if (tool.sprint) setIssueSubTab('sprint');
+    if (tool.oneClick) useOneClickStore.getState().openModal();
+  };
+
+  const handleCreateSingleIssue = () => {
+    setActiveView('workspace');
+    setActiveTab('issueRefinery');
+    useOneClickStore.getState().openModal();
   };
 
   // ─── Render ────────────────────────────────────────────────
@@ -615,6 +676,79 @@ export function WelcomeScreen() {
                 </button>
               );
             })}
+          </div>
+
+          {/* More tools — direct entry to every workspace module */}
+          <div style={{ gridColumn: '1 / -1', marginTop: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--col-text-primary)' }}>
+                More tools
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 300, color: 'var(--col-text-subtle)' }}>
+                direct entry to every module in the workspace
+              </span>
+            </div>
+            <div
+              data-testid="more-tools-grid"
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}
+            >
+              {MORE_TOOLS.map((tool) => {
+                const Icon = tool.icon;
+                return (
+                  <button
+                    key={tool.id}
+                    data-testid={`more-tool-${tool.id}`}
+                    onClick={() => handleMoreTool(tool)}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid var(--col-border-illustrative)',
+                      borderRadius: 12,
+                      padding: '16px 16px 14px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.3s ease, border-color 0.3s ease',
+                      fontFamily: F,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.05)';
+                      e.currentTarget.style.borderColor = 'var(--col-background-brand)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.borderColor = 'var(--col-border-illustrative)';
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 8,
+                        background: '#fffafa',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon size={17} color="var(--col-background-brand)" weight="regular" />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2, color: 'var(--col-text-primary)' }}>
+                        {tool.label}
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 300, color: 'var(--col-text-subtle)' }}>
+                        {tool.description}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
@@ -1214,6 +1348,38 @@ export function WelcomeScreen() {
             >
               Load from GitLab
               <GitBranch size={20} weight="regular" />
+            </button>
+            <button
+              data-testid="cta-single-issue"
+              onClick={handleCreateSingleIssue}
+              style={{
+                padding: '16px 36px',
+                border: '2px solid rgba(255,255,255,0.2)',
+                borderRadius: 6,
+                background: 'transparent',
+                color: 'var(--col-text-inverted)',
+                fontSize: 16,
+                fontWeight: 400,
+                cursor: 'pointer',
+                fontFamily: F,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#ffffff';
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              Create a single issue
+              <Sparkle size={20} weight="regular" />
             </button>
           </div>
         </div>

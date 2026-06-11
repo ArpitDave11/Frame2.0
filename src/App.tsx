@@ -24,6 +24,8 @@ function WelcomeLayout() {
     <div style={{ display: 'flex', height: '100vh' }}>
       <WelcomeSidebar />
       <WelcomeScreen />
+      {/* Settings/Feedback open directly from the welcome sidebar */}
+      <ModalHost />
     </div>
   );
 }

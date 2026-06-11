@@ -15,10 +15,22 @@ import {
   SquaresFour,
   RocketLaunch,
   List,
+  ClipboardText,
+  LinkSimple,
+  Kanban,
+  Lightning,
+  FileMagnifyingGlass,
+  Wrench,
+  Compass,
+  ChartBar,
+  GearSix,
+  ChatCircle,
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import ubsLogo from '@/assets/00ac1239b9b421f7eee8b4e260132b1ac860676a.png';
 import { UserMenu } from '@/components/auth/UserMenu';
+import { useUiStore } from '@/stores/uiStore';
+import type { TabId, IssueSubTab, ModalId } from '@/stores/uiStore';
 
 // ─── Section Config ─────────────────────────────────────────
 
@@ -38,11 +50,44 @@ const SECTIONS: SidebarSection[] = [
   { id: 'quickstart', label: 'Get Started', icon: RocketLaunch },
 ];
 
+// Mirror of the workspace sidebar — same items, icons, and naming, so the
+// welcome screen offers direct entry to every module.
+interface WorkspaceLink {
+  id: string;
+  label: string;
+  icon: Icon;
+  tab?: TabId;
+  issueSubTab?: IssueSubTab;
+  modal?: ModalId;
+  indent?: boolean;
+}
+
+const WORKSPACE_LINKS: WorkspaceLink[] = [
+  { id: 'planner', label: 'Requirement Design', icon: ClipboardText, tab: 'planner' },
+  { id: 'linked-issues', label: 'Linked Issues', icon: LinkSimple, tab: 'issues', issueSubTab: 'epic', indent: true },
+  { id: 'blueprints', label: 'Blueprints', icon: SquaresFour, tab: 'blueprint', indent: true },
+  { id: 'sprint', label: 'Performa - Sprint', icon: Kanban, tab: 'issues', issueSubTab: 'sprint' },
+  { id: 'initiative', label: 'Extreme Initiative', icon: Lightning, tab: 'initiative' },
+  { id: 'docIntel', label: 'Doc Intelligence', icon: FileMagnifyingGlass, tab: 'docIntel' },
+  { id: 'issueRefinery', label: 'Issue Refinery', icon: Wrench, tab: 'issueRefinery' },
+  { id: 'brp', label: 'BRP', icon: Compass, tab: 'brp' },
+  { id: 'analytics', label: 'Analytics', icon: ChartBar, tab: 'analytics' },
+];
+
+const BOTTOM_LINKS: WorkspaceLink[] = [
+  { id: 'settings', label: 'Settings', icon: GearSix, modal: 'settings' },
+  { id: 'feedback', label: 'Feedback', icon: ChatCircle, modal: 'feedback' },
+];
+
 // ─── Component ──────────────────────────────────────────────
 
 export function WelcomeSidebar() {
   const [isOpen, setIsOpen] = useState(true);
   const [activeSection, setActiveSection] = useState('home');
+  const setActiveView = useUiStore((s) => s.setActiveView);
+  const setActiveTab = useUiStore((s) => s.setActiveTab);
+  const setIssueSubTab = useUiStore((s) => s.setIssueSubTab);
+  const openModal = useUiStore((s) => s.openModal);
 
   const handleNavClick = useCallback((sectionId: string) => {
     setActiveSection(sectionId);
@@ -50,7 +95,55 @@ export function WelcomeSidebar() {
     el?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  const handleWorkspaceLink = useCallback((link: WorkspaceLink) => {
+    if (link.modal) {
+      openModal(link.modal);
+      return;
+    }
+    setActiveView('workspace');
+    if (link.tab) setActiveTab(link.tab);
+    if (link.issueSubTab) setIssueSubTab(link.issueSubTab);
+  }, [openModal, setActiveView, setActiveTab, setIssueSubTab]);
+
   const width = isOpen ? 220 : 56;
+
+  const renderWorkspaceLink = (link: WorkspaceLink) => {
+    const IconComponent = link.icon;
+    return (
+      <button
+        key={link.id}
+        onClick={() => handleWorkspaceLink(link)}
+        data-testid={`welcome-ws-${link.id}`}
+        title={isOpen ? undefined : link.label}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: isOpen ? (link.indent ? '7px 12px 7px 30px' : '7px 12px') : '7px 0',
+          justifyContent: isOpen ? 'flex-start' : 'center',
+          width: '100%',
+          height: 34,
+          border: 'none',
+          borderRadius: '0.375rem',
+          background: 'transparent',
+          color: link.indent ? 'var(--col-text-subtle)' : 'var(--col-text-primary)',
+          cursor: 'pointer',
+          fontSize: 12.5,
+          fontFamily: F,
+          fontWeight: 300,
+          textAlign: 'left',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          transition: 'all .12s',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--input-background)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+      >
+        <IconComponent size={15} weight="regular" />
+        {isOpen && <span>{link.label}</span>}
+      </button>
+    );
+  };
 
   return (
     <aside
@@ -173,6 +266,37 @@ export function WelcomeSidebar() {
             </button>
           );
         })}
+
+        {/* Workspace links — same modules, same names as the workspace sidebar */}
+        <div
+          style={{
+            margin: '12px 4px 6px',
+            paddingTop: 10,
+            borderTop: '1px solid var(--col-border-illustrative)',
+          }}
+        >
+          {isOpen && (
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--col-text-subtle)',
+                padding: '0 8px 6px',
+              }}
+            >
+              Workspace
+            </div>
+          )}
+        </div>
+        {WORKSPACE_LINKS.map(renderWorkspaceLink)}
+
+        <div style={{ flex: 1 }} />
+
+        {/* Settings · Feedback — same as the workspace sidebar bottom */}
+        <div style={{ margin: '6px 4px', borderTop: '1px solid var(--col-border-illustrative)', paddingTop: 6 }} />
+        {BOTTOM_LINKS.map(renderWorkspaceLink)}
       </div>
 
       {/* User Menu — pinned to bottom */}
