@@ -60,26 +60,37 @@ export const IssueDefaultsBar: React.FC<Props> = ({ groupId, value, onChange }) 
   );
 };
 
-const WeightChip: React.FC<{ value: number | null; onChange: (w: number | null) => void }> = ({ value, onChange }) => {
+export const WeightChip: React.FC<{
+  value: number | null;
+  onChange: (w: number | null) => void;
+  /** Value came from the AI/story estimate (no manual override yet). */
+  aiSuggested?: boolean;
+  /** Value was manually overridden for this issue. */
+  manual?: boolean;
+  /** Shown when manual — restores the AI/default value. */
+  onReset?: () => void;
+  testId?: string;
+}> = ({ value, onChange, aiSuggested, manual, onReset, testId }) => {
   const { open, setOpen, ref } = usePopover();
   return (
     <span className="oc-pop-anchor" ref={ref}>
       <button
         type="button"
-        className="oc-pill"
+        className={`oc-pill${manual ? ' oc-pill--manual' : ''}`}
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        data-testid="defaults-weight-chip"
+        data-testid={testId ?? 'defaults-weight-chip'}
       >
         <span className="oc-pill__star" aria-hidden>✦</span>
         <b>{value == null ? '—' : value}</b>
         <span className="oc-pill__sp">SP</span>
+        {aiSuggested && !manual && value != null && <span className="oc-ai-badge">AI</span>}
         <span className="oc-pill__caret" aria-hidden>▾</span>
       </button>
       {open && (
         <div className="oc-popover" role="dialog" aria-label="Default story points">
-          <div className="oc-pop-title">Story points (default)</div>
+          <div className="oc-pop-title">Story points</div>
           <div className="oc-wpts">
             {WEIGHTS.map((n) => (
               <button
@@ -93,9 +104,14 @@ const WeightChip: React.FC<{ value: number | null; onChange: (w: number | null) 
               </button>
             ))}
           </div>
+          {manual && onReset && (
+            <button type="button" className="oc-opt" onClick={() => { onReset(); setOpen(false); }}>
+              ↺ Use AI / default value
+            </button>
+          )}
           {value != null && (
             <button type="button" className="oc-opt" onClick={() => { onChange(null); setOpen(false); }}>
-              Clear default
+              Clear
             </button>
           )}
         </div>
@@ -104,7 +120,14 @@ const WeightChip: React.FC<{ value: number | null; onChange: (w: number | null) 
   );
 };
 
-const AssigneeChip: React.FC<{ groupId: string; value: GitLabUser | null; onChange: (u: GitLabUser | null) => void }> = ({ groupId, value, onChange }) => {
+export const AssigneeChip: React.FC<{
+  groupId: string;
+  value: GitLabUser | null;
+  onChange: (u: GitLabUser | null) => void;
+  manual?: boolean;
+  onReset?: () => void;
+  testId?: string;
+}> = ({ groupId, value, onChange, manual, onReset, testId }) => {
   const { open, setOpen, ref } = usePopover();
   const gitlab = useConfigStore((s) => s.config.gitlab);
   const [q, setQ] = useState('');
@@ -127,11 +150,11 @@ const AssigneeChip: React.FC<{ groupId: string; value: GitLabUser | null; onChan
     <span className="oc-pop-anchor" ref={ref}>
       <button
         type="button"
-        className="oc-pill"
+        className={`oc-pill${manual ? ' oc-pill--manual' : ''}`}
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        data-testid="defaults-assignee-chip"
+        data-testid={testId ?? 'defaults-assignee-chip'}
       >
         <span className={`oc-avatar${value ? '' : ' oc-avatar--none'}`} aria-hidden>
           {value ? initials(value) : '–'}
@@ -150,6 +173,13 @@ const AssigneeChip: React.FC<{ groupId: string; value: GitLabUser | null; onChan
             aria-label="Search assignees"
           />
           <ul className="oc-optlist">
+            {manual && onReset && (
+              <li>
+                <button type="button" className="oc-opt" onClick={() => { onReset(); setOpen(false); }}>
+                  ↺ Use default
+                </button>
+              </li>
+            )}
             <li>
               <button type="button" className={`oc-opt${value ? '' : ' oc-opt--on'}`} onClick={() => choose(null)}>
                 <span className="oc-avatar oc-avatar--none" aria-hidden>–</span>Unassigned
@@ -177,7 +207,14 @@ const AssigneeChip: React.FC<{ groupId: string; value: GitLabUser | null; onChan
   );
 };
 
-const IterationChip: React.FC<{ groupId: string; value: GitLabIteration | null; onChange: (it: GitLabIteration | null) => void }> = ({ groupId, value, onChange }) => {
+export const IterationChip: React.FC<{
+  groupId: string;
+  value: GitLabIteration | null;
+  onChange: (it: GitLabIteration | null) => void;
+  manual?: boolean;
+  onReset?: () => void;
+  testId?: string;
+}> = ({ groupId, value, onChange, manual, onReset, testId }) => {
   const { open, setOpen, ref } = usePopover();
   const gitlab = useConfigStore((s) => s.config.gitlab);
   const [opts, setOpts] = useState<GitLabIteration[]>([]);
@@ -197,11 +234,11 @@ const IterationChip: React.FC<{ groupId: string; value: GitLabIteration | null; 
     <span className="oc-pop-anchor" ref={ref}>
       <button
         type="button"
-        className="oc-pill"
+        className={`oc-pill${manual ? ' oc-pill--manual' : ''}`}
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        data-testid="defaults-iteration-chip"
+        data-testid={testId ?? 'defaults-iteration-chip'}
       >
         <span aria-hidden>◷</span>
         {value?.title?.trim() ? value.title : 'No iteration'}
@@ -209,8 +246,15 @@ const IterationChip: React.FC<{ groupId: string; value: GitLabIteration | null; 
       </button>
       {open && (
         <div className="oc-popover" role="dialog" aria-label="Default iteration">
-          <div className="oc-pop-title">Iteration (default)</div>
+          <div className="oc-pop-title">Iteration</div>
           <ul className="oc-optlist">
+            {manual && onReset && (
+              <li>
+                <button type="button" className="oc-opt" onClick={() => { onReset(); setOpen(false); }}>
+                  ↺ Use default
+                </button>
+              </li>
+            )}
             <li>
               <button type="button" className={`oc-opt${value ? '' : ' oc-opt--on'}`} onClick={() => { onChange(null); setOpen(false); }}>
                 No iteration

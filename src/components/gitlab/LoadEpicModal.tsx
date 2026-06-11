@@ -17,6 +17,8 @@ import { useUiStore } from '@/stores/uiStore';
 import { fetchEpicDetails } from '@/services/gitlab/gitlabClient';
 import type { GitLabEpic } from '@/services/gitlab/types';
 import { EpicCard } from './EpicCard';
+import { extractMermaidDiagram } from '@/domain/extractMermaid';
+import { useBlueprintStore } from '@/stores/blueprintStore';
 
 const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
@@ -94,6 +96,14 @@ export function LoadEpicModal() {
           addToast({ type: 'warning', title: 'Epic is blank — loaded with default template' });
         } else {
           setMarkdown(desc);
+          // Epic already ships a diagram → surface it in Blueprints immediately,
+          // ready to refine, instead of the "Run Refine to generate" empty state.
+          const diagram = extractMermaidDiagram(desc);
+          if (diagram) {
+            const bp = useBlueprintStore.getState();
+            bp.setCode(diagram.code, diagram.type, 'Loaded from the epic description', 'from epic');
+            bp.setSource('epic');
+          }
         }
         // Populate the full epic object too, not just iid+groupId. Issue Refinery's
         // bridge effect (IssueRefineryView) bails unless gitlabStore.selectedEpic is

@@ -33,10 +33,13 @@ interface BlueprintState {
   diagramRefineState: 'idle' | 'interpreting' | 'confirming' | 'refining';
   // D6: Draft labeling
   isDraft: boolean;
+  /** Where the current diagram came from — drives the provenance banner. */
+  source: 'refine' | 'epic' | null;
 }
 
 interface BlueprintActions {
   setCode: (code: string, type?: string, reasoning?: string, label?: string) => void;
+  setSource: (source: 'refine' | 'epic' | null) => void;
   revertToVersion: (index: number) => void;
   setDiagramFeedback: (feedback: string) => void;
   setDiagramInterpretation: (interp: BlueprintState['diagramInterpretation']) => void;
@@ -70,6 +73,7 @@ const INITIAL_STATE: BlueprintState = {
   diagramInterpretation: null,
   diagramRefineState: 'idle',
   isDraft: true,
+  source: null,
 };
 
 // ─── Store ──────────────────────────────────────────────────
@@ -100,6 +104,10 @@ export const useBlueprintStore = create<BlueprintStore>()((set, get) => ({
       activeVersionIndex: newVersions.length - 1,
       isDraft: true,
     });
+  },
+
+  setSource: (source) => {
+    set({ source });
   },
 
   revertToVersion: (index) => {

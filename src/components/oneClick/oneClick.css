@@ -145,3 +145,12 @@
 .oc-entry { appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 8px; border: 1px solid #e60000; background: #e60000; color: #fff; font-family: var(--ubs-font-sans, Frutiger, Arial, sans-serif); font-size: 13px; font-weight: 600; }
 .oc-entry:hover { background: #cc0000; }
 .oc-entry:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(230,0,0,.2); }
+
+/* ── per-issue override states (issue creation modal) ── */
+.oc-pill--manual { background:#1a1a1a; border-color:#1a1a1a; color:#fff; }
+.oc-pill--manual .oc-pill__sp, .oc-pill--manual .oc-pill__caret { color:#bbb; }
+.oc-pill--manual .oc-pill__star { color:#ffd6d6; }
+.oc-ai-badge {
+  display:inline-flex; align-items:center; padding:1px 5px; border-radius:999px;
+  background:#fdecec; color:#E60000; font-size:8px; font-weight:700; letter-spacing:.4px;
+}

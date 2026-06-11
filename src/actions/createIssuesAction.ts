@@ -39,6 +39,29 @@ export interface IssueCreationDefaults {
   iteration: GitLabIteration | null;
 }
 
+/** Per-story overrides — a key present (even null) beats the AI value and the defaults. */
+export type IssueOverrides = Record<string, Partial<IssueCreationDefaults>>;
+
+/** Resolution order: per-issue override → AI/story value (weight only) → bulk default. */
+export function resolveIssueMeta(
+  story: ParsedUserStory,
+  defaults?: IssueCreationDefaults,
+  override?: Partial<IssueCreationDefaults>,
+): IssueCreationDefaults {
+  return {
+    weight:
+      override && 'weight' in override
+        ? (override.weight ?? null)
+        : (story.storyPoints ?? defaults?.weight ?? null),
+    assignee:
+      override && 'assignee' in override ? (override.assignee ?? null) : (defaults?.assignee ?? null),
+    iteration:
+      override && 'iteration' in override
+        ? (override.iteration ?? null)
+        : (defaults?.iteration ?? null),
+  };
+}
+
 export async function createIssuesAction(
   stories: ParsedUserStory[],
   epicTitle: string,
@@ -47,6 +70,7 @@ export async function createIssuesAction(
   onProgress?: (progress: CreationProgress) => void,
   extraLabels?: string[],
   defaults?: IssueCreationDefaults,
+  overrides?: IssueOverrides,
 ): Promise<{ success: boolean; created: number; createdIssues: CreatedIssueRef[]; errors: string[] }> {
   const cfg = useConfigStore.getState().config;
   const { loadedEpicIid, loadedGroupId } = useGitlabStore.getState();
@@ -73,6 +97,8 @@ export async function createIssuesAction(
     progress.currentTitle = story.title;
     onProgress?.({ ...progress });
 
+    const meta = resolveIssueMeta(story, defaults, overrides?.[story.id]);
+
     try {
       // Generate description
       const description = await generateIssueDescription(story, epicTitle, epicContent, aiConfig);
@@ -82,8 +108,8 @@ export async function createIssuesAction(
         title: story.id.startsWith('custom-') ? story.title : `${story.id}: ${story.title}`,
         description,
         labels: ['HALLMARK: FRAME', story.priority, ...(extraLabels ?? [])],
-        weight: story.storyPoints ?? defaults?.weight ?? undefined,
-        assigneeIds: defaults?.assignee ? [defaults.assignee.id] : undefined,
+        weight: meta.weight ?? undefined,
+        assigneeIds: meta.assignee ? [meta.assignee.id] : undefined,
       });
 
       if (result.success && result.data) {
@@ -106,13 +132,13 @@ export async function createIssuesAction(
           }
         }
 
-        // Default iteration via quick-action note (no stable REST field)
-        if (defaults?.iteration) {
+        // Iteration via quick-action note (no stable REST field)
+        if (meta.iteration) {
           const note = await addIssueNote(
             cfg.gitlab,
             Number(projectId),
             iid,
-            `/iteration *iteration:${defaults.iteration.id}`,
+            `/iteration *iteration:${meta.iteration.id}`,
           );
           if (!note.success) {
             progress.errors.push(

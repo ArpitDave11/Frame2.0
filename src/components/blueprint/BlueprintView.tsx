@@ -19,6 +19,7 @@ const F = "Frutiger, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
 export function BlueprintView() {
   const code = useBlueprintStore((s) => s.code);
+  const source = useBlueprintStore((s) => s.source);
   const isFullscreen = useBlueprintStore((s) => s.isFullscreen);
   const diagramType = useBlueprintStore((s) => s.diagramType);
   const versions = useBlueprintStore((s) => s.versions);
@@ -93,6 +94,29 @@ export function BlueprintView() {
       background: isFullscreen ? '#fff' : 'var(--col-background-ui-10, #fafafa)',
       ...(isFullscreen ? { position: 'fixed', inset: 0, zIndex: 200 } : {}),
     }}>
+      {/* Provenance banner — the diagram came in with the loaded epic */}
+      {source === 'epic' && !isFullscreen && (
+        <div
+          data-testid="blueprint-epic-banner"
+          role="status"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 24px',
+            background: '#F5F0E1',
+            borderBottom: '1px solid var(--col-border-illustrative, #e5e5e5)',
+            fontFamily: F, fontSize: 12, flexShrink: 0,
+          }}
+        >
+          <SquaresFour size={14} weight="regular" color="#E60000" />
+          <span style={{ fontWeight: 400, color: 'var(--col-text-primary)' }}>
+            Diagram loaded from the epic description — ready to refine below.
+          </span>
+          <span style={{ marginLeft: 'auto', fontWeight: 300, fontSize: 10, color: 'var(--col-text-subtle)' }}>
+            from GitLab
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         padding: '12px 24px',

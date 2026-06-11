@@ -11,9 +11,9 @@ import { useGitlabStore } from '@/stores/gitlabStore';
 import { useConfigStore } from '@/stores/configStore';
 import { parseUserStories } from '@/pipeline/utils/parseUserStories';
 import { analyzeStoryDuplicates } from '@/services/ai/analyzeStoryDuplicates';
-import { createIssuesAction } from '@/actions/createIssuesAction';
-import type { IssueCreationDefaults } from '@/actions/createIssuesAction';
-import { IssueDefaultsBar } from '@/components/issues/IssueDefaultsBar';
+import { createIssuesAction, resolveIssueMeta } from '@/actions/createIssuesAction';
+import type { IssueCreationDefaults, IssueOverrides } from '@/actions/createIssuesAction';
+import { IssueDefaultsBar, WeightChip, AssigneeChip, IterationChip } from '@/components/issues/IssueDefaultsBar';
 import { fetchIssuesAction } from '@/actions/fetchIssuesAction';
 import { fetchLabelsWithSearch } from '@/services/gitlab/gitlabClient';
 import { resolveHomeProject } from '@/services/gitlab/resolveHomeProject';
@@ -61,6 +61,8 @@ export function IssueCreationModal() {
   const [customInput, setCustomInput] = useState('');
   const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
   const [customError, setCustomError] = useState<string | null>(null);
+  // Collapsed by default when stories exist — the list is the main content
+  const [customOpen, setCustomOpen] = useState(false);
 
   // Defaults applied to all created issues (weight only when a story has no points)
   const [defaults, setDefaults] = useState<IssueCreationDefaults>({
@@ -68,6 +70,24 @@ export function IssueCreationModal() {
     assignee: null,
     iteration: null,
   });
+
+  // Per-issue overrides — beat the AI estimate and the defaults for that issue only
+  const [overrides, setOverrides] = useState<IssueOverrides>({});
+
+  const setOverride = useCallback((storyId: string, patch: Partial<IssueCreationDefaults>) => {
+    setOverrides((prev) => ({ ...prev, [storyId]: { ...prev[storyId], ...patch } }));
+  }, []);
+  const resetOverride = useCallback((storyId: string, key: keyof IssueCreationDefaults) => {
+    setOverrides((prev) => {
+      const next = { ...prev };
+      if (!next[storyId]) return prev;
+      const entry = { ...next[storyId] };
+      delete entry[key];
+      if (Object.keys(entry).length === 0) delete next[storyId];
+      else next[storyId] = entry;
+      return next;
+    });
+  }, []);
 
   // Per-story content preview (expanded story id)
   const [previewStoryId, setPreviewStoryId] = useState<string | null>(null);
@@ -271,6 +291,7 @@ export function IssueCreationModal() {
       setProgress,
       selectedLabels.length > 0 ? selectedLabels : undefined,
       defaults,
+      overrides,
     );
 
     setPhase('done');
@@ -282,7 +303,7 @@ export function IssueCreationModal() {
     if (result.created > 0) {
       fetchIssuesAction();
     }
-  }, [storiesWithAnalysis, projectId, epicTitle, markdown, selectedLabels, defaults]);
+  }, [storiesWithAnalysis, projectId, epicTitle, markdown, selectedLabels, defaults, overrides]);
 
   // ─── Loading states ─────────────────────────────────────
   if (phase === 'parsing') {
@@ -455,64 +476,6 @@ export function IssueCreationModal() {
         </div>
       )}
 
-      {/* Custom Issue Input — AI generates stories from description */}
-      {cfg.ai.provider !== 'none' && phase === 'ready' && (
-        <div
-          data-testid="custom-issue-section"
-          style={{
-            padding: storiesWithAnalysis.length === 0 ? '16px 16px' : '12px 16px',
-            backgroundColor: storiesWithAnalysis.length === 0 ? 'var(--col-background-ui-05, #F5F5F0)' : 'var(--col-background-ui-10, #FAFAFA)',
-            borderBottom: '1px solid var(--col-border-illustrative, #e5e5e5)',
-            border: storiesWithAnalysis.length === 0 ? '2px solid var(--col-background-brand)' : undefined,
-            borderRadius: storiesWithAnalysis.length === 0 ? 8 : 0,
-            margin: storiesWithAnalysis.length === 0 ? '8px 16px 12px' : 0,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--col-text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontFamily: F }}>
-            <Plus size={14} weight="bold" color="var(--col-background-brand)" />
-            Custom Issue
-          </div>
-          <textarea
-            data-testid="custom-issue-input"
-            value={customInput}
-            onChange={(e) => setCustomInput(e.target.value)}
-            placeholder="Describe what you need... e.g., 'Set up CI/CD pipeline with GitHub Actions'"
-            style={{
-              width: '100%', minHeight: 60, padding: 10, borderRadius: 6,
-              border: '1px solid var(--col-border-illustrative)', fontSize: 13,
-              resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
-              background: 'var(--col-bg-surface, #fff)', color: 'var(--col-text, #222)',
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGenerateCustomStories();
-            }}
-          />
-          {customError && (
-            <div style={{ fontSize: 12, color: 'var(--col-background-brand)', marginTop: 6, fontFamily: F }}>
-              {customError}
-            </div>
-          )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--col-text-subtle)', fontFamily: F }}>
-              AI generates user stories from your description + epic context (Cmd+Enter)
-            </span>
-            <button
-              data-testid="generate-stories-btn"
-              onClick={handleGenerateCustomStories}
-              disabled={!customInput.trim() || isGeneratingCustom}
-              style={{
-                padding: '6px 16px', borderRadius: 6, border: 'none',
-                background: customInput.trim() && !isGeneratingCustom ? 'var(--col-background-brand)' : 'var(--col-border-illustrative)',
-                color: '#fff', cursor: customInput.trim() && !isGeneratingCustom ? 'pointer' : 'not-allowed',
-                fontSize: 12, fontWeight: 500, fontFamily: F,
-              }}
-            >
-              {isGeneratingCustom && <Spinner size={16} className="animate-spin" />}
-              {isGeneratingCustom ? 'Generating...' : 'Generate Stories'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* F04: Project picker */}
       {isGitLabConfigured && (
@@ -570,12 +533,31 @@ export function IssueCreationModal() {
         </div>
       )}
 
-      {/* Select all / deselect all — hidden when no stories */}
+      {/* Defaults + selection toolbar */}
       {storiesWithAnalysis.length > 0 && (
-      <div style={{ padding: '8px 16px', display: 'flex', gap: 8, borderBottom: '1px solid var(--col-border-illustrative)' }}>
+      <div
+        data-testid="issue-defaults-toolbar"
+        style={{
+          padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          background: 'var(--col-background-ui-10)', borderBottom: '1px solid var(--col-border-illustrative)',
+        }}
+      >
+        <span style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--col-text-subtle)' }}>
+          Defaults
+        </span>
+        {isGitLabConfigured && (
+          <IssueDefaultsBar
+            groupId={loadedGroupId ?? cfg.gitlab.rootGroupId}
+            value={defaults}
+            onChange={setDefaults}
+          />
+        )}
+        <span style={{ fontSize: 10, fontWeight: 300, color: 'var(--col-text-subtle)' }}>
+          fills any issue without its own value
+        </span>
+        <span style={{ flex: 1 }} />
         <button onClick={selectAll} style={linkBtnStyle}>Select All</button>
         <button onClick={deselectAll} style={linkBtnStyle}>Deselect All</button>
-        <span style={{ flex: 1 }} />
         <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--col-text-subtle)' }}>
           {selectedCount} of {storiesWithAnalysis.length} selected
         </span>
@@ -590,6 +572,9 @@ export function IssueCreationModal() {
           const isDuplicate = score >= 80;
           const isSimilar = score >= 50 && score < 80;
           const isPreviewOpen = previewStoryId === story.id;
+          const ov = overrides[story.id];
+          const meta = resolveIssueMeta(story, defaults, ov);
+          const chipGroupId = loadedGroupId ?? cfg.gitlab.rootGroupId;
 
           return (
             <div key={story.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
@@ -659,6 +644,40 @@ export function IssueCreationModal() {
                 </div>
               )}
 
+              {/* Per-issue meta — AI suggestion shown, any chip overridable for this issue only */}
+              {isGitLabConfigured && (
+                <div
+                  data-testid={`issue-meta-${story.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+                >
+                  <WeightChip
+                    value={meta.weight}
+                    aiSuggested={story.storyPoints != null}
+                    manual={!!ov && 'weight' in ov}
+                    onChange={(weight) => setOverride(story.id, { weight })}
+                    onReset={() => resetOverride(story.id, 'weight')}
+                    testId={`row-weight-${story.id}`}
+                  />
+                  <AssigneeChip
+                    groupId={chipGroupId}
+                    value={meta.assignee}
+                    manual={!!ov && 'assignee' in ov}
+                    onChange={(assignee) => setOverride(story.id, { assignee })}
+                    onReset={() => resetOverride(story.id, 'assignee')}
+                    testId={`row-assignee-${story.id}`}
+                  />
+                  <IterationChip
+                    groupId={chipGroupId}
+                    value={meta.iteration}
+                    manual={!!ov && 'iteration' in ov}
+                    onChange={(iteration) => setOverride(story.id, { iteration })}
+                    onReset={() => resetOverride(story.id, 'iteration')}
+                    testId={`row-iteration-${story.id}`}
+                  />
+                </div>
+              )}
+
               {/* Preview toggle — see exactly what the issue will contain */}
               <button
                 data-testid={`preview-toggle-${story.id}`}
@@ -718,9 +737,9 @@ export function IssueCreationModal() {
                   </div>
                 )}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11, color: 'var(--col-text-subtle)', fontWeight: 300 }}>
-                  <span>Weight: <strong style={{ fontWeight: 500 }}>{story.storyPoints ?? defaults.weight ?? '—'} SP</strong></span>
-                  <span>· Assignee: <strong style={{ fontWeight: 500 }}>{defaults.assignee ? (defaults.assignee.name || defaults.assignee.username) : 'Unassigned'}</strong></span>
-                  <span>· Iteration: <strong style={{ fontWeight: 500 }}>{defaults.iteration?.title ?? 'None'}</strong></span>
+                  <span>Weight: <strong style={{ fontWeight: 500 }}>{meta.weight ?? '—'} SP</strong></span>
+                  <span>· Assignee: <strong style={{ fontWeight: 500 }}>{meta.assignee ? (meta.assignee.name || meta.assignee.username) : 'Unassigned'}</strong></span>
+                  <span>· Iteration: <strong style={{ fontWeight: 500 }}>{meta.iteration?.title ?? 'None'}</strong></span>
                   <span>· Labels: <strong style={{ fontWeight: 500 }}>{['HALLMARK: FRAME', story.priority, ...selectedLabels].join(', ')}</strong></span>
                 </div>
                 <div style={{ marginTop: 8, fontSize: 10, fontStyle: 'italic', color: 'var(--col-text-subtle)' }}>
@@ -734,17 +753,84 @@ export function IssueCreationModal() {
       </div>
       )}
 
-      {/* Defaults — weight / assignee / iteration applied to every created issue */}
-      {isGitLabConfigured && (
-        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--col-border-illustrative)' }}>
-          <label style={{ fontSize: 11, fontWeight: 500, color: 'var(--col-text-subtle)', display: 'block', marginBottom: 6 }}>
-            Defaults (applied to all issues — story points keep their own estimate when present)
-          </label>
-          <IssueDefaultsBar
-            groupId={loadedGroupId ?? cfg.gitlab.rootGroupId}
-            value={defaults}
-            onChange={setDefaults}
+      {/* Custom issue — collapsed row; expands to the AI story generator */}
+      {cfg.ai.provider !== 'none' && phase === 'ready' && storiesWithAnalysis.length > 0 && (
+        <button
+          data-testid="custom-issue-toggle"
+          onClick={() => setCustomOpen((o) => !o)}
+          aria-expanded={customOpen}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+            padding: '11px 16px', border: 'none', borderTop: '1px solid var(--col-border-illustrative)',
+            background: 'transparent', cursor: 'pointer', fontFamily: F, textAlign: 'left',
+          }}
+        >
+          <Plus size={13} weight="bold" color="var(--col-background-brand)" />
+          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--col-background-brand)' }}>
+            Add a custom issue
+          </span>
+          <span style={{ fontSize: 10.5, fontWeight: 300, color: 'var(--col-text-subtle)' }}>
+            describe it in plain language — AI drafts the story
+          </span>
+        </button>
+      )}
+
+      {/* Custom Issue Input — AI generates stories from description */}
+      {cfg.ai.provider !== 'none' && phase === 'ready' && (storiesWithAnalysis.length === 0 || customOpen) && (
+        <div
+          data-testid="custom-issue-section"
+          style={{
+            padding: storiesWithAnalysis.length === 0 ? '16px 16px' : '12px 16px',
+            backgroundColor: storiesWithAnalysis.length === 0 ? 'var(--col-background-ui-05, #F5F5F0)' : 'var(--col-background-ui-10, #FAFAFA)',
+            borderBottom: '1px solid var(--col-border-illustrative, #e5e5e5)',
+            border: storiesWithAnalysis.length === 0 ? '2px solid var(--col-background-brand)' : undefined,
+            borderRadius: storiesWithAnalysis.length === 0 ? 8 : 0,
+            margin: storiesWithAnalysis.length === 0 ? '8px 16px 12px' : 0,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--col-text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontFamily: F }}>
+            <Plus size={14} weight="bold" color="var(--col-background-brand)" />
+            Custom Issue
+          </div>
+          <textarea
+            data-testid="custom-issue-input"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            placeholder="Describe what you need... e.g., 'Set up CI/CD pipeline with GitHub Actions'"
+            style={{
+              width: '100%', minHeight: 60, padding: 10, borderRadius: 6,
+              border: '1px solid var(--col-border-illustrative)', fontSize: 13,
+              resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box',
+              background: 'var(--col-bg-surface, #fff)', color: 'var(--col-text, #222)',
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGenerateCustomStories();
+            }}
           />
+          {customError && (
+            <div style={{ fontSize: 12, color: 'var(--col-background-brand)', marginTop: 6, fontFamily: F }}>
+              {customError}
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--col-text-subtle)', fontFamily: F }}>
+              AI generates user stories from your description + epic context (Cmd+Enter)
+            </span>
+            <button
+              data-testid="generate-stories-btn"
+              onClick={handleGenerateCustomStories}
+              disabled={!customInput.trim() || isGeneratingCustom}
+              style={{
+                padding: '6px 16px', borderRadius: 6, border: 'none',
+                background: customInput.trim() && !isGeneratingCustom ? 'var(--col-background-brand)' : 'var(--col-border-illustrative)',
+                color: '#fff', cursor: customInput.trim() && !isGeneratingCustom ? 'pointer' : 'not-allowed',
+                fontSize: 12, fontWeight: 500, fontFamily: F,
+              }}
+            >
+              {isGeneratingCustom && <Spinner size={16} className="animate-spin" />}
+              {isGeneratingCustom ? 'Generating...' : 'Generate Stories'}
+            </button>
+          </div>
         </div>
       )}
 

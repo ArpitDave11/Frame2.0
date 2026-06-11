@@ -240,6 +240,7 @@ export async function refinePipelineAction(): Promise<void> {
         const _diagCode = result.mandatory.architectureDiagram;
         const _diagType = (_diagCode.match(/^\s*(?:%%\{[^}]*\}%%\s*)*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie)/m)?.[1] ?? 'flowchart').replace(/^graph.*/, 'flowchart');
         useBlueprintStore.getState().setCode(sanitizeDiagram(_diagCode), _diagType);
+        useBlueprintStore.getState().setSource?.('refine');
       }
 
       // Store full validation output for critique UI
@@ -281,6 +282,7 @@ export async function refinePipelineAction(): Promise<void> {
           const _diagCode = result.mandatory.architectureDiagram;
         const _diagType = (_diagCode.match(/^\s*(?:%%\{[^}]*\}%%\s*)*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie)/m)?.[1] ?? 'flowchart').replace(/^graph.*/, 'flowchart');
         useBlueprintStore.getState().setCode(sanitizeDiagram(_diagCode), _diagType);
+        useBlueprintStore.getState().setSource?.('refine');
         }
       }
 
