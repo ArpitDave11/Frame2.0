@@ -1,24 +1,30 @@
 /**
- * Issue Refinery — top-level tab view (R-14, with deep-review #2 fixes).
+ * Issue Refinery — top-level tab view (R-14, restyled to Figma 1:2).
  *
- * Composes the Issue Refinery components into a two-pane layout. The
- * gitlab → store bridge is delegated to `bridgeLoadedEpicAction()` in the
- * action layer (Phase B review B-I4) so the view stays presentational.
+ * Layout: topbar → (epic/child rail | workspace). The workspace stacks the
+ * child header (selected issue + meta chips + actions) above the
+ * Comprehension / Refined / Validation cards. The gitlab → store bridge is
+ * delegated to `bridgeLoadedEpicAction()` (Phase B review B-I4) so the view
+ * stays presentational.
  *
- * The `bridgedIidRef` is only updated AFTER a successful bridge — addresses
- * B-C1 (retry not blocked on fetch failure).
+ * `bridgedIidRef` is only updated AFTER a successful bridge — addresses B-C1.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useGitlabStore } from '@/stores/gitlabStore';
 import { useUiStore } from '@/stores/uiStore';
 import { useIssueRefineryStore } from '@/stores/issueRefineryStore';
-import { refineSelectedIssue, bridgeLoadedEpicAction } from '@/actions/refineIssueAction';
+import { bridgeLoadedEpicAction } from '@/actions/refineIssueAction';
 import { ChildIssueList } from './ChildIssueList';
+import { ChildHeader } from './ChildHeader';
+import { OriginalIssueCard } from './OriginalIssueCard';
 import { ComprehensionCard } from './ComprehensionCard';
 import { RefinedIssueCard } from './RefinedIssueCard';
 import { ValidationCard } from './ValidationCard';
-import { PublishButton } from './PublishButton';
+import { PublishedCard } from './PublishedCard';
+import { OneClickModal } from '../oneClick/OneClickModal';
+import { useOneClickStore } from '@/stores/oneClickStore';
+import './issueRefinery.css';
 
 export const IssueRefineryView: React.FC = () => {
   const loadedEpicIid = useGitlabStore((s) => s.loadedEpicIid);
@@ -26,9 +32,11 @@ export const IssueRefineryView: React.FC = () => {
   const gitlabSelectedEpic = useGitlabStore((s) => s.selectedEpic);
 
   const irSelectedEpic = useIssueRefineryStore((s) => s.selectedEpic);
+  const children = useIssueRefineryStore((s) => s.children);
   const phase = useIssueRefineryStore((s) => s.phase);
   const selectedChildIid = useIssueRefineryStore((s) => s.selectedChildIid);
   const error = useIssueRefineryStore((s) => s.error);
+  const published = useIssueRefineryStore((s) => s.published);
 
   const openModal = useUiStore((s) => s.openModal);
 
@@ -54,13 +62,11 @@ export const IssueRefineryView: React.FC = () => {
       .then((ok) => {
         if (cancelled) return;
         setChildrenLoading(false);
-        // B-C1: only mark this epic as "bridged" if the fetch actually succeeded.
         if (ok) bridgedIidRef.current = loadedEpicIid;
       })
       .catch(() => {
         if (cancelled) return;
         setChildrenLoading(false);
-        // Leave bridgedIidRef untouched so the user can retry.
       });
 
     return () => {
@@ -69,15 +75,28 @@ export const IssueRefineryView: React.FC = () => {
   }, [loadedEpicIid, loadedGroupId, gitlabSelectedEpic]);
 
   const handleLoadEpic = () => openModal('loadEpic');
-  const refineDisabled =
-    selectedChildIid === null ||
-    phase === 'comprehending' ||
-    phase === 'refining' ||
-    phase === 'validating' ||
-    phase === 'publishing';
+  const selectedChild =
+    selectedChildIid === null ? undefined : children.find((c) => c.iid === selectedChildIid);
 
   return (
     <div className="ir-view" data-testid="issue-refinery-view">
+      <header className="ir-topbar">
+        <div>
+          <p className="ir-topbar__title">Issue Refinery</p>
+          <p className="ir-topbar__subtitle">Refine GitLab issues with FRAME</p>
+        </div>
+        <button
+          type="button"
+          className="oc-entry"
+          onClick={() => useOneClickStore.getState().openModal()}
+          data-testid="oneclick-open"
+        >
+          <span aria-hidden="true">✦</span> One-Click Issue
+        </button>
+      </header>
+
+      <OneClickModal />
+
       <div className="ir-view__panes">
         <aside className="ir-view__left">
           {childrenLoading ? (
@@ -90,15 +109,13 @@ export const IssueRefineryView: React.FC = () => {
         </aside>
 
         <main className="ir-view__right">
-          {irSelectedEpic === null || selectedChildIid === null ? (
+          {irSelectedEpic === null || selectedChild === undefined ? (
             <p className="ir-view__hint" data-testid="ir-empty-hint">
               Select a child issue from the left pane to begin.
             </p>
           ) : (
             <>
-              <ComprehensionCard />
-              <RefinedIssueCard />
-              <ValidationCard />
+              <ChildHeader issue={selectedChild} phase={phase} />
 
               {error && (
                 <p className="ir-view__error" data-testid="ir-error" role="alert">
@@ -106,23 +123,16 @@ export const IssueRefineryView: React.FC = () => {
                 </p>
               )}
 
-              <div className="ir-view__controls">
-                <button
-                  type="button"
-                  onClick={() => void refineSelectedIssue()}
-                  disabled={refineDisabled}
-                  className="ir-refine-btn"
-                  data-testid="refine-btn"
-                  data-phase={phase}
-                >
-                  {phase === 'comprehending' || phase === 'refining' || phase === 'validating'
-                    ? 'Refining…'
-                    : phase === 'ready'
-                      ? 'Refine again'
-                      : 'Refine'}
-                </button>
-                <PublishButton />
-              </div>
+              {published ? (
+                <PublishedCard issue={selectedChild} />
+              ) : (
+                <>
+                  <OriginalIssueCard />
+                  <ComprehensionCard />
+                  <RefinedIssueCard />
+                  <ValidationCard />
+                </>
+              )}
             </>
           )}
         </main>
