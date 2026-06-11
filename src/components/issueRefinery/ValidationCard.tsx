@@ -1,9 +1,10 @@
 /**
- * Issue Refinery — Validation display card (R-11).
+ * Issue Refinery — Validation display card (R-11, restyled to Figma 3:21).
  *
- * Color-coded score badge + findings list, advisory only (per locked
- * decision D6 the UI never gates Publish on the score). Reads directly
- * from `issueRefineryStore.validation`.
+ * Score tier badge (Good/Fair/Poor + N/100) beside a findings list. Each
+ * finding's [critical]/[important]/[nit] prefix is rendered as a coloured
+ * type pill and stripped from the body text. Advisory only — the UI never
+ * gates Publish on the score (locked decision D6).
  */
 
 import React from 'react';
@@ -11,12 +12,20 @@ import { useIssueRefineryStore } from '@/stores/issueRefineryStore';
 
 type Severity = 'critical' | 'important' | 'nit' | 'unknown';
 
-function parseFindingSeverity(s: string): Severity {
-  if (/^\s*\[critical\]/i.test(s)) return 'critical';
-  if (/^\s*\[important\]/i.test(s)) return 'important';
-  if (/^\s*\[nit\]/i.test(s)) return 'nit';
-  return 'unknown';
+function parseFinding(s: string): { severity: Severity; text: string } {
+  const m = s.match(/^\s*\[(critical|important|nit)\]\s*/i);
+  if (m) {
+    return { severity: m[1]!.toLowerCase() as Severity, text: s.slice(m[0].length) };
+  }
+  return { severity: 'unknown', text: s };
 }
+
+const SEV_LABEL: Record<Severity, string> = {
+  critical: 'Critical',
+  important: 'Important',
+  nit: 'Nit',
+  unknown: 'Note',
+};
 
 function scoreTier(score: number): 'good' | 'warn' | 'poor' {
   if (score >= 80) return 'good';
@@ -46,8 +55,10 @@ export const ValidationCard: React.FC = () => {
           aria-label={`${tierLabel} quality, score ${validation.score} out of 100`}
         >
           <span className="ir-validation-card__score-tier">{tierLabel}</span>
-          <span className="ir-validation-card__score-num">{validation.score}</span>
-          <span className="ir-validation-card__score-suffix">/100</span>
+          <span className="ir-validation-card__score-line">
+            <span className="ir-validation-card__score-num">{validation.score}</span>
+            <span className="ir-validation-card__score-suffix">/100</span>
+          </span>
         </div>
 
         <div className="ir-validation-card__findings">
@@ -56,15 +67,16 @@ export const ValidationCard: React.FC = () => {
           ) : (
             <ul className="ir-validation-card__findings-list">
               {validation.findings.map((f, i) => {
-                const sev = parseFindingSeverity(f);
+                const { severity, text } = parseFinding(f);
                 return (
                   <li
                     key={i}
-                    className={`ir-validation-card__finding ir-validation-card__finding--${sev}`}
-                    data-severity={sev}
+                    className={`ir-finding ir-finding--${severity}`}
+                    data-severity={severity}
                     data-testid={`validation-finding-${i}`}
                   >
-                    {f}
+                    <span className="ir-finding__type">{SEV_LABEL[severity]}</span>
+                    <span className="ir-finding__text">{text}</span>
                   </li>
                 );
               })}

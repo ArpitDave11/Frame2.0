@@ -42,19 +42,24 @@ export const ChildIssueList: React.FC<ChildIssueListProps> = ({ onRequestLoadEpi
   return (
     <div className="ir-childlist" data-testid="childlist">
       <header className="ir-childlist__header">
-        <h3 className="ir-childlist__epic-title" title={selectedEpic.title}>
-          {selectedEpic.title}
-        </h3>
-        <span className="ir-childlist__epic-iid">&amp;{selectedEpic.epicIid}</span>
+        <span className="ir-eyebrow">Epic</span>
         {onRequestLoadEpic && (
           <button type="button" onClick={onRequestLoadEpic} className="ir-childlist__loadbtn">
             Change
           </button>
         )}
+        <h3 className="ir-childlist__epic-title" title={selectedEpic.title}>
+          {selectedEpic.title}
+        </h3>
+        <span className="ir-childlist__epic-iid">&amp;{selectedEpic.epicIid}</span>
       </header>
 
+      <div className="ir-clh">
+        <span className="ir-eyebrow">Child issues · {children.length}</span>
+      </div>
+
       {children.length === 0 ? (
-        <p className="ir-childlist__hint" data-testid="childlist-no-children">
+        <p className="ir-childlist__hint" data-testid="childlist-no-children" style={{ padding: '0 24px 16px' }}>
           This epic has no child issues.
         </p>
       ) : (

@@ -95,6 +95,12 @@ export function LoadEpicModal() {
         } else {
           setMarkdown(desc);
         }
+        // Populate the full epic object too, not just iid+groupId. Issue Refinery's
+        // bridge effect (IssueRefineryView) bails unless gitlabStore.selectedEpic is
+        // set and matches loadedEpicIid; without this it never fetches child issues.
+        // gitlabStore.selectedEpic is read ONLY by Issue Refinery, so this is inert
+        // for the editor "Refine" flow.
+        useGitlabStore.getState().setSelectedEpic(result.data);
         useGitlabStore.getState().setLoadedEpicContext(epic.iid, epicGroupId);
         closeModal();
         setActiveView('workspace');

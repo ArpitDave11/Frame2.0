@@ -42,12 +42,16 @@ export interface IssueRefineryState {
   // Pipeline outputs
   comprehension: ComprehensionResult | null;
   refinedDraft: string | null;
+  /** The model's untouched refined output — used to revert inline user edits. */
+  pristineRefinedDraft: string | null;
   userEditedDraft: boolean;
   validation: ValidationResult | null;
 
   // Status
   phase: Phase;
   error: string | null;
+  /** True after a successful Publish — drives the success card. */
+  published: boolean;
 
   // Observability (dev only — populated by the action layer)
   lastCachedTokens: number[];
@@ -57,8 +61,13 @@ export interface IssueRefineryState {
   setSelectedChild: (iid: number) => void;
   setComprehension: (c: ComprehensionResult) => void;
   setRefinedDraft: (draft: string, userEdited: boolean) => void;
+  /** Revert the editable draft back to the model's pristine output. */
+  resetRefinedDraft: () => void;
+  /** Patch fields (weight, assignees, iteration, …) on the selected child issue in place. */
+  updateSelectedChild: (patch: Partial<GitLabIssue>) => void;
   setValidation: (v: ValidationResult) => void;
   setPhase: (p: Phase, error?: string | null) => void;
+  setPublished: (v: boolean) => void;
   recordCachedTokens: (n: number) => void;
   /**
    * Clear per-issue derived state (comprehension, refinedDraft, validation,
@@ -79,10 +88,12 @@ const INITIAL_STATE = {
   originalProjectId: null,
   comprehension: null,
   refinedDraft: null,
+  pristineRefinedDraft: null,
   userEditedDraft: false,
   validation: null,
   phase: 'idle' as Phase,
   error: null,
+  published: false,
   lastCachedTokens: [] as number[],
 };
 
@@ -100,10 +111,12 @@ export const useIssueRefineryStore = create<IssueRefineryState>((set, get) => ({
       originalProjectId: null,
       comprehension: null,
       refinedDraft: null,
+      pristineRefinedDraft: null,
       userEditedDraft: false,
       validation: null,
       phase: 'idle',
       error: null,
+      published: false,
       lastCachedTokens: [],
     }),
 
@@ -120,10 +133,12 @@ export const useIssueRefineryStore = create<IssueRefineryState>((set, get) => ({
       // Clear derived state from any prior child.
       comprehension: null,
       refinedDraft: null,
+      pristineRefinedDraft: null,
       userEditedDraft: false,
       validation: null,
       phase: 'idle',
       error: null,
+      published: false,
       lastCachedTokens: [],
     });
   },
@@ -131,11 +146,29 @@ export const useIssueRefineryStore = create<IssueRefineryState>((set, get) => ({
   setComprehension: (c) => set({ comprehension: c }),
 
   setRefinedDraft: (draft, userEdited) =>
-    set({ refinedDraft: draft, userEditedDraft: userEdited }),
+    set((s) => ({
+      refinedDraft: draft,
+      userEditedDraft: userEdited,
+      // The first (model) write establishes the pristine baseline that Reset
+      // reverts to; subsequent user keystrokes leave the baseline untouched.
+      pristineRefinedDraft: userEdited ? s.pristineRefinedDraft : draft,
+    })),
+
+  resetRefinedDraft: () =>
+    set((s) => ({ refinedDraft: s.pristineRefinedDraft, userEditedDraft: false })),
+
+  updateSelectedChild: (patch) =>
+    set((s) => ({
+      children: s.children.map((c) =>
+        c.iid === s.selectedChildIid ? { ...c, ...patch } : c,
+      ),
+    })),
 
   setValidation: (v) => set({ validation: v }),
 
   setPhase: (p, error = null) => set({ phase: p, error }),
+
+  setPublished: (v) => set({ published: v }),
 
   recordCachedTokens: (n) =>
     set((s) => ({ lastCachedTokens: [...s.lastCachedTokens, n] })),
@@ -144,9 +177,11 @@ export const useIssueRefineryStore = create<IssueRefineryState>((set, get) => ({
     set({
       comprehension: null,
       refinedDraft: null,
+      pristineRefinedDraft: null,
       userEditedDraft: false,
       validation: null,
       error: null,
+      published: false,
       lastCachedTokens: [],
     }),
 

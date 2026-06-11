@@ -211,7 +211,12 @@ export async function publishRefinedIssue(): Promise<void> {
   );
 
   if (result.success) {
-    useIssueRefineryStore.getState().setPhase('idle', null);
+    const s = useIssueRefineryStore.getState();
+    s.setPhase('idle', null);
+    s.setPublished(true);
+    // Reflect the freshly-published body as the new original so a re-open
+    // shows what's actually on GitLab now.
+    s.updateSelectedChild({ description: store.refinedDraft });
     useUiStore.getState().addToast({
       type: 'success',
       title: 'Refined issue published to GitLab.',
