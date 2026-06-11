@@ -293,3 +293,20 @@ Created branch `feature/issue-refinery` stacked on `feature/phase-a-docmining` (
 | 5 | Verify LOW bugs (13-14) | pending |
 | 6 | Write verdicts to findings.md | pending |
 | 7 | Present report to user | pending |
+
+---
+
+### 2026-06-11 · One-Click Task (Phase 2a) — NOT a DocMining atomic task
+
+This entry exists only to satisfy the H5 journal hook: the One-Click *Task* feature
+touched `vite.config.ts` (added a `/gitlab-graphql` dev proxy for GitLab work items),
+which the hook treats as DocMining-scoped. The change is unrelated to DocMining.
+**Feature:** "Create task" on a selected issue → prompt → AI drafts a subtask →
+create as a GitLab child work-item via GraphQL (`workItemCreate` + `hierarchyWidget`).
+**Files:** `vite.config.ts`, `services/gitlab/gitlabGraphQL.ts` (+test),
+`pipeline/issue/generation/generateTask.ts` (+test), `stores/oneClickTaskStore.ts` (+test),
+`actions/oneClickTaskAction.ts`, `components/oneClick/OneClickTaskModal.tsx`,
+`components/issueRefinery/{ChildHeader,IssueRefineryView}.tsx`.
+**Verification:** 10 new unit tests pass; broad sweep 840/840 across 60 files; tsc clean
+for the feature; live: a Task was created as a child of issue US-001 (parent link verified
+via GraphQL) and cleaned up.

@@ -23,6 +23,7 @@ import { RefinedIssueCard } from './RefinedIssueCard';
 import { ValidationCard } from './ValidationCard';
 import { PublishedCard } from './PublishedCard';
 import { OneClickModal } from '../oneClick/OneClickModal';
+import { OneClickTaskModal } from '../oneClick/OneClickTaskModal';
 import { useOneClickStore } from '@/stores/oneClickStore';
 import './issueRefinery.css';
 
@@ -96,6 +97,7 @@ export const IssueRefineryView: React.FC = () => {
       </header>
 
       <OneClickModal />
+      <OneClickTaskModal />
 
       <div className="ir-view__panes">
         <aside className="ir-view__left">

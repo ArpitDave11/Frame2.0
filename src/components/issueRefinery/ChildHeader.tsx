@@ -13,6 +13,7 @@ import React from 'react';
 import type { GitLabIssue } from '@/services/gitlab/types';
 import type { Phase } from '@/pipeline/issue/types';
 import { refineSelectedIssue } from '@/actions/refineIssueAction';
+import { useOneClickTaskStore } from '@/stores/oneClickTaskStore';
 import { PublishButton } from './PublishButton';
 import { WeightChip, AssigneeChip, IterationChip } from './MetaEditors';
 
@@ -68,6 +69,21 @@ export const ChildHeader: React.FC<ChildHeaderProps> = ({ issue, phase }) => {
       </div>
 
       <div className="ir-childhdr__acts">
+        <button
+          type="button"
+          onClick={() => useOneClickTaskStore.getState().openModal({
+            iid: issue.iid,
+            projectId: issue.project_id ?? 0,
+            webUrl: issue.web_url,
+            title: issue.title,
+            body: issue.description ?? '',
+          })}
+          className="ir-refine-btn"
+          data-testid="create-task-btn"
+        >
+          <span aria-hidden="true">⛓</span>
+          Create task
+        </button>
         <button
           type="button"
           onClick={() => void refineSelectedIssue()}

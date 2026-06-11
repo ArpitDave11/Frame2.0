@@ -41,6 +41,15 @@ export default defineConfig(({ mode }) => {
         rewrite: (p) => p.replace(/^\/gitlab-api/, ''),
         secure: false,
       },
+      // GitLab GraphQL — needed for work items (tasks). Lives at /api/graphql,
+      // a sibling of the /api/v4 REST base. DEV/PREVIEW ONLY (like /gitlab-api);
+      // production needs same-origin ingress forwarding /gitlab-graphql → /api/graphql.
+      '/gitlab-graphql': {
+        target: (env.VITE_GITLAB_BASE_URL || 'https://devcloud.ubs.net/api/v4').replace(/\/api\/v4\/?$/, '/api/graphql'),
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/gitlab-graphql/, ''),
+        secure: false,
+      },
       // DocMining backend — DEV/PREVIEW ONLY proxy.
       //
       // The browser calls the relative path `/api/docmining/convert`; this proxy
