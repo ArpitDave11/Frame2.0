@@ -45,21 +45,33 @@
         ]
       },
       {
-        "type": "command",
-        "command": "bash /Users/arpit/.claude/skills/kit-runner/templates/hook-stop-fragment.sh",
-        "async": true
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/arpit/.claude/skills/kit-runner/templates/hook-stop-fragment.sh",
+            "async": true
+          }
+        ]
       }
     ],
     "SessionStart": [
       {
-        "type": "command",
-        "command": "bash /Users/arpit/.claude/skills/kit-runner/templates/hook-session-start.sh"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/arpit/.claude/skills/kit-runner/templates/hook-session-start.sh"
+          }
+        ]
       }
     ],
     "SessionEnd": [
       {
-        "type": "command",
-        "command": "bash /Users/arpit/.claude/skills/kit-runner/templates/hook-session-end-minimal.sh"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/arpit/.claude/skills/kit-runner/templates/hook-session-end-minimal.sh"
+          }
+        ]
       }
     ]
   }
