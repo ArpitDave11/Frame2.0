@@ -161,7 +161,7 @@ interface MoreTool {
 
 const MORE_TOOLS: MoreTool[] = [
   { id: 'one-click-issue', label: 'Single Issue (one-click)', description: 'One prompt → AI-drafted GitLab issue', icon: Sparkle, tab: 'issueRefinery', oneClick: true },
-  { id: 'doc-intel', label: 'Doc Intelligence', description: 'Upload a doc → AI insights & export', icon: FileMagnifyingGlass, tab: 'docIntel' },
+  { id: 'doc-intel', label: 'Doc Intelligence ᴸᵀᴱ', description: 'Upload a doc → AI insights & export', icon: FileMagnifyingGlass, tab: 'docIntel' },
   { id: 'issue-refinery', label: 'Issue Refinery', description: 'Clean up an epic’s child issues', icon: Wrench, tab: 'issueRefinery' },
   { id: 'brp', label: 'BRP Capacity', description: 'Crew · pod · epic sizing', icon: Compass, tab: 'brp' },
   { id: 'initiative', label: 'Extreme Initiative', description: 'Split a stream epic across crews', icon: Lightning, tab: 'initiative' },

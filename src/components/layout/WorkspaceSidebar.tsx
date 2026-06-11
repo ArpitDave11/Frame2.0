@@ -54,7 +54,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   { id: 'sprint', icon: Kanban, label: 'Performa - Sprint', tabOverride: 'issues', issueSubTab: 'sprint' },
   { id: 'initiative', icon: Lightning, label: 'Extreme Initiative' },
-  { id: 'docIntel', icon: FileMagnifyingGlass, label: 'Doc Intelligence' },
+  { id: 'docIntel', icon: FileMagnifyingGlass, label: 'Doc Intelligence ᴸᵀᴱ' },
   { id: 'issueRefinery', icon: Wrench, label: 'Issue Refinery' },
   { id: 'brp', icon: Compass, label: 'BRP' },
   { id: 'analytics', icon: ChartBar, label: 'Analytics' },

@@ -138,7 +138,7 @@ export default function DocIntelView() {
                 fontSize: 42, fontWeight: 400, lineHeight: 1.25, marginBottom: 28,
                 color: 'var(--col-text-primary)', letterSpacing: '-0.5px', fontFamily: F,
               }}>
-                {!hasFile ? 'AI-powered document intelligence' : 'Ready to analyze'}
+                {!hasFile ? 'Doc Intelligence ᴸᵀᴱ' : 'Ready to analyze'}
               </h1>
 
               <p style={{

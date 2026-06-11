@@ -68,7 +68,7 @@ const WORKSPACE_LINKS: WorkspaceLink[] = [
   { id: 'blueprints', label: 'Blueprints', icon: SquaresFour, tab: 'blueprint', indent: true },
   { id: 'sprint', label: 'Performa - Sprint', icon: Kanban, tab: 'issues', issueSubTab: 'sprint' },
   { id: 'initiative', label: 'Extreme Initiative', icon: Lightning, tab: 'initiative' },
-  { id: 'docIntel', label: 'Doc Intelligence', icon: FileMagnifyingGlass, tab: 'docIntel' },
+  { id: 'docIntel', label: 'Doc Intelligence ᴸᵀᴱ', icon: FileMagnifyingGlass, tab: 'docIntel' },
   { id: 'issueRefinery', label: 'Issue Refinery', icon: Wrench, tab: 'issueRefinery' },
   { id: 'brp', label: 'BRP', icon: Compass, tab: 'brp' },
   { id: 'analytics', label: 'Analytics', icon: ChartBar, tab: 'analytics' },

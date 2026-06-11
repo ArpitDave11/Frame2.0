@@ -97,7 +97,7 @@ export function ViewRouter() {
     case 'initiative':
       return <ErrorBoundary viewName="Extreme Initiative"><ExtremeInitiativeView /></ErrorBoundary>;
     case 'docIntel':
-      return <ErrorBoundary viewName="Document Intelligence"><div data-testid="docintel-view-wrapper" style={{ flex: 1, overflow: 'auto' }}><DocIntelView /></div></ErrorBoundary>;
+      return <ErrorBoundary viewName="Doc Intelligence ᴸᵀᴱ"><div data-testid="docintel-view-wrapper" style={{ flex: 1, overflow: 'auto' }}><DocIntelView /></div></ErrorBoundary>;
     case 'issueRefinery':
       return <ErrorBoundary viewName="Issue Refinery"><div data-testid="issue-refinery-wrapper" style={{ flex: 1, overflow: 'auto' }}><IssueRefineryView /></div></ErrorBoundary>;
     case 'brp':
