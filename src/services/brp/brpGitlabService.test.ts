@@ -28,6 +28,7 @@ function buildConfig(overrides: Partial<GitLabConfig> = {}): GitLabConfig {
   return {
     enabled: true,
     rootGroupId: '42',
+    streamGroupId: '',
     accessToken: 'fake-token',
     authMode: 'pat' as GitLabConfig['authMode'],
     ...overrides,

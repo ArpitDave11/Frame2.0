@@ -85,6 +85,7 @@ describe.skipIf(!LIVE_SMOKE_ENABLED)('brpGitlabService — LIVE smoke (gated)', 
     const config: GitLabConfig = {
       enabled: true,
       rootGroupId,
+      streamGroupId: '',
       accessToken,
       authMode: 'pat' as GitLabConfig['authMode'],
     };

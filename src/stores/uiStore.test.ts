@@ -99,16 +99,16 @@ describe('toasts', () => {
     useUiStore.getState().addToast({ type: 'success', title: 'Done' });
     const toasts = useUiStore.getState().toasts;
     expect(toasts).toHaveLength(1);
-    expect(toasts[0].id).toBeDefined();
-    expect(typeof toasts[0].id).toBe('string');
-    expect(toasts[0].id.length).toBeGreaterThan(0);
-    expect(toasts[0].type).toBe('success');
-    expect(toasts[0].title).toBe('Done');
+    expect(toasts[0]!.id).toBeDefined();
+    expect(typeof toasts[0]!.id).toBe('string');
+    expect(toasts[0]!.id.length).toBeGreaterThan(0);
+    expect(toasts[0]!.type).toBe('success');
+    expect(toasts[0]!.title).toBe('Done');
   });
 
   it('removeToast removes toast by id', () => {
     useUiStore.getState().addToast({ type: 'error', title: 'Oops' });
-    const id = useUiStore.getState().toasts[0].id;
+    const id = useUiStore.getState().toasts[0]!.id;
     useUiStore.getState().removeToast(id);
     expect(useUiStore.getState().toasts).toEqual([]);
   });
@@ -123,11 +123,11 @@ describe('toasts', () => {
     useUiStore.getState().addToast({ type: 'success', title: 'Keep' });
     useUiStore.getState().addToast({ type: 'error', title: 'Remove' });
     const toasts = useUiStore.getState().toasts;
-    const removeId = toasts[1].id;
+    const removeId = toasts[1]!.id;
     useUiStore.getState().removeToast(removeId);
     const remaining = useUiStore.getState().toasts;
     expect(remaining).toHaveLength(1);
-    expect(remaining[0].title).toBe('Keep');
+    expect(remaining[0]!.title).toBe('Keep');
   });
 });
 

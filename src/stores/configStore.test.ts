@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { useConfigStore } from './configStore';
 import { DEFAULT_CONFIG } from '@/domain/configTypes';
 

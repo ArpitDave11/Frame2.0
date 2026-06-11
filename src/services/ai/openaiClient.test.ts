@@ -44,7 +44,7 @@ describe('callOpenAI URL construction', () => {
     mockSuccessResponse();
     await callOpenAI(OPENAI_CONFIG, BASE_URL, REQUEST);
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0]!;
     expect(url).toBe('https://api.openai.com/v1/chat/completions');
   });
 
@@ -52,7 +52,7 @@ describe('callOpenAI URL construction', () => {
     mockSuccessResponse();
     await callOpenAI(OPENAI_CONFIG, 'https://api.openai.com/v1/', REQUEST);
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0]!;
     expect(url).toBe('https://api.openai.com/v1/chat/completions');
   });
 
@@ -60,7 +60,7 @@ describe('callOpenAI URL construction', () => {
     mockSuccessResponse();
     await callOpenAI(OPENAI_CONFIG, 'https://my-proxy.example.com/v1', REQUEST);
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0]!;
     expect(url).toBe('https://my-proxy.example.com/v1/chat/completions');
   });
 });
@@ -72,7 +72,7 @@ describe('callOpenAI headers', () => {
     mockSuccessResponse();
     await callOpenAI(OPENAI_CONFIG, BASE_URL, REQUEST);
 
-    const [, options] = mockFetch.mock.calls[0];
+    const [, options] = mockFetch.mock.calls[0]!;
     expect(options.headers['Authorization']).toBe('Bearer sk-test-123');
   });
 
@@ -80,7 +80,7 @@ describe('callOpenAI headers', () => {
     mockSuccessResponse();
     await callOpenAI(OPENAI_CONFIG, BASE_URL, REQUEST);
 
-    const [, options] = mockFetch.mock.calls[0];
+    const [, options] = mockFetch.mock.calls[0]!;
     expect(options.headers['Content-Type']).toBe('application/json');
   });
 
@@ -88,7 +88,7 @@ describe('callOpenAI headers', () => {
     mockSuccessResponse();
     await callOpenAI(OPENAI_CONFIG, BASE_URL, REQUEST);
 
-    const [, options] = mockFetch.mock.calls[0];
+    const [, options] = mockFetch.mock.calls[0]!;
     expect(options.headers['api-key']).toBeUndefined();
   });
 });
@@ -100,7 +100,7 @@ describe('callOpenAI request body', () => {
     mockSuccessResponse();
     await callOpenAI(OPENAI_CONFIG, BASE_URL, REQUEST);
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = JSON.parse(mockFetch.mock.calls[0]![1].body);
     expect(body.model).toBe('gpt-4o');
   });
 
@@ -108,7 +108,7 @@ describe('callOpenAI request body', () => {
     mockSuccessResponse();
     await callOpenAI(OPENAI_CONFIG, BASE_URL, REQUEST);
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = JSON.parse(mockFetch.mock.calls[0]![1].body);
     expect(body.messages).toEqual([
       { role: 'system', content: 'You are a helpful assistant.' },
       { role: 'user', content: 'Hello' },
@@ -119,7 +119,7 @@ describe('callOpenAI request body', () => {
     mockSuccessResponse();
     await callOpenAI(OPENAI_CONFIG, BASE_URL, { ...REQUEST, maxTokens: 1000, temperature: 0.5 });
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = JSON.parse(mockFetch.mock.calls[0]![1].body);
     expect(body.max_tokens).toBe(1000);
     expect(body.temperature).toBe(0.5);
   });

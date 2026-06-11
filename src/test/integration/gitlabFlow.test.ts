@@ -37,6 +37,7 @@ afterEach(() => {
 const GITLAB_CONFIG: GitLabConfig = {
   enabled: true,
   rootGroupId: '42',
+  streamGroupId: '',
   accessToken: 'glpat-test-token',
   authMode: 'pat',
 };
@@ -82,7 +83,7 @@ describe('GitLab load and publish flows', () => {
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(2);
-    expect(result.data![0].title).toBe('Payment Gateway Redesign');
+    expect(result.data![0]!.title).toBe('Payment Gateway Redesign');
     expect(result.totalCount).toBe(2);
   });
 
@@ -98,7 +99,7 @@ describe('GitLab load and publish flows', () => {
     const epic = result.data![0];
 
     // Set markdown from epic description (what the Load modal does)
-    useEpicStore.getState().setMarkdown(epic.description);
+    useEpicStore.getState().setMarkdown(epic!.description);
 
     const state = useEpicStore.getState();
     expect(state.markdown).toContain('## Objective');
@@ -116,7 +117,7 @@ describe('GitLab load and publish flows', () => {
     const result = await fetchGroupEpics(GITLAB_CONFIG, '42');
     const epic = result.data![0];
 
-    useGitlabStore.getState().setSelectedEpic(epic);
+    useGitlabStore.getState().setSelectedEpic(epic!);
 
     expect(useGitlabStore.getState().selectedEpic).not.toBeNull();
     expect(useGitlabStore.getState().selectedEpic!.title).toBe('Payment Gateway Redesign');
@@ -199,6 +200,7 @@ describe('GitLab load and publish flows', () => {
     const noAuthConfig: GitLabConfig = {
       enabled: false,
       rootGroupId: '',
+      streamGroupId: '',
       accessToken: '',
       authMode: 'pat',
     };

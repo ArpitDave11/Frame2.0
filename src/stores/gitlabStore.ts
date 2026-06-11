@@ -208,7 +208,7 @@ export function resolveGroupName(
   if (epic.web_url) {
     const match = epic.web_url.match(/^https?:\/\/[^/]+\/(.+?)\/-\/epics\//);
     if (match) {
-      const pathParts = match[1].split('/');
+      const pathParts = match[1]!.split('/');
       return pathParts[pathParts.length - 1] ?? groupId;
     }
   }

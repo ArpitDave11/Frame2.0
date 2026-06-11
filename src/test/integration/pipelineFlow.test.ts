@@ -12,6 +12,7 @@ import { usePipelineStore } from '@/stores/pipelineStore';
 import { useConfigStore } from '@/stores/configStore';
 import { useBlueprintStore } from '@/stores/blueprintStore';
 import { useUiStore } from '@/stores/uiStore';
+import type { PipelineResult } from '@/pipeline/pipelineTypes';
 
 // ─── Mocks ──────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ const MOCK_PIPELINE_RESULT = {
   success: true,
   epicContent: REFINED_MARKDOWN,
   iterations: 2,
+  totalDuration: 0,
   comprehension: {
     keyEntities: ['user', 'feature', 'system'],
     summary: 'A feature epic',
@@ -102,7 +104,7 @@ const MOCK_PIPELINE_RESULT = {
     sectionScores: [],
     suggestions: [],
   },
-};
+} as unknown as PipelineResult;
 
 // ─── Tests ──────────────────────────────────────────────────
 
@@ -116,7 +118,7 @@ describe('Pipeline execution flow', () => {
     expect(mockRunPremiumPipeline).not.toHaveBeenCalled();
     const toasts = useUiStore.getState().toasts;
     expect(toasts.length).toBe(1);
-    expect(toasts[0].title).toContain('No epic content');
+    expect(toasts[0]!.title).toContain('No epic content');
   });
 
   it('starts pipeline and calls orchestrator with correct params', async () => {
@@ -131,7 +133,7 @@ describe('Pipeline execution flow', () => {
     await refinePipelineAction();
 
     expect(mockRunPremiumPipeline).toHaveBeenCalledTimes(1);
-    const callArgs = mockRunPremiumPipeline.mock.calls[0][0];
+    const callArgs = mockRunPremiumPipeline.mock.calls[0]![0];
     expect(callArgs.rawContent).toBe(SAMPLE_MARKDOWN);
     expect(callArgs.complexity).toBe('moderate'); // default
     expect(callArgs.aiConfig.provider).toBe('openai');

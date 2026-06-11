@@ -171,8 +171,8 @@ describe('getGlobalDefaults', () => {
     expect(defaults.statusEmoji.draft).toBeDefined();
     expect(defaults.statusEmoji.archived).toBeDefined();
     expect(defaults.markdownFeatures.mermaidDiagrams).toBe(true);
-    expect(defaults.reviewStates).toBeDefined();
-    expect(defaults.priorityLevels).toBeDefined();
+    expect((defaults as any).reviewStates).toBeDefined();
+    expect((defaults as any).priorityLevels).toBeDefined();
   });
 });
 

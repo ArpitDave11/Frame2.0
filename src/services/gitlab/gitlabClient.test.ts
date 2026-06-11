@@ -23,6 +23,7 @@ import type { GitLabConfig } from '@/domain/configTypes';
 const PAT_CONFIG: GitLabConfig = {
   enabled: true,
   rootGroupId: '42',
+  streamGroupId: '',
   accessToken: 'glpat-abc123',
   authMode: 'pat',
 };
@@ -30,6 +31,7 @@ const PAT_CONFIG: GitLabConfig = {
 const OAUTH_CONFIG: GitLabConfig = {
   enabled: true,
   rootGroupId: '42',
+  streamGroupId: '',
   accessToken: 'oauth-token-xyz',
   authMode: 'oauth',
 };
@@ -37,6 +39,7 @@ const OAUTH_CONFIG: GitLabConfig = {
 const EMPTY_CONFIG: GitLabConfig = {
   enabled: false,
   rootGroupId: '',
+  streamGroupId: '',
   accessToken: '',
   authMode: 'pat',
 };
@@ -281,9 +284,9 @@ describe('fetchEpicChildren', () => {
     const result = await fetchEpicChildren(PAT_CONFIG, '42', 5);
     expect(result.success).toBe(true);
     expect(result.data?.epics).toHaveLength(1);
-    expect(result.data?.epics[0].type).toBe('epic');
+    expect(result.data?.epics[0]!.type).toBe('epic');
     expect(result.data?.issues).toHaveLength(1);
-    expect(result.data?.issues[0].type).toBe('issue');
+    expect(result.data?.issues[0]!.type).toBe('issue');
   });
 });
 

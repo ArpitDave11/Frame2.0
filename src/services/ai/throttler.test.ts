@@ -34,7 +34,7 @@ describe('RequestThrottler', () => {
     await throttler.throttle(fn);
 
     expect(timestamps).toHaveLength(2);
-    const gap = timestamps[1] - timestamps[0];
+    const gap = timestamps[1]! - timestamps[0]!;
     expect(gap).toBeGreaterThanOrEqual(25); // allow small timing variance
   });
 

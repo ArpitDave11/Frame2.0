@@ -91,7 +91,7 @@ describe('callAI', () => {
     expect(result.usage).toEqual({ promptTokens: 10, completionTokens: 20, totalTokens: 30 });
 
     // Verify Azure endpoint was called
-    const [url, options] = mockFetch.mock.calls[0];
+    const [url, options] = mockFetch.mock.calls[0]!;
     expect(url).toContain('openai.azure.com');
     expect(url).toContain('gpt-4-deploy');
     expect(options.headers['api-key']).toBe('azure-key-123');
@@ -106,7 +106,7 @@ describe('callAI', () => {
     expect(result.usage).toEqual({ promptTokens: 15, completionTokens: 25, totalTokens: 40 });
 
     // Verify OpenAI endpoint was called with model in body
-    const [url, options] = mockFetch.mock.calls[0];
+    const [url, options] = mockFetch.mock.calls[0]!;
     expect(url).toContain('/v1/chat/completions');
     expect(options.headers['Authorization']).toBe('Bearer sk-test-123');
     const body = JSON.parse(options.body);
@@ -117,7 +117,7 @@ describe('callAI', () => {
     mockAzureResponse();
     await callAI(AZURE_CONFIG, REQUEST);
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = JSON.parse(mockFetch.mock.calls[0]![1].body);
     expect(body.messages).toEqual([
       { role: 'system', content: 'You are a helpful assistant.' },
       { role: 'user', content: 'Hello' },
@@ -128,7 +128,7 @@ describe('callAI', () => {
     mockAzureResponse();
     await callAI(AZURE_CONFIG, { ...REQUEST, maxTokens: 500, temperature: 0.5 });
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = JSON.parse(mockFetch.mock.calls[0]![1].body);
     expect(body.max_tokens).toBe(500);
     expect(body.temperature).toBe(0.5);
   });

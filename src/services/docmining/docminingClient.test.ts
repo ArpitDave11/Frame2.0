@@ -67,7 +67,7 @@ describe('convertDocument', () => {
       '/api/docmining/convert',
       expect.objectContaining({ method: 'POST' }),
     );
-    const body = fetchMock.mock.calls[0][1].body as FormData;
+    const body = fetchMock.mock.calls[0]![1].body as FormData;
     expect(body).toBeInstanceOf(FormData);
     expect(body.get('include_markdown')).toBe('true');
     expect(body.get('file')).toBeInstanceOf(File);

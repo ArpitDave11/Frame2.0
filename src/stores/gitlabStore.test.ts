@@ -21,13 +21,6 @@ const MOCK_EPIC: GitLabEpic = {
   group_id: 42,
 };
 
-const MOCK_EPIC_2: GitLabEpic = {
-  ...MOCK_EPIC,
-  id: 102,
-  iid: 2,
-  title: 'Payment Integration',
-};
-
 // ─── Initial State ──────────────────────────────────────────
 
 describe('initial state', () => {

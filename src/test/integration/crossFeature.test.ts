@@ -45,7 +45,7 @@ describe('Cross-feature interactions', () => {
 
       expect(useEpicStore.getState().markdown).toBe(newMd);
       expect(useChatStore.getState().messages).toHaveLength(2);
-      expect(useChatStore.getState().messages[1].content).toContain('improved objective');
+      expect(useChatStore.getState().messages[1]!.content).toContain('improved objective');
     });
   });
 
@@ -175,10 +175,10 @@ describe('Cross-feature interactions', () => {
 
       const toasts = useUiStore.getState().toasts;
       expect(toasts).toHaveLength(1);
-      expect(toasts[0].type).toBe('success');
-      expect(toasts[0].title).toBe('Pipeline complete!');
+      expect(toasts[0]!.type).toBe('success');
+      expect(toasts[0]!.title).toBe('Pipeline complete!');
 
-      const toastId = toasts[0].id;
+      const toastId = toasts[0]!.id;
       useUiStore.getState().removeToast(toastId);
 
       expect(useUiStore.getState().toasts).toHaveLength(0);

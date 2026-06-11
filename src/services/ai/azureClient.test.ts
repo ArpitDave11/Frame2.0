@@ -47,7 +47,7 @@ describe('callAzure URL construction', () => {
     mockSuccessResponse();
     await callAzure(AZURE_CONFIG, ENDPOINT, REQUEST);
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0]!;
     expect(url).toBe(
       'https://my-resource.openai.azure.com/openai/deployments/gpt-4-deploy/chat/completions?api-version=2024-02-15-preview',
     );
@@ -57,7 +57,7 @@ describe('callAzure URL construction', () => {
     mockSuccessResponse();
     await callAzure(AZURE_CONFIG, 'https://my-resource.openai.azure.com/', REQUEST);
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0]!;
     expect(url).toContain('azure.com/openai/');
     expect(url).not.toContain('azure.com//');
   });
@@ -70,7 +70,7 @@ describe('callAzure headers', () => {
     mockSuccessResponse();
     await callAzure(AZURE_CONFIG, ENDPOINT, REQUEST);
 
-    const [, options] = mockFetch.mock.calls[0];
+    const [, options] = mockFetch.mock.calls[0]!;
     expect(options.headers['api-key']).toBe('azure-key-123');
     expect(options.headers['Authorization']).toBeUndefined();
   });
@@ -79,7 +79,7 @@ describe('callAzure headers', () => {
     mockSuccessResponse();
     await callAzure(AZURE_CONFIG, ENDPOINT, REQUEST);
 
-    const [, options] = mockFetch.mock.calls[0];
+    const [, options] = mockFetch.mock.calls[0]!;
     expect(options.headers['Content-Type']).toBe('application/json');
   });
 });
@@ -91,7 +91,7 @@ describe('callAzure request body', () => {
     mockSuccessResponse();
     await callAzure(AZURE_CONFIG, ENDPOINT, REQUEST);
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = JSON.parse(mockFetch.mock.calls[0]![1].body);
     expect(body.messages).toEqual([
       { role: 'system', content: 'You are a helpful assistant.' },
       { role: 'user', content: 'Hello' },
@@ -102,7 +102,7 @@ describe('callAzure request body', () => {
     mockSuccessResponse();
     await callAzure(AZURE_CONFIG, ENDPOINT, { ...REQUEST, maxTokens: 500, temperature: 0.3 });
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = JSON.parse(mockFetch.mock.calls[0]![1].body);
     expect(body.max_tokens).toBe(500);
     expect(body.temperature).toBe(0.3);
   });
@@ -111,7 +111,7 @@ describe('callAzure request body', () => {
     mockSuccessResponse();
     await callAzure(AZURE_CONFIG, ENDPOINT, REQUEST);
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const body = JSON.parse(mockFetch.mock.calls[0]![1].body);
     expect(body.max_tokens).toBeUndefined();
     expect(body.temperature).toBeUndefined();
   });

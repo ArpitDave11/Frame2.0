@@ -67,27 +67,27 @@ describe('addMessage', () => {
     useChatStore.getState().addMessage({ role: 'user', content: 'Fix section 3' });
     const messages = useChatStore.getState().messages;
     expect(messages).toHaveLength(1);
-    expect(messages[0].role).toBe('user');
-    expect(messages[0].content).toBe('Fix section 3');
-    expect(typeof messages[0].id).toBe('string');
-    expect(messages[0].id.length).toBeGreaterThan(0);
-    expect(typeof messages[0].timestamp).toBe('number');
-    expect(messages[0].timestamp).toBeGreaterThan(0);
+    expect(messages[0]!.role).toBe('user');
+    expect(messages[0]!.content).toBe('Fix section 3');
+    expect(typeof messages[0]!.id).toBe('string');
+    expect(messages[0]!.id.length).toBeGreaterThan(0);
+    expect(typeof messages[0]!.timestamp).toBe('number');
+    expect(messages[0]!.timestamp).toBeGreaterThan(0);
   });
 
   it('accumulates multiple messages', () => {
     useChatStore.getState().addMessage({ role: 'user', content: 'Hello' });
     useChatStore.getState().addMessage({ role: 'assistant', content: 'Hi there' });
     expect(useChatStore.getState().messages).toHaveLength(2);
-    expect(useChatStore.getState().messages[0].role).toBe('user');
-    expect(useChatStore.getState().messages[1].role).toBe('assistant');
+    expect(useChatStore.getState().messages[0]!.role).toBe('user');
+    expect(useChatStore.getState().messages[1]!.role).toBe('assistant');
   });
 
   it('each message gets a unique id', () => {
     useChatStore.getState().addMessage({ role: 'user', content: 'A' });
     useChatStore.getState().addMessage({ role: 'user', content: 'B' });
     const [a, b] = useChatStore.getState().messages;
-    expect(a.id).not.toBe(b.id);
+    expect(a!.id).not.toBe(b!.id);
   });
 });
 

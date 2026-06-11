@@ -12,7 +12,7 @@ describe('fetchStreamTree', () => {
   it('returns stream metadata + crew subgroups', async () => {
     vi.mocked(client.fetchGroupMetadata).mockResolvedValue({
       success: true,
-      data: { id: 280115, name: 'Wealth', full_path: 'ubs/wealth', web_url: 'https://example.com', description: '' },
+      data: { id: 280115, name: 'Wealth', full_path: 'ubs/wealth', web_url: 'https://example.com', description: '', parent_id: null },
     });
     vi.mocked(client.fetchGitLabSubgroups).mockResolvedValue({
       success: true,
