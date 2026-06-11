@@ -1,8 +1,18 @@
 node_modules
 dist
 .env
+.env.local
+.env.*.local
 .DS_Store
 *.tsbuildinfo
+
+# Local Claude-LLM proxy call logs (headless smoke-testing)
+.llm-proxy/
+
+# Local R&D / verification artifacts (root-level screenshots, session zips, Playwright MCP)
+/*.png
+/*.zip
+.playwright-mcp/
 .powerstack4/.action-count
 .powerstack4/.phase
 .powerstack4/ralph-logs/

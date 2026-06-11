@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 3002",
+    "proxy": "node scripts/claude-llm-proxy.mjs",
+    "dev:local": "node scripts/claude-llm-proxy.mjs & vite --port 3002",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest",
