@@ -72,11 +72,19 @@ export type VarianceBand = 'agree' | 'caution' | 're-groom' | 'flagged' | 'pendi
  * `computeCapacity` is the single source of truth.
  */
 export interface CapacityInputs {
-  /** People available to this Pod for the PI. */
+  /**
+   * The pod's delivered velocity last quarter, in story points (D1). When
+   * set, this is the gross capacity baseline — a measured number, not a
+   * synthetic `spPerResource × sprintCount` guess. Optional during the
+   * migration; Task 10 backfills it for existing pods. Negative values are
+   * treated as 0.
+   */
+  previousVelocity?: number;
+  /** People available to this Pod for the PI. Still used by holiday deduction. */
   resources: number;
-  /** Story points each resource delivers per sprint. Defaults to 10. */
+  /** @deprecated (D8) No longer feeds gross once `previousVelocity` is set. */
   spPerResource: number;
-  /** Number of sprints in the Planning Increment. */
+  /** @deprecated (D8) No longer feeds gross once `previousVelocity` is set. */
   sprintCount: number;
   /** Holiday days in the PI. Multiplied by `resources` (a holiday hits everyone). */
   holidayDays: number;
@@ -337,7 +345,14 @@ export interface PodMetrics {
  *   total = 360 − 12 − 5 = 343
  */
 export function computeCapacity(inputs: CapacityInputs): CapacityResult {
-  const gross = inputs.resources * inputs.spPerResource * inputs.sprintCount;
+  // Gross is the measured previous-quarter velocity when available (D1/D2);
+  // otherwise fall back to the legacy synthetic product so pre-migration
+  // pods (and the protected legacy tests) stay correct until Task 10
+  // backfills `previousVelocity`. Negative velocity is treated as 0.
+  const gross =
+    inputs.previousVelocity != null
+      ? Math.max(0, inputs.previousVelocity)
+      : inputs.resources * inputs.spPerResource * inputs.sprintCount;
   const holidayDeduction = inputs.holidayDays * inputs.resources;
   const leaveDeduction = inputs.leaveDays;
   const total = Math.max(0, gross - holidayDeduction - leaveDeduction);
