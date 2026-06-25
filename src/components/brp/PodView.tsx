@@ -54,6 +54,8 @@ export interface PodViewProps {
   onRunAnalysis: () => void;
   onCancelAnalysis?: () => void;
   onSendToGrooming?: (epic: Epic) => void;
+  /** Open the Re-analyze wizard for a specific epic (T15). */
+  onReanalyzeEpic?: (epic: Epic) => void;
   onDismissAnalysisResult?: () => void;
 }
 
@@ -90,6 +92,7 @@ export function PodView({
   onRunAnalysis,
   onCancelAnalysis,
   onSendToGrooming,
+  onReanalyzeEpic,
   onDismissAnalysisResult,
 }: PodViewProps) {
   const metrics = useMemo(() => computePodMetrics(pod), [pod]);
@@ -364,6 +367,7 @@ export function PodView({
                         onSelectEpic(epic.id === selectedEpicId ? null : epic.id)
                       }
                       onHumanEstimateChange={(value) => onHumanEstimateChange(epic.id, value)}
+                      onReanalyze={onReanalyzeEpic ? () => onReanalyzeEpic(epic) : undefined}
                     />
                   ))}
                 </tbody>

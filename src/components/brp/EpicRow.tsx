@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { ArrowsClockwise } from '@phosphor-icons/react';
 import { computeDelta, computeVariance } from '@/domain/brp';
 import type { Epic } from '@/domain/brp';
 import { VarianceBadge } from './VarianceBadge';
@@ -35,6 +36,12 @@ export interface EpicRowProps {
    * boolean per row. Optional — false/undefined hides the tag.
    */
   isLikelyDuplicate?: boolean;
+  /**
+   * Optional Re-analyze action (T15). When provided, the row renders a small
+   * "Re-analyze" button in the variance cell — emphasised for story-less epics
+   * (no decomposition yet) so the load is never a naked number (INV6).
+   */
+  onReanalyze?: () => void;
 }
 
 const cellBase: React.CSSProperties = {
@@ -55,6 +62,7 @@ export function EpicRow({
   onSelect,
   onHumanEstimateChange,
   isLikelyDuplicate = false,
+  onReanalyze,
 }: EpicRowProps) {
   // Local controlled value for the input so the user can type without
   // every keystroke round-tripping through the store. Commit on blur or
@@ -73,6 +81,8 @@ export function EpicRow({
   const delta = computeDelta(epic);
   const confidencePct = epic.frameResult ? Math.round(epic.frameResult.confidence * 100) : null;
   const frameEstimate = epic.frameResult?.frameEstimate ?? null;
+  // Story-less = no current decomposition; Re-analyze is emphasised (INV6).
+  const storyless = (epic.frameResult?.stories?.length ?? 0) === 0;
 
   const commitDraft = () => {
     const trimmed = draft.trim();
@@ -247,8 +257,37 @@ export function EpicRow({
       </td>
 
       <td style={{ ...cellBase, textAlign: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
           <VarianceBadge variance={variance} />
+          {onReanalyze && (
+            <button
+              type="button"
+              data-testid={`epic-row-reanalyze-${epic.id}`}
+              onClick={onReanalyze}
+              title={
+                storyless
+                  ? 'No decomposition yet — re-analyze to size this epic'
+                  : 'Re-analyze this epic'
+              }
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                background: storyless ? color.red : 'transparent',
+                color: storyless ? color.white : color.grayV,
+                border: storyless ? 'none' : `1px solid ${color.grayI}`,
+                borderRadius: 6,
+                padding: '3px 8px',
+                fontSize: '0.6875rem',
+                fontWeight: fontWeight.medium,
+                fontFamily: font.sans,
+                cursor: 'pointer',
+              }}
+            >
+              <ArrowsClockwise size={11} weight="bold" aria-hidden="true" />
+              {storyless ? 'Re-analyze to size' : 'Re-analyze'}
+            </button>
+          )}
         </div>
       </td>
 

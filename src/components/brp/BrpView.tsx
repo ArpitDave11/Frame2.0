@@ -38,6 +38,7 @@ import {
   loadCrewsAction,
   loadPodsAction,
   publishGeneratedEpicAction,
+  publishReanalyzedEpicAction,
   runAnalysisForPodAction,
   setHumanEstimateAction,
   suggestCapacityAction,
@@ -112,6 +113,8 @@ export function BrpView() {
 
   // ─── Local UI state (modal flags + analysis last-run snapshot). ───
   const [modals, setModals] = useState<ModalState>(INITIAL_MODAL_STATE);
+  // The wizard serves both Create New (blank) and Re-analyze (scoped to an epic).
+  const [wizard, setWizard] = useState<{ mode: 'create' | 'reanalyze'; epic: Epic | null }>({ mode: 'create', epic: null });
   const closeAllModals = () => setModals(INITIAL_MODAL_STATE);
   // Snapshot of the most recent COMPLETED run. The store clears
   // analysisProgress when the run finishes, so we keep total+failures
@@ -342,7 +345,14 @@ export function BrpView() {
         onOpenCapacityDialog={() => setModals((m) => ({ ...m, capacityOpen: true }))}
         onOpenMetricsModal={() => setModals((m) => ({ ...m, metricsOpen: true }))}
         onOpenEpicPicker={() => setModals((m) => ({ ...m, pickerOpen: true }))}
-        onOpenCreateEpic={() => setModals((m) => ({ ...m, createEpicOpen: true }))}
+        onOpenCreateEpic={() => {
+          setWizard({ mode: 'create', epic: null });
+          setModals((m) => ({ ...m, createEpicOpen: true }));
+        }}
+        onReanalyzeEpic={(epic) => {
+          setWizard({ mode: 'reanalyze', epic });
+          setModals((m) => ({ ...m, createEpicOpen: true }));
+        }}
         onRunAnalysis={() => {
           const controller = new AbortController();
           const totalAtStart = pod.epics.length;
@@ -408,12 +418,24 @@ export function BrpView() {
 
       <EpicWizard
         open={modals.createEpicOpen}
-        mode="create"
+        mode={wizard.mode}
         podName={pod.name}
+        epicTitle={wizard.epic?.title}
         onClose={() => setModals((m) => ({ ...m, createEpicOpen: false }))}
-        onGenerate={(requirement) => generateEpicFromRequirement(requirement)}
+        onGenerate={(requirement) => {
+          // Re-analyze seeds the pipeline with the epic's existing body plus the
+          // planner's added direction; Create New uses the requirement as-is.
+          const seed =
+            wizard.mode === 'reanalyze' && wizard.epic
+              ? `${wizard.epic.description}\n\nAdditional direction:\n${requirement}`
+              : requirement;
+          return generateEpicFromRequirement(seed, { title: wizard.epic?.title });
+        }}
         onPublish={async (stories: SizedStory[], epicContent: string) => {
-          const res = await publishGeneratedEpicAction(pod.id, stories, epicContent);
+          const res =
+            wizard.mode === 'reanalyze' && wizard.epic
+              ? await publishReanalyzedEpicAction(pod.id, wizard.epic.id, stories, epicContent)
+              : await publishGeneratedEpicAction(pod.id, stories, epicContent);
           return res.success ? { success: true } : { success: false, error: { message: res.error.message } };
         }}
       />

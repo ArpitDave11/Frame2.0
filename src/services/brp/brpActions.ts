@@ -26,6 +26,7 @@ import {
   fetchPodEpics,
   fetchPods,
   fetchReferenceEpics,
+  updateEpicWithStories,
 } from './brpGitlabService';
 import type { Result, ResultError } from './brpGitlabService';
 import { fetchGroupProjects } from '@/services/gitlab/gitlabClient';
@@ -621,6 +622,72 @@ export async function publishGeneratedEpicAction(
     { podId, epicId: pub.data.epicId, storyFailures: failed },
   );
   return { success: true, data: { epicId: pub.data.epicId, podId } };
+}
+
+/**
+ * Re-analyze publish (T15): update an EXISTING GitLab epic's body + add the new
+ * child stories, then refresh that epic in the pod with the planner-confirmed
+ * decomposition (so its load = Σ points, INV2). Used by the Re-analyze wizard.
+ */
+export async function publishReanalyzedEpicAction(
+  podId: string,
+  epicId: string,
+  stories: SizedStory[],
+  epicContent: string,
+): Promise<Result<{ epicId: string; podId: string }>> {
+  let cfg;
+  try {
+    cfg = readGitLabConfig();
+  } catch (e) {
+    return genError(e instanceof Error ? e.message : 'GitLab is not configured.');
+  }
+  const pod = findPod(useBrpStore.getState().crews, podId);
+  if (!pod) return genError(`Pod ${podId} is not loaded.`);
+  const target = pod.epics.find((e) => e.id === epicId);
+  if (!target) return genError('Epic is no longer loaded in this pod.');
+
+  const groupId = String(pod.gitlabSubgroupId);
+  const projRes = await fetchGroupProjects(cfg, groupId, { includeSubgroups: true });
+  const project = (projRes.data ?? []).find((p) => p.issues_enabled !== false) ?? (projRes.data ?? [])[0];
+  if (!projRes.success || !project) {
+    return genError('No GitLab project under this pod to hold the stories.');
+  }
+
+  const title = extractEpicTitle(epicContent) || target.title;
+  const pub = await updateEpicWithStories(cfg, target.iid, {
+    groupId,
+    projectId: String(project.id),
+    title,
+    description: epicContent,
+    stories,
+  });
+  if (!pub.success) return pub;
+
+  const sum = stories.reduce((s, x) => s + x.points, 0);
+  // Refresh the epic in place with the confirmed decomposition.
+  const epics = pod.epics.map((e) =>
+    e.id === epicId
+      ? {
+          ...e,
+          description: epicContent,
+          analysisStatus: 'done' as const,
+          frameResult: {
+            frameEstimate: nearestFib(sum),
+            breakdown: stories.map((s) => ({ title: s.title, points: s.points })),
+            stories,
+            rationale: 'Re-analyzed and sized by FRAME.',
+            confidence: 0.7,
+            references: [],
+            generatedStories: stories.filter((s) => s.provenance === 'frame-generated').map((s) => ({ title: s.title, points: s.points, acceptanceCriteria: s.acceptanceCriteria })),
+            modelVersion: 'brp-azure-v2',
+            analyzedAt: new Date().toISOString(),
+          },
+        }
+      : e,
+  );
+  useBrpStore.getState().loadEpicsIntoPod(podId, epics);
+  recordAudit('epic-published', `Re-analyzed "${title}" (${stories.length} stories, ${sum} SP) in ${pod.name}`, { podId, epicId });
+  return { success: true, data: { epicId, podId } };
 }
 
 // ─── Internal ───────────────────────────────────────────────
