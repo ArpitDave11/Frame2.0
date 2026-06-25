@@ -344,6 +344,23 @@ export interface PodMetrics {
  *   leaveDeduction = 5
  *   total = 360 − 12 − 5 = 343
  */
+/**
+ * Backfill `previousVelocity` for capacity inputs that predate the velocity
+ * model (T10/D1). When absent, it is derived from the legacy synthetic
+ * product (`resources × spPerResource × sprintCount`) so a pre-migration pod
+ * keeps the SAME total capacity it had before — `computeCapacity` then reads
+ * the explicit velocity instead of relying on its fallback. Pure and
+ * idempotent: inputs that already carry a `previousVelocity` (including 0)
+ * are returned unchanged.
+ */
+export function migrateCapacityInputs(inputs: CapacityInputs): CapacityInputs {
+  if (inputs.previousVelocity != null) return inputs;
+  return {
+    ...inputs,
+    previousVelocity: Math.max(0, inputs.resources * inputs.spPerResource * inputs.sprintCount),
+  };
+}
+
 export function computeCapacity(inputs: CapacityInputs): CapacityResult {
   // Gross is the measured previous-quarter velocity when available (D1/D2);
   // otherwise fall back to the legacy synthetic product so pre-migration
