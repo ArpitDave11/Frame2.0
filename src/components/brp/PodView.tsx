@@ -48,6 +48,9 @@ export interface PodViewProps {
   onOpenCapacityDialog: () => void;
   onOpenMetricsModal: () => void;
   onOpenEpicPicker: () => void;
+  /** Open the Create New epic wizard (T15). Optional so existing callers/tests
+   * (pre-wizard) still type-check; BrpView always supplies it. */
+  onOpenCreateEpic?: () => void;
   onRunAnalysis: () => void;
   onCancelAnalysis?: () => void;
   onSendToGrooming?: (epic: Epic) => void;
@@ -82,6 +85,7 @@ export function PodView({
   onHumanEstimateChange,
   onOpenCapacityDialog,
   onOpenMetricsModal,
+  onOpenCreateEpic,
   onOpenEpicPicker,
   onRunAnalysis,
   onCancelAnalysis,
@@ -213,6 +217,12 @@ export function PodView({
             icon={<Plus size={14} weight="bold" aria-hidden="true" />}
             label="Add epics"
             testid="pod-view-action-add-epics"
+          />
+          <PodActionButton
+            onClick={() => onOpenCreateEpic?.()}
+            icon={<Sparkle size={14} weight="bold" aria-hidden="true" />}
+            label="Create New"
+            testid="pod-view-action-create-epic"
           />
           <PodActionButton
             onClick={onRunAnalysis}

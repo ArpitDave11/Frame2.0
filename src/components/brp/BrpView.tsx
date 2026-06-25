@@ -32,28 +32,34 @@ import { EpicPicker } from './EpicPicker';
 import {
   confirmAddEpicsAction,
   findDuplicatesInPodAction,
+  generateEpicFromRequirement,
   interpretVarianceAction,
   listCandidateEpicsAction,
   loadCrewsAction,
   loadPodsAction,
+  publishGeneratedEpicAction,
   runAnalysisForPodAction,
   setHumanEstimateAction,
   suggestCapacityAction,
   updateCapacityAction,
 } from '@/services/brp/brpActions';
 import type { AnalysisFailure } from '@/services/brp/brpActions';
+import { EpicWizard } from './EpicWizard';
+import type { SizedStory } from '@/domain/brp';
 import { font } from '@/theme/tokens';
 
 interface ModalState {
   capacityOpen: boolean;
   metricsOpen: boolean;
   pickerOpen: boolean;
+  createEpicOpen: boolean;
 }
 
 const INITIAL_MODAL_STATE: ModalState = {
   capacityOpen: false,
   metricsOpen: false,
   pickerOpen: false,
+  createEpicOpen: false,
 };
 
 /**
@@ -336,6 +342,7 @@ export function BrpView() {
         onOpenCapacityDialog={() => setModals((m) => ({ ...m, capacityOpen: true }))}
         onOpenMetricsModal={() => setModals((m) => ({ ...m, metricsOpen: true }))}
         onOpenEpicPicker={() => setModals((m) => ({ ...m, pickerOpen: true }))}
+        onOpenCreateEpic={() => setModals((m) => ({ ...m, createEpicOpen: true }))}
         onRunAnalysis={() => {
           const controller = new AbortController();
           const totalAtStart = pod.epics.length;
@@ -397,6 +404,18 @@ export function BrpView() {
         open={modals.pickerOpen}
         pod={pod}
         onClose={() => setModals((m) => ({ ...m, pickerOpen: false }))}
+      />
+
+      <EpicWizard
+        open={modals.createEpicOpen}
+        mode="create"
+        podName={pod.name}
+        onClose={() => setModals((m) => ({ ...m, createEpicOpen: false }))}
+        onGenerate={(requirement) => generateEpicFromRequirement(requirement)}
+        onPublish={async (stories: SizedStory[], epicContent: string) => {
+          const res = await publishGeneratedEpicAction(pod.id, stories, epicContent);
+          return res.success ? { success: true } : { success: false, error: { message: res.error.message } };
+        }}
       />
     </div>
   );
