@@ -95,10 +95,53 @@ export interface CapacityResult {
 
 // ─── FRAME result building blocks ───────────────────────────
 
-/** One item in a FRAME breakdown. The breakdown's points sum approximately to `frameEstimate`. */
+/**
+ * @deprecated Superseded by {@link SizedStory} / `FrameResult.stories`.
+ * One item in a FRAME breakdown. The breakdown's points sum approximately
+ * to `frameEstimate`. Retained transitionally while consumers migrate to
+ * the single canonical story list; removed in the dual-model cleanup task.
+ */
 export interface BreakdownItem {
   title: string;
   points: FibonacciPoint;
+}
+
+/**
+ * Named story-splitting technique a story was produced by (Mike Cohn's
+ * SPIDR). Recorded per story so a decomposition is reproducible and
+ * reviewable rather than freeform. See deep-research wf_e9f6239b-c38.
+ */
+export type SplitPattern = 'Spike' | 'Path' | 'Interface' | 'Data' | 'Rules';
+
+/** Where a sized story came from: already on the GitLab epic, or invented by FRAME. */
+export type StoryProvenance = 'existing' | 'frame-generated';
+
+/**
+ * The single canonical unit of an epic decomposition (D14).
+ *
+ * Collapses the legacy `BreakdownItem` + `GeneratedStory` split into one
+ * shape so there is exactly one source of truth for an epic's load:
+ * `computeEpicLoad(epic) === Σ stories[].points` (D5, INV2). The model
+ * never emits an epic total — the total is derived in code from this list,
+ * so the displayed number can never contradict the displayed stories.
+ *
+ * `points` is constrained to the canonical Fibonacci ladder
+ * (`FIBONACCI_POINTS`). `referenceEpicId`/`rationale` carry the
+ * reference-class anchor that makes the weight defensible (audit/UI only).
+ */
+export interface SizedStory {
+  title: string;
+  points: FibonacciPoint;
+  /** Non-empty for a well-formed (INVEST: Testable) story. */
+  acceptanceCriteria: string[];
+  /** SPIDR technique this story was split by. */
+  splitPattern: SplitPattern;
+  /** Existing GitLab story vs one FRAME generated during decomposition. */
+  provenance: StoryProvenance;
+  /** GitLab epic id of the reference-class analogue used to size this story. */
+  referenceEpicId?: string;
+  /** Short justification for the weight (why this Fibonacci value). */
+  rationale?: string;
 }
 
 /**
@@ -116,8 +159,9 @@ export interface ReferenceEpic {
 }
 
 /**
+ * @deprecated Superseded by {@link SizedStory} (`provenance: 'frame-generated'`).
  * A story FRAME generated when the input epic had no decomposition.
- * Present only in FrameResult.generatedStories when FRAME had to invent them.
+ * Retained transitionally while consumers migrate to `FrameResult.stories`.
  */
 export interface GeneratedStory {
   title: string;
@@ -132,13 +176,26 @@ export interface GeneratedStory {
  * present and valid; if null, FRAME has not analyzed the epic yet.
  */
 export interface FrameResult {
+  /**
+   * @deprecated (D7) No longer the load source. Epic load is derived from
+   * `stories` via `computeEpicLoad`, never from this single-Fibonacci field.
+   * Retained display-only/transitionally until consumers migrate.
+   */
   frameEstimate: FibonacciPoint;
+  /** @deprecated Use {@link stories}. Legacy breakdown, transitional. */
   breakdown: BreakdownItem[];
+  /**
+   * The single canonical decomposition (D14). Source of truth for epic
+   * load: `computeEpicLoad(epic) === Σ stories[].points` (INV2). Optional
+   * during the phased migration — producers populate it; the dual-model
+   * cleanup task makes it required and drops `breakdown`/`generatedStories`.
+   */
+  stories?: SizedStory[];
   rationale: string;
   /** FRAME's confidence in its own estimate. Range [0, 1]. */
   confidence: number;
   references: ReferenceEpic[];
-  /** Present only when FRAME had to invent stories. `null` otherwise. */
+  /** @deprecated Use {@link stories} with `provenance: 'frame-generated'`. */
   generatedStories: GeneratedStory[] | null;
   /** Identifier of the estimator that produced this result (for audit). */
   modelVersion: string;
@@ -288,6 +345,34 @@ export function computeCapacity(inputs: CapacityInputs): CapacityResult {
 }
 
 /**
+ * Epic load — the trust invariant (D5, INV2).
+ *
+ * The load FRAME attributes to an epic is, by construction, the SUM of its
+ * canonical story points: `computeEpicLoad(epic) === Σ stories[].points`.
+ * The model never emits a standalone total, so the number shown can never
+ * contradict the decomposition shown.
+ *
+ * Precedence (transitional during the dual-model migration):
+ *   1. `frameResult === null`            → 0 (not analyzed yet)
+ *   2. `stories` present and non-empty   → Σ stories[].points  (canonical)
+ *   3. legacy fallback                   → `frameEstimate`
+ *
+ * Step 3 keeps pre-`stories` data (and the existing protected metrics
+ * tests, which override `frameEstimate` without a matching breakdown)
+ * correct. Production estimators always populate `stories`, so step 2 is
+ * the live path. The fallback is removed in the dual-model cleanup task
+ * once `stories` is required. Never stored — derived on read (ADR 0003).
+ */
+export function computeEpicLoad(epic: Epic): number {
+  const fr = epic.frameResult;
+  if (fr === null) return 0;
+  if (fr.stories && fr.stories.length > 0) {
+    return fr.stories.reduce((sum, s) => sum + s.points, 0);
+  }
+  return fr.frameEstimate;
+}
+
+/**
  * Compute the signed delta between FRAME's estimate and the planner's
  * estimate (frame − human). Returns `null` whenever either side is missing
  * — either the epic has not been analyzed yet, or the planner has not
@@ -409,7 +494,10 @@ export function computePodMetrics(pod: Pod): PodMetrics {
     // of every re-run. `humanLoad` is intentionally NOT status-gated:
     // the planner's number is valid regardless of analysis lifecycle.
     if (epic.frameResult !== null && epic.analysisStatus === 'done') {
-      frameLoad += epic.frameResult.frameEstimate;
+      // Load is the sum of the epic's canonical stories (INV2), not the
+      // standalone frameEstimate (D7). computeEpicLoad falls back to
+      // frameEstimate only for legacy/storyless data.
+      frameLoad += computeEpicLoad(epic);
       confidenceSum += epic.frameResult.confidence;
       confidenceCount++;
     }

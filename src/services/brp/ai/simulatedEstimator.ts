@@ -22,6 +22,8 @@ import type {
   FibonacciPoint,
   FrameResult,
   ReferenceEpic,
+  SizedStory,
+  SplitPattern,
 } from '../../../domain/brp';
 import { FIBONACCI_POINTS } from '../../../domain/brp.constants';
 import type { AIEstimator, AnalysisEvent } from './types';
@@ -118,6 +120,32 @@ function pickBreakdown(target: FibonacciPoint, rng: () => number): BreakdownItem
   }));
 }
 
+// ─── Stories (canonical decomposition, D14) ─────────────────
+
+/**
+ * Cycle of SPIDR patterns so the simulated decomposition carries a
+ * plausible, deterministic `splitPattern` per story. Order chosen so the
+ * common "build then verify" shape reads sensibly for 1-2 item splits.
+ */
+const SPLIT_PATTERN_CYCLE: readonly SplitPattern[] = ['Path', 'Rules', 'Data', 'Interface', 'Spike'];
+
+/**
+ * Map the legacy breakdown into the single canonical story list (D14).
+ * Because `stories` carries the exact same `points` as `breakdown`,
+ * `computeEpicLoad === Σ stories.points === Σ breakdown.points` by
+ * construction — the simulator can never show a total that contradicts
+ * its decomposition (INV2).
+ */
+function toStories(breakdown: readonly BreakdownItem[]): SizedStory[] {
+  return breakdown.map((item, i) => ({
+    title: item.title,
+    points: item.points,
+    acceptanceCriteria: [`"${item.title}" is implemented and verified.`],
+    splitPattern: SPLIT_PATTERN_CYCLE[i % SPLIT_PATTERN_CYCLE.length]!,
+    provenance: 'frame-generated',
+  }));
+}
+
 // ─── Confidence ─────────────────────────────────────────────
 
 /**
@@ -204,6 +232,7 @@ export function createSimulatedEstimator(): AIEstimator {
       const result: FrameResult = {
         frameEstimate,
         breakdown,
+        stories: toStories(breakdown),
         rationale: buildRationale(epic, frameEstimate, usedRefs.length),
         confidence,
         references: [...usedRefs],

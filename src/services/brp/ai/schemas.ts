@@ -27,6 +27,9 @@ import type {
   FrameResult,
   GeneratedStory,
   ReferenceEpic,
+  SizedStory,
+  SplitPattern,
+  StoryProvenance,
 } from '../../../domain/brp';
 import type { AnalysisEvent } from './types';
 
@@ -69,11 +72,43 @@ export const GeneratedStorySchema: z.ZodType<GeneratedStory> = z.object({
   acceptanceCriteria: z.array(z.string()),
 });
 
+/** Runtime mirror of `SplitPattern` (SPIDR). */
+export const SplitPatternSchema: z.ZodType<SplitPattern> = z.enum([
+  'Spike',
+  'Path',
+  'Interface',
+  'Data',
+  'Rules',
+]);
+
+/** Runtime mirror of `StoryProvenance`. */
+export const StoryProvenanceSchema: z.ZodType<StoryProvenance> = z.enum([
+  'existing',
+  'frame-generated',
+]);
+
+/**
+ * Runtime mirror of `SizedStory` (D14) — the single canonical decomposition
+ * unit. `points` is constrained to the Fibonacci ladder so an invalid weight
+ * is rejected at the LLM-output boundary (Layer 2 of the trust stack).
+ */
+export const SizedStorySchema: z.ZodType<SizedStory> = z.object({
+  title: z.string(),
+  points: FibonacciPointSchema,
+  acceptanceCriteria: z.array(z.string()),
+  splitPattern: SplitPatternSchema,
+  provenance: StoryProvenanceSchema,
+  referenceEpicId: z.string().optional(),
+  rationale: z.string().optional(),
+});
+
 // ─── FrameResult ────────────────────────────────────────────
 
 export const FrameResultSchema: z.ZodType<FrameResult> = z.object({
   frameEstimate: FibonacciPointSchema,
   breakdown: z.array(BreakdownItemSchema),
+  /** Canonical decomposition (D14); optional during phased migration. */
+  stories: z.array(SizedStorySchema).optional(),
   rationale: z.string(),
   /** Confidence is constrained to [0, 1]. */
   confidence: z.number().min(0).max(1),

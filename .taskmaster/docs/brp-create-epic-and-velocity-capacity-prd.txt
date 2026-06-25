@@ -1,0 +1,211 @@
+PRD: BRP — Velocity Capacity + Trustworthy Epic Sizing (Create New / Re-analyze)
+Version: 1.0
+Date: 2026-06-25
+Status: Ready for Taskmaster ingestion (parse_prd)
+Owner: FRAME team
+Related plans:
+- docs/plans/2026-06-25-brp-create-epic-and-velocity-capacity.md
+Research: deep-research run wf_e9f6239b-c38 (21 verified findings, 4 refuted shortcuts)
+
+========================================================================
+1. PROBLEM STATEMENT
+========================================================================
+BRP (Breakdown & Re-groom Planning) sizes epics with a FRAME estimator
+that currently produces story points which are (a) random and (b) do not
+match the user stories it displays. The displayed epic estimate and the
+displayed story breakdown are emitted by the model as two separate things,
+so they drift — users catch the contradiction and stop trusting the tool.
+Separately, the capacity calculator is anchored on a synthetic
+"SP per resource x sprints" guess rather than the team's real velocity.
+
+This effort delivers: (1) a trust architecture where the epic load is, by
+construction, the sum of the visible story points; (2) one generation
+engine with two doors — "Create New" (epic from a high-level requirement)
+and "Re-analyze" (refine an existing/story-less epic with planner-supplied
+direction) — that decomposes, sizes, previews, publishes to GitLab, and
+auto-loads into the current pod; and (3) a velocity-based capacity formula.
+
+========================================================================
+2. GOALS
+========================================================================
+G1. Make epic load provably equal to the sum of the displayed story
+    points (load = Sigma story.points), computed in code, never emitted
+    by the model.
+G2. Make per-story weights valid (Fibonacci enum), defensible
+    (reference-class anchoring to closed epics), and reproducible (seed).
+G3. Collapse the dual story model (breakdown + generatedStories) into one
+    canonical story list with provenance.
+G4. Add "Create New": generate an epic from a high-level requirement via
+    the existing 6-stage pipeline, size with FRAME, preview total load,
+    publish to GitLab, auto-load into the current pod.
+G5. Add "Re-analyze": same engine scoped to an existing epic; planner
+    supplies missing direction; refine the epic, decompose, size. This is
+    the handling for story-less / too-thin epics.
+G6. Velocity-based capacity: total = max(0, previousVelocity - holidaySP
+    - leaveSP); remove spPerResource/sprintCount from the form.
+G7. Run entirely client-side; respect BRP scope guards and ADR 0003/0004.
+
+========================================================================
+3. NON-GOALS (v1)
+========================================================================
+N1. Empirical back-test harness (FRAME vs closed-epic actuals / MAE).
+N2. OpenAI-direct BRP estimator (Azure adapter only, as today).
+N3. Nested task/subtask generation beyond epic -> stories.
+N4. Optimistic concurrency / merge-conflict detection on publish.
+N5. Changing the pure pipeline orchestrator or the main epic editor flow.
+
+========================================================================
+4. INVARIANTS / GUARDS (must hold)
+========================================================================
+INV1. No stored derived state (ADR 0003): epic load is derived via
+      computeEpicLoad, never stored on Epic/Pod.
+INV2. The model never outputs an epic total; only the story list. Load is
+      computeEpicLoad = Sigma stories[].points.
+INV3. Every story point is a member of FIBONACCI_POINTS
+      (1,2,3,5,8,13,21,40,100). Prompt + schema + enum must agree.
+INV4. BRP components must not call useBrpStore/useConfigStore directly;
+      compose via brpActions.
+INV5. Pipeline orchestrator purity: BRP generation must not read/write
+      epicStore.markdown; use a local result sink.
+INV6. There is never a naked number: load is the sum of a visible,
+      editable decomposition, or the epic is flagged (excluded from load).
+
+========================================================================
+5. FUNCTIONAL REQUIREMENTS — PHASE A (Estimator correctness + trust core)
+========================================================================
+TASK A1: Single canonical story model.
+- In src/domain/brp.ts and src/services/brp/ai/schemas.ts, replace the
+  separate BreakdownItem + GeneratedStory with one SizedStory type:
+  { title: string; points: FibonacciPoint; acceptanceCriteria: string[];
+    splitPattern: 'Spike'|'Path'|'Interface'|'Data'|'Rules';
+    provenance: 'existing'|'frame-generated'; referenceEpicId?: string;
+    rationale?: string }.
+- FrameResult.stories: SizedStory[] replaces breakdown + generatedStories.
+- Update the zod schema mirror and the type-drift test.
+- Acceptance: type + schema compile; drift test passes.
+
+TASK A2: computeEpicLoad + pod-metrics rewire.
+- Add pure computeEpicLoad(epic): number = sum of stories[].points
+  (0 when frameResult null or no stories).
+- Change computePodMetrics to accumulate frameLoad via computeEpicLoad
+  instead of frameResult.frameEstimate; keep analysisStatus==='done' gate
+  and flagged-exclusion.
+- Remove frameEstimate from the load path (display-only if retained).
+- Acceptance: unit tests for computeEpicLoad (empty, single, multi,
+  null); computePodMetrics tests updated and green.
+
+TASK A3: Fix the Fibonacci ladder in the estimator prompt.
+- In azureEstimator.ts SYSTEM_PROMPT, replace 1|2|3|5|8|13|21|34|55|89
+  with the canonical 1,2,3,5,8,13,21,40,100; reference FIBONACCI_POINTS.
+- Acceptance: prompt contains only canonical ladder; test asserts no
+  34/55/89 tokens.
+
+TASK A4: Structured output + seed.
+- Switch the estimator call to response_format json_schema with
+  strict:true, additionalProperties:false, points as enum FIBONACCI_POINTS,
+  and pass seed through the request.
+- Acceptance: request body includes json_schema + enum + seed; existing
+  estimator tests adapted and green.
+
+TASK A5: Reference-class anchoring.
+- Thread fetchReferenceEpics output into buildUserPrompt as scale-spanning
+  examples; each generated story records referenceEpicId + rationale.
+- Acceptance: prompt includes references block; parsed stories carry
+  referenceEpicId/rationale; tests cover with/without references.
+
+TASK A6: INVEST + SPIDR validation + reconciliation.
+- Post-parse: require non-empty acceptanceCriteria and a splitPattern per
+  story; validate every point in FIBONACCI_POINTS; enforce 2..N stories;
+  on violation, single re-prompt then error event (no fabricated output).
+- Acceptance: tests for valid pass, Fibonacci violation reject, missing
+  AC reject, re-prompt path.
+
+TASK A7: Self-consistency invariant test (CI gate).
+- Property/unit test asserting for any estimator output that
+  computeEpicLoad(epic) === sum of rendered stories[].points.
+- Acceptance: test exists and passes; documents the trust guarantee.
+
+========================================================================
+6. FUNCTIONAL REQUIREMENTS — PHASE C (Velocity capacity)
+========================================================================
+TASK C1: CapacityInputs + formula.
+- Add previousVelocity:number to CapacityInputs. Update computeCapacity:
+  gross = previousVelocity; holidayDeduction = holidayDays * resources;
+  leaveDeduction = leaveDays; total = max(0, gross - holiday - leave).
+- Remove spPerResource/sprintCount from the gross calc (retain in type
+  for migration only).
+- Acceptance: computeCapacity tests rewritten for velocity formula; green.
+
+TASK C2: CapacityDialog UI.
+- Lead field "Previous quarter velocity (SP)"; relabel breakdown Gross ->
+  Previous velocity; drop spPerResource/sprintCount inputs; keep resources
+  (holiday math) and holiday/leave fields; keep live computeCapacity
+  breakdown contract and a11y (role=dialog, Escape, labels, focus).
+- UI GATE: frontend-design skill + FRAME tokens + Frutiger + Playwright
+  screenshot loop (default/loading/empty/error) before done.
+- Acceptance: dialog tests updated; visual loop screenshot captured.
+
+TASK C3: Capacity migration/back-compat.
+- Default previousVelocity for existing pods to
+  spPerResource * resources * sprintCount so saved pods do not reset to 0.
+- Acceptance: migration unit test; existing pod fixtures keep prior total.
+
+========================================================================
+7. FUNCTIONAL REQUIREMENTS — PHASE B (Generation engine + wizard)
+========================================================================
+TASK B1: Headless generation action.
+- brpActions action that runs runPremiumPipeline (pure orchestrator) on a
+  requirement string via a local result sink (no epicStore writes), then
+  runs the FRAME estimator (Phase A) to produce SizedStory[].
+- Acceptance: action unit test with stubbed pipeline + estimator;
+  asserts no epicStore mutation (INV5).
+
+TASK B2: GitLab write path for epics + stories.
+- Add brpGitlabService.createEpicWithStories orchestrating existing
+  createGitLabEpic + createGitLabIssue + linkIssueToEpic. Re-analyze
+  publish path updates the epic via updateGitLabEpic and adds children.
+- Acceptance: service tests with mocked gitlabClient (create epic, create
+  N issues, link each; error rollback/report).
+
+TASK B3: EpicWizard component (create + reanalyze modes).
+- New src/components/brp/EpicWizard.tsx (composes via brpActions only).
+  Modes: 'create' (blank requirement) and 'reanalyze' (scoped to an epic,
+  takes added direction). States: input -> generating -> preview ->
+  publishing -> done. Preview lists each story with points, splitPattern,
+  reference/rationale, and total = Sigma rendered live; per-story points
+  editable with live total recompute.
+- UI GATE: frontend-design skill + FRAME tokens + Frutiger + Playwright
+  screenshot loop (default/loading/empty/error) before done.
+- Acceptance: component state tests; a11y contract; editable-total test
+  (edit a story point -> total updates and equals new Sigma).
+
+TASK B4: Publish + auto-load into current pod.
+- On publish success, map created epic to domain Epic and dispatch
+  loadEpicsIntoPod for the active pod (D6).
+- Acceptance: action test: publish success triggers load into the active
+  pod with the computed load.
+
+TASK B5: Wire entry points.
+- "Create New" button next to "Add epics" in the pod toolbar; "Re-analyze"
+  action on the epic (row/detail). Re-analyze handles story-less/thin
+  epics by opening the wizard scoped to that epic.
+- Acceptance: BrpView/PodView/EpicRow wiring tests; story-less epic opens
+  reanalyze wizard rather than producing a naked number (INV6).
+
+========================================================================
+8. TESTING STRATEGY
+========================================================================
+- Vitest unit tests per task (npm run test:run).
+- Trust invariant test (A7) is a required CI gate.
+- UI tasks (C2, B3) additionally require the Playwright screenshot visual
+  loop per the global frontend gate before being marked done.
+- verification-before-completion (actual command output) required before
+  any task is marked completed; journal entry per task; commit per task.
+
+========================================================================
+9. SEQUENCING
+========================================================================
+Phase A (A1..A7) -> Phase C (C1..C3) -> Phase B (B1..B5). Phase A is the
+root-cause fix and ships independently. Each task: set in_progress ->
+implement (TDD) -> verification-before-completion -> devlog -> completed
+-> conventional commit.

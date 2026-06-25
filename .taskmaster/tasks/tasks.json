@@ -294,5 +294,224 @@
         "master"
       ]
     }
+  },
+  "brp-trust": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Create single canonical SizedStory type",
+        "description": "Replace dual story models (BreakdownItem + GeneratedStory) with unified SizedStory type containing all required fields including provenance tracking",
+        "details": "In src/domain/brp.ts and src/services/brp/ai/schemas.ts:\n- Define SizedStory interface: { title: string; points: FibonacciPoint; acceptanceCriteria: string[]; splitPattern: 'Spike'|'Path'|'Interface'|'Data'|'Rules'; provenance: 'existing'|'frame-generated'; referenceEpicId?: string; rationale?: string }\n- Update FrameResult to use stories: SizedStory[] replacing breakdown + generatedStories\n- Create corresponding Zod schema with strict validation\n- Update type-drift test to validate new schema\n- Ensure FibonacciPoint enum matches canonical ladder: 1,2,3,5,8,13,21,40,100",
+        "testStrategy": "Unit tests: (1) TypeScript compilation without errors, (2) Zod schema validation for valid/invalid SizedStory objects, (3) Type-drift test passes ensuring schema-type alignment, (4) Test all enum values for splitPattern and provenance, (5) Verify optional fields (referenceEpicId, rationale) work correctly",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-06-25T04:55:07.550Z"
+      },
+      {
+        "id": "2",
+        "title": "Implement computeEpicLoad function and rewire pod metrics",
+        "description": "Create pure computeEpicLoad function that sums story points and update computePodMetrics to use it instead of frameResult.frameEstimate",
+        "details": "In src/services/brp/metrics/ or appropriate location:\n- Implement pure function: computeEpicLoad(epic: Epic): number that returns sum of epic.frameResult?.stories[].points || 0\n- Handle edge cases: null frameResult, empty stories array, undefined points\n- Update computePodMetrics in src/services/brp/metrics/podMetrics.ts:\n  * Replace frameResult.frameEstimate accumulation with computeEpicLoad calls\n  * Maintain analysisStatus==='done' gate\n  * Preserve flagged-epic exclusion logic\n- Deprecate frameEstimate from load calculation path (keep for display only if needed)",
+        "testStrategy": "Unit tests covering: (1) Empty epic returns 0, (2) Single story with valid points, (3) Multiple stories sum correctly, (4) Null frameResult returns 0, (5) Empty stories array returns 0, (6) computePodMetrics correctly accumulates using computeEpicLoad, (7) Flagged epics excluded from pod load, (8) Status gates work as before",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-06-25T04:57:53.387Z"
+      },
+      {
+        "id": "3",
+        "title": "Fix Fibonacci ladder in estimator prompt",
+        "description": "Update azureEstimator.ts SYSTEM_PROMPT to use canonical Fibonacci sequence (1,2,3,5,8,13,21,40,100) removing invalid values",
+        "details": "In src/services/brp/ai/estimatorProvider.ts or azureEstimator.ts:\n- Locate SYSTEM_PROMPT constant\n- Replace any occurrence of 1|2|3|5|8|13|21|34|55|89 with canonical 1,2,3,5,8,13,21,40,100\n- Reference FIBONACCI_POINTS constant directly in prompt construction\n- Ensure prompt clearly states these are the ONLY valid point values\n- Add inline comment explaining the canonical ladder choice",
+        "testStrategy": "Unit tests: (1) Parse SYSTEM_PROMPT and verify it contains only canonical Fibonacci values, (2) Assert no occurrences of 34, 55, or 89 in the prompt string, (3) Verify FIBONACCI_POINTS constant matches prompt values, (4) Integration test that estimator responses only contain valid Fibonacci points",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "in-progress",
+        "subtasks": [],
+        "updatedAt": "2026-06-25T04:58:15.700Z"
+      },
+      {
+        "id": "4",
+        "title": "Add structured output with JSON schema and seed support",
+        "description": "Switch estimator API call to use response_format with json_schema (strict mode) and thread seed parameter for reproducibility",
+        "details": "In src/services/brp/ai/estimatorProvider.ts:\n- Update Azure OpenAI request to include response_format: { type: 'json_schema', json_schema: { strict: true, schema: {...} } }\n- Define JSON schema with:\n  * additionalProperties: false\n  * points field as enum matching FIBONACCI_POINTS\n  * All required fields from SizedStory\n- Add seed parameter to request config (accept seed in function signature)\n- Ensure schema matches Zod schema from Task 1\n- Handle schema validation errors with clear error messages",
+        "testStrategy": "Unit tests: (1) Request body includes json_schema in correct format, (2) Schema has strict:true and additionalProperties:false, (3) Points enum matches FIBONACCI_POINTS, (4) Seed parameter passed through correctly, (5) Existing estimator tests adapted and passing, (6) Mock API response validation against schema, (7) Error handling for schema violations",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "3"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "5",
+        "title": "Implement reference-class anchoring with closed epics",
+        "description": "Integrate fetchReferenceEpics output into estimator prompt and track reference provenance in generated stories",
+        "details": "In src/services/brp/ai/:\n- Update buildUserPrompt to accept reference epics parameter\n- Format reference epics as scale-spanning examples in prompt (show titles, actual points, outcomes)\n- Thread fetchReferenceEpics call into estimator invocation chain\n- Update response parsing to extract referenceEpicId and rationale from each story\n- Store referenceEpicId and rationale in SizedStory objects\n- Add fallback behavior when no reference epics available",
+        "testStrategy": "Unit tests: (1) Prompt includes reference epics section when provided, (2) Prompt omits section when no references, (3) Parsed stories correctly extract referenceEpicId, (4) Rationale field populated when present, (5) Integration test with mock reference epics, (6) Verify reference epic IDs are valid strings, (7) Test with 0, 1, and multiple reference epics",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "4"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "6",
+        "title": "Add INVEST + SPIDR validation with reconciliation",
+        "description": "Implement post-parse validation for story quality (acceptance criteria, split patterns, Fibonacci points) with single re-prompt on violation",
+        "details": "In src/services/brp/ai/validation.ts (create if needed):\n- Validate each story has:\n  * Non-empty acceptanceCriteria array\n  * Valid splitPattern from enum\n  * Points in FIBONACCI_POINTS\n- Enforce minimum 2 stories per epic\n- On validation failure:\n  * Construct re-prompt with specific feedback\n  * Attempt single retry\n  * Emit error event if retry fails (no fabricated defaults)\n- Add detailed validation error types\n- Track validation attempts in audit log",
+        "testStrategy": "Unit tests: (1) Valid stories pass validation, (2) Missing acceptanceCriteria rejected, (3) Invalid Fibonacci point rejected, (4) Invalid splitPattern rejected, (5) Single story rejected, (6) Re-prompt triggered on first failure, (7) Error event emitted after failed retry, (8) Re-prompt includes specific validation feedback, (9) Audit log captures validation attempts",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "4",
+          "5"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "7",
+        "title": "Create self-consistency invariant test as CI gate",
+        "description": "Implement property test asserting epic load always equals sum of visible story points, documenting the trust guarantee",
+        "details": "In src/services/brp/__tests__/invariants.test.ts:\n- Create property-based test using fast-check or similar\n- Generate random valid Epic objects with FrameResult and stories\n- Assert: computeEpicLoad(epic) === sum(epic.frameResult.stories.map(s => s.points))\n- Test edge cases: empty stories, single story, many stories, null frameResult\n- Add descriptive test name documenting this is the trust guarantee\n- Configure as required CI gate in test runner\n- Add JSDoc explaining the invariant's importance",
+        "testStrategy": "Property tests with 100+ generated cases: (1) Load always equals story sum, (2) No rounding errors, (3) Edge cases covered, (4) Test fails if computeEpicLoad uses frameEstimate, (5) CI integration verified, (6) Test documentation clearly explains trust guarantee",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "8",
+        "title": "Add previousVelocity to CapacityInputs and update formula",
+        "description": "Extend capacity model with velocity-based calculation replacing synthetic SP-per-resource formula",
+        "details": "In src/domain/brp.ts:\n- Add previousVelocity: number to CapacityInputs interface\n- Update computeCapacity function:\n  * gross = previousVelocity (not spPerResource * resources * sprintCount)\n  * holidayDeduction = holidayDays * resources\n  * leaveDeduction = leaveDays\n  * total = Math.max(0, gross - holidayDeduction - leaveDeduction)\n- Keep spPerResource/sprintCount in type for migration compatibility (mark as deprecated)\n- Add validation: previousVelocity >= 0\n- Update CapacityResult type if needed to reflect new breakdown",
+        "testStrategy": "Unit tests for computeCapacity: (1) Basic velocity calculation, (2) Holiday deduction works correctly, (3) Leave deduction works correctly, (4) Total never negative (Math.max), (5) Zero velocity edge case, (6) Large velocity numbers, (7) All deductions zeroed gives gross, (8) Deductions exceeding gross gives 0, (9) Deprecated fields still present for migration",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "9",
+        "title": "Update CapacityDialog UI for velocity-based capacity",
+        "description": "Redesign capacity input dialog with velocity as lead field, remove synthetic inputs, maintain accessibility and FRAME design system",
+        "details": "In src/components/brp/CapacityDialog.tsx:\n- Add lead input field: \"Previous quarter velocity (SP)\" with number validation\n- Relabel breakdown section: \"Gross\" -> \"Previous velocity\"\n- Remove spPerResource and sprintCount input fields\n- Keep resources field (needed for holiday calculation)\n- Keep holidayDays and leaveDays fields\n- Maintain live computeCapacity breakdown display\n- Accessibility: role=dialog, Escape handler, proper labels, focus management\n- MANDATORY UI GATE:\n  * Invoke frontend-design skill before coding\n  * Use FRAME design tokens (check repo for tokens file)\n  * Use Frutiger font per FRAME system\n  * Playwright MCP screenshot loop: default, loading, empty, error states\n  * Iterate 2-3 times comparing screenshots to design intent\n  * Run a11y checks (contrast, focus-visible, keyboard nav, ARIA labels)",
+        "testStrategy": "Unit tests: (1) Component renders with velocity input, (2) Removed fields not present, (3) Live breakdown updates on input change, (4) Escape closes dialog, (5) Focus trap works, (6) Labels associated with inputs, (7) Validation prevents negative velocity. Visual tests: (8) Playwright screenshots for all states captured, (9) Screenshots compared to FRAME design system, (10) A11y audit passes (contrast, keyboard nav, ARIA)",
+        "priority": "medium",
+        "dependencies": [
+          "8"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "10",
+        "title": "Implement capacity migration for existing pods",
+        "description": "Add backward compatibility migration that derives previousVelocity from legacy fields to prevent capacity reset",
+        "details": "In src/stores/brpStore.ts or migration utility:\n- Add migration function for existing Pod objects\n- For pods with CapacityInputs missing previousVelocity:\n  * Calculate: previousVelocity = spPerResource * resources * sprintCount\n  * Preserve existing total capacity value\n- Run migration on store hydration\n- Add version flag to track migrated pods\n- Log migration activity for debugging\n- Handle edge cases: undefined/null legacy values",
+        "testStrategy": "Unit tests: (1) Pod with legacy fields gets correct previousVelocity, (2) Pod with previousVelocity unchanged, (3) Null/undefined legacy fields handled, (4) Capacity total preserved after migration, (5) Migration idempotent (running twice safe), (6) Test with fixture pods from production-like state, (7) Version flag correctly set",
+        "priority": "medium",
+        "dependencies": [
+          "8"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "11",
+        "title": "Create headless generation action with pure orchestrator",
+        "description": "Implement brpActions function that runs premium pipeline and FRAME estimator without mutating epicStore (INV5 compliance)",
+        "details": "In src/actions/brpActions.ts:\n- Create generateEpicFromRequirement(requirement: string, seed?: number): Promise<GenerationResult>\n- Use local result sink (not epicStore.markdown)\n- Invoke runPremiumPipeline with requirement string\n- Pass pipeline output to FRAME estimator (Phase A implementation)\n- Return FrameResult with SizedStory[]\n- Ensure zero epicStore mutations (INV5)\n- Add error handling and retry logic\n- Include progress callbacks for UI feedback\n- Thread seed through to estimator",
+        "testStrategy": "Unit tests with stubbed dependencies: (1) Pipeline invoked with requirement, (2) Estimator receives pipeline output, (3) No epicStore.setMarkdown calls (assert via spy), (4) Returns valid FrameResult, (5) Error propagation works, (6) Seed passed to estimator, (7) Progress callbacks fired, (8) Integration test with real pipeline (mocked LLM)",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "12",
+        "title": "Implement GitLab write path for epics with stories",
+        "description": "Create orchestration service for publishing epics and linked stories to GitLab with error handling and rollback",
+        "details": "In src/services/brp/brpGitlabService.ts:\n- Implement createEpicWithStories(epic: Epic, stories: SizedStory[], projectId: string)\n  * Call existing createGitLabEpic\n  * For each story: createGitLabIssue with epic's project\n  * For each created issue: linkIssueToEpic\n  * Return { epicId, issueIds, success, errors }\n- Implement updateEpicWithStories for re-analyze flow\n  * Update epic via updateGitLabEpic\n  * Create and link new child issues\n- Add transaction-like error handling:\n  * Track created resources\n  * On failure, attempt cleanup/rollback\n  * Return detailed error report\n- Map SizedStory fields to GitLab issue format (description includes AC, labels for splitPattern)",
+        "testStrategy": "Unit tests with mocked gitlabClient: (1) Creates epic successfully, (2) Creates N issues with correct data, (3) Links each issue to epic, (4) Error during issue creation handled, (5) Partial rollback on failure, (6) Error report includes detail, (7) Update flow works correctly, (8) SizedStory fields correctly mapped to GitLab format, (9) splitPattern becomes label",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "13",
+        "title": "Build EpicWizard component with create and reanalyze modes",
+        "description": "Create multi-step wizard component for epic generation with live preview, editable story points, and real-time total calculation",
+        "details": "In src/components/brp/EpicWizard.tsx:\n- Props: mode: 'create' | 'reanalyze', epicId?: string (for reanalyze)\n- State machine: input -> generating -> preview -> publishing -> done\n- Input step: requirement text (create) or additional direction (reanalyze)\n- Generating step: progress indicator, cancel support\n- Preview step:\n  * Render story list with title, points (editable dropdown), splitPattern, reference/rationale\n  * Display total = Sigma(stories[].points) computed live\n  * Total updates immediately when story points edited\n  * Validate: all stories have valid Fibonacci points\n- Publishing step: progress + error display\n- Done step: success message + link to pod\n- Compose via brpActions only (no direct store access per INV4)\n- MANDATORY UI GATE:\n  * Invoke frontend-design skill before coding\n  * Use FRAME design tokens\n  * Use Frutiger font\n  * Playwright MCP screenshot loop: default, loading, empty, error states\n  * Iterate until matches FRAME design system\n  * A11y audit (contrast, keyboard nav, focus management, ARIA)",
+        "testStrategy": "Unit tests: (1) State transitions work correctly, (2) Create mode accepts requirement, (3) Reanalyze mode accepts direction + epicId, (4) Story point edit updates total immediately, (5) Total equals sum of visible points, (6) Validation prevents invalid Fibonacci values, (7) Cancel during generation works, (8) Error handling displays correctly, (9) No direct store calls (check imports). Visual tests: (10) Playwright screenshots all states, (11) Live total recomputation verified, (12) A11y audit passes",
+        "priority": "high",
+        "dependencies": [
+          "11"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "14",
+        "title": "Implement publish with auto-load into current pod",
+        "description": "Add post-publish flow that maps created GitLab epic to domain Epic and loads into active pod automatically",
+        "details": "In src/actions/brpActions.ts:\n- Extend publishGeneratedEpic to:\n  * Call brpGitlabService.createEpicWithStories\n  * On success, map GitLab response to domain Epic object\n  * Get active pod from brpStore\n  * Call loadEpicsIntoPod(activePod.id, [mappedEpic])\n  * Update epic with computed load via computeEpicLoad\n  * Ensure analysisStatus set to 'done'\n  * Return success result with epic ID and pod ID\n- Handle errors: GitLab failure vs load failure\n- Add audit log entry (ADR 0004)\n- Emit success event for UI feedback",
+        "testStrategy": "Unit tests with mocked services: (1) Successful publish creates epic in GitLab, (2) Epic mapped correctly to domain model, (3) Epic loaded into active pod, (4) computeEpicLoad used for epic load, (5) analysisStatus set to done, (6) Audit log entry created, (7) Error during publish handled, (8) Error during load handled, (9) Success event emitted, (10) Integration test with full flow",
+        "priority": "high",
+        "dependencies": [
+          "11",
+          "12",
+          "13"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "15",
+        "title": "Wire entry points for Create New and Re-analyze",
+        "description": "Add UI entry points in pod toolbar and epic rows, ensuring story-less epics trigger re-analyze (INV6 compliance)",
+        "details": "In src/components/brp/:\n- PodToolbar.tsx: Add \"Create New\" button next to \"Add epics\"\n  * Opens EpicWizard in create mode\n  * Visible when pod is active\n- EpicRow.tsx / EpicDetail.tsx: Add \"Re-analyze\" action\n  * Opens EpicWizard in reanalyze mode with epicId\n  * Automatically shown for story-less epics (frameResult.stories.length === 0)\n  * Replaces any flow that would produce naked number without stories (INV6)\n- BrpView.tsx: Handle wizard open/close state\n- Add keyboard shortcuts (optional): Cmd+N for create\n- Ensure proper modal z-index and focus management\n- Add tooltips explaining each action",
+        "testStrategy": "Unit tests: (1) Create New button renders in toolbar, (2) Button opens wizard in create mode, (3) Re-analyze action on epic row, (4) Re-analyze opens wizard with correct epicId, (5) Story-less epic automatically shows re-analyze prompt (INV6), (6) Modal state managed correctly, (7) Keyboard shortcuts work, (8) Focus returns to trigger after close. Integration tests: (9) Full create flow from button to done, (10) Full reanalyze flow from epic row to done",
+        "priority": "high",
+        "dependencies": [
+          "13",
+          "14"
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-06-25T04:58:15.700Z",
+      "taskCount": 15,
+      "completedCount": 2,
+      "tags": [
+        "brp-trust"
+      ]
+    }
   }
 }

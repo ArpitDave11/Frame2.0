@@ -30,6 +30,14 @@ import type { AIClientConfig } from '@/services/ai/types';
 import { FrameResultSchema } from './schemas';
 import type { AIEstimator, AnalysisEvent } from './types';
 import type { Epic, FrameResult, ReferenceEpic } from '@/domain/brp';
+import { FIBONACCI_POINTS } from '@/domain/brp.constants';
+
+/**
+ * The canonical Fibonacci ladder, sourced from the single constant so the
+ * prompt can never drift from `FibonacciPoint` / the zod schema again
+ * (the prior prompt asked for 34/55/89, which the schema rejects).
+ */
+const FIBONACCI_LADDER = FIBONACCI_POINTS.join('|');
 
 export interface AzureEstimatorDeps {
   /** Returns the active AI config (provider, azure, openai, endpoints). */
@@ -43,15 +51,17 @@ const SYSTEM_PROMPT = `You are FRAME, a Scrum sizing assistant for the BRP (Brea
 Given an epic and optional historical reference epics, produce a JSON object that matches this exact shape (no surrounding prose, no markdown fences):
 
 {
-  "frameEstimate": <Fibonacci 1|2|3|5|8|13|21|34|55|89>,
-  "breakdown": [ { "title": string, "points": <Fibonacci> } ],
+  "frameEstimate": <Fibonacci ${FIBONACCI_LADDER}>,
+  "breakdown": [ { "title": string, "points": <Fibonacci ${FIBONACCI_LADDER}> } ],
   "rationale": string,
   "confidence": number between 0 and 1,
   "references": [ { "epicId": string, "title": string, "similarity": 0..1, "actualSp": number } ],
-  "generatedStories": null | [ { "title": string, "points": <Fibonacci>, "acceptanceCriteria": [string] } ],
+  "generatedStories": null | [ { "title": string, "points": <Fibonacci ${FIBONACCI_LADDER}>, "acceptanceCriteria": [string] } ],
   "modelVersion": string,
   "analyzedAt": ISO-8601 timestamp
 }
+
+Every "points" and "frameEstimate" value MUST be exactly one of these Fibonacci numbers: ${FIBONACCI_LADDER}. Never output any value outside this set.
 
 Use "generatedStories": null when the epic already contains a decomposition; otherwise invent 2-5 plausible stories that sum approximately to the estimate. Keep the rationale concise (1-3 sentences).`;
 
