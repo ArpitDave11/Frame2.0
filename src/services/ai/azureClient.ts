@@ -36,6 +36,12 @@ export async function callAzure(
     if (request.temperature != null) bodyObj.temperature = request.temperature;
   }
 
+  // Structured outputs + deterministic seed. Previously only callAI()
+  // forwarded these; callAzure() silently dropped them, so the BRP
+  // estimator could not constrain its output shape or be reproducible.
+  if (request.responseFormat) bodyObj.response_format = request.responseFormat;
+  if (request.seed != null) bodyObj.seed = request.seed;
+
   const body = JSON.stringify(bodyObj);
 
   const response = await fetch(url, {

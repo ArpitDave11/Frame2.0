@@ -26,7 +26,7 @@
  */
 
 import { callAzure } from '@/services/ai/azureClient';
-import type { AIClientConfig } from '@/services/ai/types';
+import type { AIClientConfig, AIRequest } from '@/services/ai/types';
 import { FrameResultSchema } from './schemas';
 import type { AIEstimator, AnalysisEvent } from './types';
 import type { Epic, FrameResult, ReferenceEpic } from '@/domain/brp';
@@ -99,6 +99,90 @@ function stripFence(s: string): string {
   return m ? (m[1] ?? s) : s;
 }
 
+/**
+ * Java-style string hash → a stable non-negative seed. Deriving the seed
+ * from `epic.id` makes the estimate reproducible per epic (same epic →
+ * same seed → same output), which the research found is the real source of
+ * reproducibility — not temperature, which was adversarially refuted.
+ */
+function seedFromEpicId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
+  return Math.abs(h) || 1;
+}
+
+/**
+ * Azure OpenAI structured-output schema (T4). Locks the response SHAPE to
+ * what the current prompt asks for and constrains every `points` value to
+ * the Fibonacci enum at the model boundary (trust Layer 2). Strict mode
+ * requires `additionalProperties: false` and every property in `required`;
+ * `generatedStories` is nullable-and-required per Azure's strict rules.
+ *
+ * This mirrors the legacy FrameResult shape the parser (`FrameResultSchema`)
+ * still expects. The migration of the model OUTPUT to the canonical
+ * `stories` shape happens in T6, where prompt + schema + parser move
+ * together. JSON Schema cannot express the cross-field "sum to load" rule —
+ * that is guaranteed in code by `computeEpicLoad` (INV2), not here.
+ */
+function buildResponseFormat(): NonNullable<AIRequest['responseFormat']> {
+  const fibEnum = [...FIBONACCI_POINTS];
+  const breakdownItem = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      title: { type: 'string' },
+      points: { type: 'integer', enum: fibEnum },
+    },
+    required: ['title', 'points'],
+  };
+  const generatedStory = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      title: { type: 'string' },
+      points: { type: 'integer', enum: fibEnum },
+      acceptanceCriteria: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['title', 'points', 'acceptanceCriteria'],
+  };
+  const reference = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      epicId: { type: 'string' },
+      title: { type: 'string' },
+      similarity: { type: 'number' },
+      actualSp: { type: 'number' },
+    },
+    required: ['epicId', 'title', 'similarity', 'actualSp'],
+  };
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: 'frame_epic_sizing',
+      strict: true,
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          frameEstimate: { type: 'integer', enum: fibEnum },
+          breakdown: { type: 'array', items: breakdownItem },
+          rationale: { type: 'string' },
+          confidence: { type: 'number' },
+          references: { type: 'array', items: reference },
+          generatedStories: { type: ['array', 'null'], items: generatedStory },
+          modelVersion: { type: 'string' },
+          analyzedAt: { type: 'string' },
+        },
+        required: [
+          'frameEstimate', 'breakdown', 'rationale', 'confidence',
+          'references', 'generatedStories', 'modelVersion', 'analyzedAt',
+        ],
+      },
+    },
+  };
+}
+
 export function createAzureEstimator(deps: AzureEstimatorDeps): AIEstimator {
   const call = deps.call ?? callAzure;
 
@@ -134,6 +218,10 @@ export function createAzureEstimator(deps: AzureEstimatorDeps): AIEstimator {
           userPrompt: buildUserPrompt(epic, references),
           maxTokens: 1200,
           temperature: 0.2,
+          // T4: lock output shape + Fibonacci enum, and seed per-epic for
+          // run-to-run reproducibility (not temperature — refuted).
+          responseFormat: buildResponseFormat(),
+          seed: seedFromEpicId(epic.id),
         });
         raw = response.content;
       } catch (e: unknown) {
