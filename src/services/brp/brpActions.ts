@@ -26,15 +26,18 @@ import {
   fetchPods,
   fetchReferenceEpics,
 } from './brpGitlabService';
-import type { Result } from './brpGitlabService';
+import type { Result, ResultError } from './brpGitlabService';
 import { getEstimator } from './ai/estimatorProvider';
+import { runPremiumPipeline } from '@/pipeline/pipelineOrchestrator';
+import type { AIClientConfig } from '@/services/ai/types';
+import type { AIEstimator } from './ai/types';
 import { getCapacityAssistant } from './ai/capacityAssistant';
 import type { CapacitySuggestion } from './ai/capacityAssistant';
 import { getVarianceInterpreter } from './ai/varianceInterpreter';
 import type { VarianceInterpretation } from './ai/varianceInterpreter';
 import { getDuplicateDetector } from './ai/duplicateDetector';
 import type { DuplicateGroup } from './ai/duplicateDetector';
-import type { CapacityInputs, Crew, Epic, Pod, ReferenceEpic } from '@/domain/brp';
+import type { CapacityInputs, Crew, Epic, FrameResult, Pod, ReferenceEpic } from '@/domain/brp';
 
 /**
  * Snapshot the current GitLab config from configStore. Pulled out so
@@ -416,6 +419,112 @@ export async function runAnalysisForPodAction(
   );
 
   return { aborted, failures };
+}
+
+// ─── Create New / Re-analyze: headless epic generation (T11) ─
+
+/** What the generation flow produces, before publish. */
+export interface GeneratedEpicDraft {
+  /** Assembled epic markdown from the 6-stage pipeline. */
+  epicContent: string;
+  /** FRAME sizing of the generated epic — stories + load (Σ points). */
+  frameResult: FrameResult;
+}
+
+/**
+ * Generate and size an epic from a high-level requirement (Create New) or
+ * from an existing epic + planner direction (Re-analyze). Runs the PURE
+ * 6-stage pipeline orchestrator, then the FRAME estimator, and returns the
+ * draft for preview/publish.
+ *
+ * INV5: this NEVER touches epicStore — it uses the orchestrator's return
+ * value directly (a local sink), so the main editor flow is untouched and
+ * BRP stays isolated. The model never emits a total; the load is the sum of
+ * the returned stories (INV2).
+ */
+export async function generateEpicFromRequirement(
+  requirement: string,
+  opts: { title?: string; references?: readonly ReferenceEpic[]; signal?: AbortSignal } = {},
+): Promise<Result<GeneratedEpicDraft>> {
+  const trimmed = requirement.trim();
+  if (!trimmed) return genError('A requirement is needed to generate an epic.');
+
+  const cfg = useConfigStore.getState().config;
+  if (cfg.ai.provider === 'none') {
+    return genError('No AI provider configured. Open Settings to configure one.');
+  }
+
+  const aiConfig: AIClientConfig = {
+    provider: cfg.ai.provider,
+    azure: cfg.ai.azure,
+    openai: cfg.ai.openai,
+    endpoints: cfg.endpoints,
+  };
+
+  // 1. Pure pipeline → epic markdown (no epicStore writes, INV5).
+  let epicContent: string;
+  try {
+    const pipeline = await runPremiumPipeline({
+      rawContent: trimmed,
+      title: opts.title ?? 'Generated epic',
+      complexity: 'moderate',
+      aiConfig,
+      signal: opts.signal,
+    });
+    if (!pipeline.success) {
+      return genError(pipeline.error ?? 'Pipeline failed to generate an epic.');
+    }
+    epicContent = pipeline.epicContent;
+  } catch (e: unknown) {
+    return genError(e instanceof Error ? e.message : String(e));
+  }
+
+  if (opts.signal?.aborted) return genError('Generation cancelled.');
+
+  // 2. FRAME sizing of the generated epic → stories + load.
+  const draftEpic = buildTransientEpic(opts.title ?? 'Generated epic', epicContent);
+  const sized = await runEstimatorOnce(getEstimator(), draftEpic, opts.references ?? [], opts.signal);
+  if (!sized.success) return sized;
+
+  return { success: true, data: { epicContent, frameResult: sized.data } };
+}
+
+/** Build a transient (un-persisted) Epic to feed the estimator. Not stored anywhere. */
+function buildTransientEpic(title: string, description: string): Epic {
+  return {
+    id: 'generated:pending',
+    iid: 0,
+    title,
+    description,
+    gitlabWebUrl: '',
+    podId: '',
+    source: 'gitlab',
+    humanEstimate: null,
+    analysisStatus: 'raw',
+    frameResult: null,
+  };
+}
+
+/** Drive the estimator generator to its terminal event and return the FrameResult. */
+async function runEstimatorOnce(
+  estimator: AIEstimator,
+  epic: Epic,
+  references: readonly ReferenceEpic[],
+  signal?: AbortSignal,
+): Promise<Result<FrameResult>> {
+  let result: FrameResult | undefined;
+  let errorMsg: string | undefined;
+  for await (const ev of estimator.analyzeEpic(epic, references, signal)) {
+    if (ev.kind === 'done') result = ev.result;
+    else if (ev.kind === 'error') errorMsg = ev.message;
+  }
+  if (result) return { success: true, data: result };
+  return genError(errorMsg ?? 'The estimator produced no result.');
+}
+
+function genError<T>(message: string): Result<T> {
+  const error: ResultError = { code: 'unknown', message };
+  return { success: false, error };
 }
 
 // ─── Internal ───────────────────────────────────────────────
