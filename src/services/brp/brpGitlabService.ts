@@ -35,9 +35,13 @@ import type {
   GitLabSubgroup,
 } from '../gitlab/types';
 import {
+  createGitLabEpic,
+  createGitLabIssue,
   fetchGitLabSubgroups,
   fetchGroupEpics,
   fetchGroupMetadata,
+  linkIssueToEpic,
+  updateGitLabEpic,
 } from '../gitlab/gitlabClient';
 import type {
   CapacityInputs,
@@ -45,6 +49,7 @@ import type {
   Epic,
   Pod,
   ReferenceEpic,
+  SizedStory,
 } from '../../domain/brp';
 import { DEFAULT_SP_PER_RESOURCE } from '../../domain/brp.constants';
 
@@ -336,4 +341,148 @@ export async function fetchReferenceEpics(
   }
   const refs = (result.data ?? []).map(gitlabEpicToReference);
   return { success: true, data: refs };
+}
+
+// ─── Write path: publish a generated/refined epic (T12) ─────
+
+/** Inputs to publish an epic + its canonical stories to GitLab. */
+export interface PublishEpicInput {
+  /** Group (pod subgroup) the epic is created under. */
+  groupId: string;
+  /** Project the child issues are created in. */
+  projectId: string;
+  title: string;
+  description: string;
+  stories: readonly SizedStory[];
+}
+
+/** Per-story failure in an otherwise-created epic (no GitLab bulk rollback available). */
+export interface StoryPublishFailure {
+  title: string;
+  error: ResultError;
+}
+
+/** Outcome of a successful epic publish (epic created; some stories may have failed). */
+export interface PublishedEpic {
+  epicId: number;
+  epicIid: number;
+  webUrl: string;
+  /** GitLab issue ids that were created AND linked to the epic. */
+  issueIds: number[];
+  /** Stories that failed to create or link. Empty on a clean publish. */
+  storyFailures: StoryPublishFailure[];
+}
+
+/**
+ * Render a SizedStory into GitLab issue Markdown: acceptance criteria as a
+ * checklist, plus the FRAME rationale / reference-class anchor for audit.
+ */
+function storyToIssueDescription(story: SizedStory): string {
+  const lines: string[] = [];
+  if (story.acceptanceCriteria.length > 0) {
+    lines.push('### Acceptance criteria', ...story.acceptanceCriteria.map((ac) => `- [ ] ${ac}`), '');
+  }
+  if (story.rationale) lines.push(`**FRAME rationale:** ${story.rationale}`);
+  if (story.referenceEpicId) lines.push(`**Reference epic:** ${story.referenceEpicId}`);
+  lines.push(`_Split pattern: ${story.splitPattern} · Points: ${story.points}_`);
+  return lines.join('\n');
+}
+
+/** Create + link one story as a child issue. Returns the new issue id or a failure. */
+async function publishStory(
+  config: GitLabConfig,
+  groupId: string,
+  projectId: string,
+  epicIid: number,
+  story: SizedStory,
+): Promise<{ ok: true; issueId: number } | { ok: false; failure: StoryPublishFailure }> {
+  const issueRes = await createGitLabIssue(config, projectId, {
+    title: story.title,
+    description: storyToIssueDescription(story),
+    labels: [`split::${story.splitPattern}`],
+    weight: story.points,
+  });
+  if (!issueRes.success || !issueRes.data) {
+    return { ok: false, failure: { title: story.title, error: toError(issueRes.error, 'Failed to create issue') } };
+  }
+  const linkRes = await linkIssueToEpic(config, groupId, epicIid, issueRes.data.id);
+  if (!linkRes.success) {
+    return { ok: false, failure: { title: story.title, error: toError(linkRes.error, 'Failed to link issue to epic') } };
+  }
+  return { ok: true, issueId: issueRes.data.id };
+}
+
+/** Small adapter from a raw gitlabClient error string to a ResultError. */
+function toError(rawError: string | undefined, fallback: string): ResultError {
+  const r = toErrorResult<never>(rawError, fallback);
+  return (r as { success: false; error: ResultError }).error;
+}
+
+/**
+ * Publish a generated epic and its stories to GitLab (T12, Create New flow):
+ * create the epic, then create + link each story as a child issue. Story
+ * points map to issue `weight`; the SPIDR pattern becomes a `split::` label.
+ *
+ * No GitLab bulk-rollback API exists, so this is best-effort with a detailed
+ * report: a failed epic creation aborts (nothing orphaned); a failed story
+ * is collected in `storyFailures` and the rest proceed.
+ */
+export async function createEpicWithStories(
+  config: GitLabConfig,
+  input: PublishEpicInput,
+): Promise<Result<PublishedEpic>> {
+  const epicRes = await createGitLabEpic(config, {
+    title: input.title,
+    description: input.description,
+    group_id: input.groupId,
+  });
+  if (!epicRes.success || !epicRes.data) {
+    return toErrorResult(epicRes.error, 'Failed to create epic');
+  }
+  const epic = epicRes.data;
+
+  const issueIds: number[] = [];
+  const storyFailures: StoryPublishFailure[] = [];
+  for (const story of input.stories) {
+    const r = await publishStory(config, input.groupId, input.projectId, epic.iid, story);
+    if (r.ok) issueIds.push(r.issueId);
+    else storyFailures.push(r.failure);
+  }
+
+  return {
+    success: true,
+    data: { epicId: epic.id, epicIid: epic.iid, webUrl: epic.web_url, issueIds, storyFailures },
+  };
+}
+
+/**
+ * Re-analyze publish (T12): update an EXISTING epic's body, then create + link
+ * the (new) stories as child issues. Used when a story-less/refined epic gains
+ * a decomposition the planner chose to make real.
+ */
+export async function updateEpicWithStories(
+  config: GitLabConfig,
+  epicIid: number,
+  input: PublishEpicInput,
+): Promise<Result<PublishedEpic>> {
+  const updRes = await updateGitLabEpic(config, input.groupId, epicIid, {
+    description: input.description,
+  });
+  if (!updRes.success || !updRes.data) {
+    return toErrorResult(updRes.error, 'Failed to update epic');
+  }
+  const epic = updRes.data;
+
+  const issueIds: number[] = [];
+  const storyFailures: StoryPublishFailure[] = [];
+  for (const story of input.stories) {
+    const r = await publishStory(config, input.groupId, input.projectId, epic.iid, story);
+    if (r.ok) issueIds.push(r.issueId);
+    else storyFailures.push(r.failure);
+  }
+
+  return {
+    success: true,
+    data: { epicId: epic.id, epicIid: epic.iid, webUrl: epic.web_url, issueIds, storyFailures },
+  };
 }
