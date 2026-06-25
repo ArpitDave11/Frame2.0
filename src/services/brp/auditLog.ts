@@ -25,6 +25,7 @@
 export type AuditKind =
   | 'capacity-updated'
   | 'epics-added'
+  | 'epic-published'
   | 'human-estimate-set'
   | 'analysis-run-started'
   | 'analysis-run-completed'

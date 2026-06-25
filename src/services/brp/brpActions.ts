@@ -21,12 +21,16 @@ import { useConfigStore } from '@/stores/configStore';
 import { useBrpStore } from '@/stores/brpStore';
 import { recordAudit } from './auditLog';
 import {
+  createEpicWithStories,
   fetchCrews,
   fetchPodEpics,
   fetchPods,
   fetchReferenceEpics,
 } from './brpGitlabService';
 import type { Result, ResultError } from './brpGitlabService';
+import { fetchGroupProjects } from '@/services/gitlab/gitlabClient';
+import { FIBONACCI_POINTS } from '@/domain/brp.constants';
+import type { FibonacciPoint, SizedStory } from '@/domain/brp';
 import { getEstimator } from './ai/estimatorProvider';
 import { runPremiumPipeline } from '@/pipeline/pipelineOrchestrator';
 import type { AIClientConfig } from '@/services/ai/types';
@@ -525,6 +529,98 @@ async function runEstimatorOnce(
 function genError<T>(message: string): Result<T> {
   const error: ResultError = { code: 'unknown', message };
   return { success: false, error };
+}
+
+/** First markdown H1 of the generated epic, else a sensible fallback title. */
+function extractEpicTitle(epicContent: string): string {
+  const m = epicContent.match(/^\s*#\s+(.+)$/m);
+  return (m?.[1] ?? 'Generated epic').trim().slice(0, 200);
+}
+
+/** Nearest Fibonacci-ladder value to a free integer (headline estimate only). */
+function nearestFib(n: number): FibonacciPoint {
+  let best: FibonacciPoint = FIBONACCI_POINTS[0]!;
+  let bestD = Infinity;
+  for (const p of FIBONACCI_POINTS) {
+    const d = Math.abs(p - n);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best;
+}
+
+/**
+ * Publish a generated/edited epic to GitLab and auto-load it into the pod (T14, D6).
+ *
+ * Resolves the target project from the pod's GitLab subgroup (first
+ * issues-enabled project), creates the epic + child issues
+ * (`createEpicWithStories`), maps the result to a domain `Epic` whose
+ * `frameResult.stories` carry the planner-confirmed points (so
+ * `computeEpicLoad` = Σ points, INV2), appends it to the pod, and records audit.
+ */
+export async function publishGeneratedEpicAction(
+  podId: string,
+  stories: SizedStory[],
+  epicContent: string,
+): Promise<Result<{ epicId: number; podId: string }>> {
+  let cfg;
+  try {
+    cfg = readGitLabConfig();
+  } catch (e) {
+    return genError(e instanceof Error ? e.message : 'GitLab is not configured.');
+  }
+  const pod = findPod(useBrpStore.getState().crews, podId);
+  if (!pod) return genError(`Pod ${podId} is not loaded.`);
+
+  const groupId = String(pod.gitlabSubgroupId);
+  const projRes = await fetchGroupProjects(cfg, groupId, { includeSubgroups: true });
+  const project = (projRes.data ?? []).find((p) => p.issues_enabled !== false) ?? (projRes.data ?? [])[0];
+  if (!projRes.success || !project) {
+    return genError('No GitLab project under this pod to hold the stories.');
+  }
+
+  const title = extractEpicTitle(epicContent);
+  const pub = await createEpicWithStories(cfg, {
+    groupId,
+    projectId: String(project.id),
+    title,
+    description: epicContent,
+    stories,
+  });
+  if (!pub.success) return pub;
+
+  const sum = stories.reduce((s, x) => s + x.points, 0);
+  const epic: Epic = {
+    id: String(pub.data.epicId),
+    iid: pub.data.epicIid,
+    title,
+    description: epicContent,
+    gitlabWebUrl: pub.data.webUrl,
+    podId,
+    source: 'gitlab',
+    humanEstimate: null,
+    analysisStatus: 'done',
+    frameResult: {
+      frameEstimate: nearestFib(sum),
+      breakdown: stories.map((s) => ({ title: s.title, points: s.points })),
+      stories,
+      rationale: 'Generated and sized by FRAME.',
+      confidence: 0.7,
+      references: [],
+      generatedStories: stories.filter((s) => s.provenance === 'frame-generated').map((s) => ({ title: s.title, points: s.points, acceptanceCriteria: s.acceptanceCriteria })),
+      modelVersion: 'brp-azure-v2',
+      analyzedAt: new Date().toISOString(),
+    },
+  };
+  // loadEpicsIntoPod replaces the list — append to the pod's current epics.
+  useBrpStore.getState().loadEpicsIntoPod(podId, [...pod.epics, epic]);
+
+  const failed = pub.data.storyFailures.length;
+  recordAudit(
+    'epic-published',
+    `Published "${title}" (${stories.length - failed}/${stories.length} stories, ${sum} SP) to ${pod.name}`,
+    { podId, epicId: pub.data.epicId, storyFailures: failed },
+  );
+  return { success: true, data: { epicId: pub.data.epicId, podId } };
 }
 
 // ─── Internal ───────────────────────────────────────────────

@@ -480,9 +480,9 @@
         "dependencies": [
           "11"
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-06-25T15:49:38.651Z"
+        "updatedAt": "2026-06-25T15:53:52.492Z"
       },
       {
         "id": "14",
@@ -496,8 +496,9 @@
           "12",
           "13"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "in-progress",
+        "subtasks": [],
+        "updatedAt": "2026-06-25T15:54:48.012Z"
       },
       {
         "id": "15",
@@ -516,9 +517,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-06-25T15:49:38.651Z",
+      "lastModified": "2026-06-25T15:54:48.012Z",
       "taskCount": 15,
-      "completedCount": 12,
+      "completedCount": 13,
       "tags": [
         "brp-trust"
       ]
