@@ -17,7 +17,8 @@ import { describe, expect, it } from 'vitest';
 import { computeEpicLoad } from './brp';
 import { FIBONACCI_POINTS } from './brp.constants';
 import { createSimulatedEstimator } from '../services/brp/ai/simulatedEstimator';
-import type { Epic, FibonacciPoint, FrameResult, SizedStory, AnalysisEvent } from './brp';
+import type { Epic, FibonacciPoint, FrameResult, SizedStory } from './brp';
+import type { AnalysisEvent } from '../services/brp/ai/types';
 
 // ─── Deterministic generator (no fast-check dependency) ─────
 

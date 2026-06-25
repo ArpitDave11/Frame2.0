@@ -21,6 +21,12 @@ function mockFetchOnce() {
   return spy;
 }
 
+/** Pull the request body of the Nth fetch call, typed loosely (mock args are untyped). */
+function bodyOf(spy: ReturnType<typeof vi.fn>, n = 0): Record<string, unknown> {
+  const init = (spy.mock.calls[n] as unknown as [string, RequestInit])[1];
+  return JSON.parse(init.body as string);
+}
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('callAzure — structured output + seed forwarding (T4)', () => {
@@ -39,7 +45,7 @@ describe('callAzure — structured output + seed forwarding (T4)', () => {
       seed: 12345,
     });
 
-    const body = JSON.parse((spy.mock.calls[0]![1] as RequestInit).body as string);
+    const body = bodyOf(spy);
     expect(body.response_format).toEqual(responseFormat);
     expect(body.seed).toBe(12345);
   });
@@ -47,7 +53,7 @@ describe('callAzure — structured output + seed forwarding (T4)', () => {
   it('omits response_format and seed when not provided (existing callers unaffected)', async () => {
     const spy = mockFetchOnce();
     await callAzure(cfg, 'https://az.example', { systemPrompt: 's', userPrompt: 'u', maxTokens: 5 });
-    const body = JSON.parse((spy.mock.calls[0]![1] as RequestInit).body as string);
+    const body = bodyOf(spy);
     expect(body).not.toHaveProperty('response_format');
     expect(body).not.toHaveProperty('seed');
   });

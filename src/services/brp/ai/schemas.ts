@@ -102,6 +102,22 @@ export const SizedStorySchema: z.ZodType<SizedStory> = z.object({
   rationale: z.string().optional(),
 });
 
+/**
+ * The shape the Azure model is now asked to emit (T6): just the canonical
+ * decomposition + an overall rationale/confidence. It deliberately does NOT
+ * include an epic total — the load is computed in code as Σ stories.points
+ * (INV2), so the model is never given the chance to contradict its own
+ * stories. Count and acceptance-criteria checks are enforced in the
+ * estimator's validation layer (with targeted re-prompt feedback), not here.
+ */
+export const EstimatorOutputSchema = z.object({
+  stories: z.array(SizedStorySchema),
+  rationale: z.string(),
+  confidence: z.number().min(0).max(1),
+});
+
+export type EstimatorOutput = z.infer<typeof EstimatorOutputSchema>;
+
 // ─── FrameResult ────────────────────────────────────────────
 
 export const FrameResultSchema: z.ZodType<FrameResult> = z.object({

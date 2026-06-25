@@ -18,6 +18,7 @@ const epic = (id = 'gid://e/1'): Epic => ({
   humanEstimate: null, analysisStatus: 'raw', frameResult: null,
 });
 
+// Legacy-shaped stub: the parser's compat path accepts it (back-fills stories).
 const okResult: FrameResult = {
   frameEstimate: 8, breakdown: [{ title: 'x', points: 8 }], rationale: 'r',
   confidence: 0.8, references: [], generatedStories: null, modelVersion: 'm',
@@ -35,7 +36,7 @@ function captureCall() {
 
 async function drain(iter: AsyncIterable<AnalysisEvent>) { for await (const _ of iter) { /* consume */ } }
 
-describe('azureEstimator — structured output + seed (T4)', () => {
+describe('azureEstimator — structured output + seed (T4, schema migrated in T6)', () => {
   it('sends a strict json_schema response format', async () => {
     const cap = captureCall();
     await drain(createAzureEstimator({ readConfig: baseConfig, call: cap.fn }).analyzeEpic(epic(), []));
@@ -45,12 +46,12 @@ describe('azureEstimator — structured output + seed (T4)', () => {
     expect(rf.json_schema.schema.additionalProperties).toBe(false);
   });
 
-  it('constrains points to the canonical Fibonacci enum (breakdown + frameEstimate)', async () => {
+  it('constrains story points to the canonical Fibonacci enum', async () => {
     const cap = captureCall();
     await drain(createAzureEstimator({ readConfig: baseConfig, call: cap.fn }).analyzeEpic(epic(), []));
     const schema = cap.reqs[0]!.responseFormat!.json_schema.schema as Record<string, any>;
-    expect(schema.properties.breakdown.items.properties.points.enum).toEqual([...FIBONACCI_POINTS]);
-    expect(schema.properties.frameEstimate.enum).toEqual([...FIBONACCI_POINTS]);
+    // T6 migrated the response_format to the canonical `stories` shape.
+    expect(schema.properties.stories.items.properties.points.enum).toEqual([...FIBONACCI_POINTS]);
   });
 
   it('seeds the request reproducibly from the epic id', async () => {
