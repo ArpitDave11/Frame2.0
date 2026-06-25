@@ -1,6 +1,6 @@
 /**
- * CapacityDialog AI-assist tests (B-33). Separate file because the H3
- * test-protect hook blocks edits to CapacityDialog.test.tsx.
+ * CapacityDialog AI-assist tests (B-33; updated for velocity, T9). Separate
+ * file because the H3 test-protect hook blocks edits to CapacityDialog.test.tsx.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
@@ -8,6 +8,7 @@ import { CapacityDialog } from './CapacityDialog';
 import type { CapacityInputs } from '@/domain/brp';
 
 const baseInputs: CapacityInputs = {
+  previousVelocity: 300,
   resources: 5,
   spPerResource: 10,
   sprintCount: 6,
@@ -18,13 +19,7 @@ const baseInputs: CapacityInputs = {
 describe('CapacityDialog AI suggest button (B-33)', () => {
   it('does NOT render the Suggest button when onRequestSuggestion is omitted', () => {
     render(
-      <CapacityDialog
-        open
-        podName="P"
-        initial={baseInputs}
-        onClose={() => {}}
-        onSave={() => {}}
-      />,
+      <CapacityDialog open podName="P" initial={baseInputs} onClose={() => {}} onSave={() => {}} />,
     );
     expect(screen.queryByTestId('capacity-dialog-suggest')).toBeNull();
   });
@@ -45,7 +40,7 @@ describe('CapacityDialog AI suggest button (B-33)', () => {
 
   it('clicking Suggest applies the returned inputs and renders the banner', async () => {
     const suggestion = {
-      inputs: { ...baseInputs, spPerResource: 13 },
+      inputs: { ...baseInputs, previousVelocity: 130 },
       confidence: 0.7,
       rationale: 'Median of 3 past actuals.',
     };
@@ -67,8 +62,8 @@ describe('CapacityDialog AI suggest button (B-33)', () => {
     });
     // Input field reflects the suggested value.
     expect(
-      (screen.getByTestId('capacity-input-sp-per-resource') as HTMLInputElement).value,
-    ).toBe('13');
+      (screen.getByTestId('capacity-input-previous-velocity') as HTMLInputElement).value,
+    ).toBe('130');
     expect(
       screen.getByTestId('capacity-dialog-suggestion-rationale').textContent,
     ).toBe('Median of 3 past actuals.');
@@ -90,15 +85,14 @@ describe('CapacityDialog AI suggest button (B-33)', () => {
       />,
     );
     fireEvent.click(screen.getByTestId('capacity-dialog-suggest'));
-    // Wait for the async callback to settle without rendering a banner.
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(screen.queryByTestId('capacity-dialog-suggestion')).toBeNull();
     expect(
-      (screen.getByTestId('capacity-input-sp-per-resource') as HTMLInputElement).value,
-    ).toBe('10');
+      (screen.getByTestId('capacity-input-previous-velocity') as HTMLInputElement).value,
+    ).toBe('300');
     expect(onRequest).toHaveBeenCalledTimes(1);
   });
 
@@ -133,11 +127,7 @@ describe('CapacityDialog AI suggest button (B-33)', () => {
   });
 
   it('exposes the suggestion confidence as a data attribute for selector tests', async () => {
-    const suggestion = {
-      inputs: baseInputs,
-      confidence: 0.42,
-      rationale: 'r',
-    };
+    const suggestion = { inputs: baseInputs, confidence: 0.42, rationale: 'r' };
     render(
       <CapacityDialog
         open

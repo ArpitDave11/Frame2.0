@@ -3,10 +3,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { CapacityDialog } from './CapacityDialog';
 import type { CapacityInputs } from '@/domain/brp';
 
+// Velocity-based capacity (T9). previousVelocity is the gross baseline;
+// resources only feeds the holiday deduction. 300 − (2×5) − 4 = 286.
 const baseInputs: CapacityInputs = {
+  previousVelocity: 300,
   resources: 5,
-  spPerResource: 10,
-  sprintCount: 6,
+  spPerResource: 10, // legacy/deprecated, retained on the type; not shown in the form
+  sprintCount: 6, //    legacy/deprecated
   holidayDays: 2,
   leaveDays: 4,
 };
@@ -35,17 +38,14 @@ describe('CapacityDialog', () => {
     expect(screen.getByTestId('capacity-dialog-title').textContent).toContain('Pod Bravo');
   });
 
-  it('seeds inputs from `initial`', () => {
+  it('seeds inputs from `initial` (velocity-led field set)', () => {
     renderDialog();
+    expect(
+      (screen.getByTestId('capacity-input-previous-velocity') as HTMLInputElement).value,
+    ).toBe('300');
     expect(
       (screen.getByTestId('capacity-input-resources') as HTMLInputElement).value,
     ).toBe('5');
-    expect(
-      (screen.getByTestId('capacity-input-sp-per-resource') as HTMLInputElement).value,
-    ).toBe('10');
-    expect(
-      (screen.getByTestId('capacity-input-sprint-count') as HTMLInputElement).value,
-    ).toBe('6');
     expect(
       (screen.getByTestId('capacity-input-holiday-days') as HTMLInputElement).value,
     ).toBe('2');
@@ -54,8 +54,23 @@ describe('CapacityDialog', () => {
     ).toBe('4');
   });
 
+  it('does NOT render the removed legacy fields (spPerResource / sprintCount)', () => {
+    renderDialog();
+    expect(screen.queryByTestId('capacity-input-sp-per-resource')).toBeNull();
+    expect(screen.queryByTestId('capacity-input-sprint-count')).toBeNull();
+  });
+
+  it('backfills previousVelocity from legacy inputs when absent', () => {
+    // Legacy pod with no previousVelocity → migrate derives 5×10×6 = 300.
+    const { previousVelocity: _omit, ...legacy } = baseInputs;
+    renderDialog({ initial: legacy as CapacityInputs });
+    expect(
+      (screen.getByTestId('capacity-input-previous-velocity') as HTMLInputElement).value,
+    ).toBe('300');
+  });
+
   it('renders the live breakdown via computeCapacity (no drift)', () => {
-    // 5×10×6 = 300 gross; 2×5 = 10 holiday; 4 leave; total = 286.
+    // gross = previousVelocity 300; 2×5 = 10 holiday; 4 leave; total = 286.
     renderDialog();
     expect(screen.getByTestId('capacity-breakdown-gross').textContent).toBe('300 SP');
     expect(screen.getByTestId('capacity-breakdown-holidays').textContent).toBe('−10 SP');
@@ -63,42 +78,42 @@ describe('CapacityDialog', () => {
     expect(screen.getByTestId('capacity-breakdown-total').textContent).toBe('286 SP');
   });
 
-  it('updates the breakdown live as inputs change', () => {
+  it('updates the breakdown live as velocity changes', () => {
     renderDialog();
-    fireEvent.change(screen.getByTestId('capacity-input-resources'), {
-      target: { value: '10' },
+    fireEvent.change(screen.getByTestId('capacity-input-previous-velocity'), {
+      target: { value: '600' },
     });
-    // 10×10×6 = 600; 2×10 = 20 holiday; 4 leave; total = 576.
+    // gross = 600; 2×5 = 10 holiday; 4 leave; total = 586.
     expect(screen.getByTestId('capacity-breakdown-gross').textContent).toBe('600 SP');
-    expect(screen.getByTestId('capacity-breakdown-holidays').textContent).toBe('−20 SP');
-    expect(screen.getByTestId('capacity-breakdown-total').textContent).toBe('576 SP');
+    expect(screen.getByTestId('capacity-breakdown-holidays').textContent).toBe('−10 SP');
+    expect(screen.getByTestId('capacity-breakdown-total').textContent).toBe('586 SP');
   });
 
   it('clamps non-numeric input to 0 instead of NaN', () => {
     renderDialog();
-    fireEvent.change(screen.getByTestId('capacity-input-resources'), {
+    fireEvent.change(screen.getByTestId('capacity-input-previous-velocity'), {
       target: { value: '' },
     });
     expect(
-      (screen.getByTestId('capacity-input-resources') as HTMLInputElement).value,
+      (screen.getByTestId('capacity-input-previous-velocity') as HTMLInputElement).value,
     ).toBe('0');
     expect(screen.getByTestId('capacity-breakdown-gross').textContent).toBe('0 SP');
   });
 
   it('Save calls onSave with current inputs and then onClose', () => {
     const { props } = renderDialog();
-    fireEvent.change(screen.getByTestId('capacity-input-resources'), {
-      target: { value: '7' },
+    fireEvent.change(screen.getByTestId('capacity-input-previous-velocity'), {
+      target: { value: '150' },
     });
     fireEvent.click(screen.getByTestId('capacity-dialog-save'));
     expect(props.onSave).toHaveBeenCalledTimes(1);
-    expect(props.onSave).toHaveBeenCalledWith({ ...baseInputs, resources: 7 });
+    expect(props.onSave).toHaveBeenCalledWith({ ...baseInputs, previousVelocity: 150 });
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
 
   it('Cancel calls onClose and does NOT call onSave', () => {
     const { props } = renderDialog();
-    fireEvent.change(screen.getByTestId('capacity-input-resources'), {
+    fireEvent.change(screen.getByTestId('capacity-input-previous-velocity'), {
       target: { value: '99' },
     });
     fireEvent.click(screen.getByTestId('capacity-dialog-cancel'));
@@ -127,22 +142,10 @@ describe('CapacityDialog', () => {
   it('Escape does not call onClose when dialog is closed (listener removed)', () => {
     const onClose = vi.fn();
     const { rerender } = render(
-      <CapacityDialog
-        open
-        podName="x"
-        initial={baseInputs}
-        onClose={onClose}
-        onSave={() => {}}
-      />,
+      <CapacityDialog open podName="x" initial={baseInputs} onClose={onClose} onSave={() => {}} />,
     );
     rerender(
-      <CapacityDialog
-        open={false}
-        podName="x"
-        initial={baseInputs}
-        onClose={onClose}
-        onSave={() => {}}
-      />,
+      <CapacityDialog open={false} podName="x" initial={baseInputs} onClose={onClose} onSave={() => {}} />,
     );
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).not.toHaveBeenCalled();
@@ -150,30 +153,17 @@ describe('CapacityDialog', () => {
 
   it('resets local state when `initial` prop changes', () => {
     const { rerender } = render(
-      <CapacityDialog
-        open
-        podName="x"
-        initial={baseInputs}
-        onClose={() => {}}
-        onSave={() => {}}
-      />,
+      <CapacityDialog open podName="x" initial={baseInputs} onClose={() => {}} onSave={() => {}} />,
     );
     expect(
-      (screen.getByTestId('capacity-input-resources') as HTMLInputElement).value,
-    ).toBe('5');
-
+      (screen.getByTestId('capacity-input-previous-velocity') as HTMLInputElement).value,
+    ).toBe('300');
     rerender(
-      <CapacityDialog
-        open
-        podName="x"
-        initial={{ ...baseInputs, resources: 12 }}
-        onClose={() => {}}
-        onSave={() => {}}
-      />,
+      <CapacityDialog open podName="x" initial={{ ...baseInputs, previousVelocity: 120 }} onClose={() => {}} onSave={() => {}} />,
     );
     expect(
-      (screen.getByTestId('capacity-input-resources') as HTMLInputElement).value,
-    ).toBe('12');
+      (screen.getByTestId('capacity-input-previous-velocity') as HTMLInputElement).value,
+    ).toBe('120');
   });
 
   it('exposes role=dialog and aria-modal for screen readers', () => {
@@ -181,7 +171,6 @@ describe('CapacityDialog', () => {
     const dlg = screen.getByTestId('capacity-dialog');
     expect(dlg.getAttribute('role')).toBe('dialog');
     expect(dlg.getAttribute('aria-modal')).toBe('true');
-    // aria-labelledby points at the title element.
     const labelledBy = dlg.getAttribute('aria-labelledby');
     expect(labelledBy).toBeTruthy();
     expect(document.getElementById(labelledBy!)).not.toBeNull();

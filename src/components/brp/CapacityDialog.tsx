@@ -17,7 +17,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { X } from '@phosphor-icons/react';
-import { computeCapacity } from '@/domain/brp';
+import { computeCapacity, migrateCapacityInputs } from '@/domain/brp';
 import type { CapacityInputs } from '@/domain/brp';
 import { color, font, fontSize, fontWeight, radius, shadow } from '@/theme/tokens';
 
@@ -77,7 +77,7 @@ export function CapacityDialog({
   onSave,
   onRequestSuggestion,
 }: CapacityDialogProps) {
-  const [inputs, setInputs] = useState<CapacityInputs>(initial);
+  const [inputs, setInputs] = useState<CapacityInputs>(() => migrateCapacityInputs(initial));
   const titleId = useId();
   const firstFieldRef = useRef<HTMLInputElement | null>(null);
   const [suggesting, setSuggesting] = useState(false);
@@ -93,7 +93,7 @@ export function CapacityDialog({
   // selected, or store updated mid-dialog). Also clear any prior
   // suggestion banner.
   useEffect(() => {
-    setInputs(initial);
+    setInputs(migrateCapacityInputs(initial));
     setSuggestion(null);
   }, [initial]);
 
@@ -220,48 +220,33 @@ export function CapacityDialog({
         {/* Body */}
         <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
+            <label htmlFor={`${titleId}-velocity`} style={labelStyle}>
+              Previous quarter velocity (SP)
+            </label>
+            <input
+              ref={firstFieldRef}
+              id={`${titleId}-velocity`}
+              type="number"
+              min={0}
+              value={inputs.previousVelocity ?? 0}
+              data-testid="capacity-input-previous-velocity"
+              onChange={(e) => update({ previousVelocity: parseField(e.target.value) })}
+              style={inputStyle}
+            />
+            <div style={hintStyle}>Last quarter’s delivered story points</div>
+          </div>
+
+          <div>
             <label htmlFor={`${titleId}-resources`} style={labelStyle}>
               Resources
             </label>
             <input
-              ref={firstFieldRef}
               id={`${titleId}-resources`}
               type="number"
               min={1}
               value={inputs.resources}
               data-testid="capacity-input-resources"
               onChange={(e) => update({ resources: parseField(e.target.value) })}
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label htmlFor={`${titleId}-sp`} style={labelStyle}>
-              SP per resource / sprint
-            </label>
-            <input
-              id={`${titleId}-sp`}
-              type="number"
-              min={1}
-              value={inputs.spPerResource}
-              data-testid="capacity-input-sp-per-resource"
-              onChange={(e) => update({ spPerResource: parseField(e.target.value) })}
-              style={inputStyle}
-            />
-            <div style={hintStyle}>Default: 10</div>
-          </div>
-
-          <div>
-            <label htmlFor={`${titleId}-sprints`} style={labelStyle}>
-              Sprints in PI
-            </label>
-            <input
-              id={`${titleId}-sprints`}
-              type="number"
-              min={1}
-              value={inputs.sprintCount}
-              data-testid="capacity-input-sprint-count"
-              onChange={(e) => update({ sprintCount: parseField(e.target.value) })}
               style={inputStyle}
             />
           </div>
@@ -309,7 +294,7 @@ export function CapacityDialog({
             }}
           >
             <BreakdownRow
-              label="Gross"
+              label="Previous velocity"
               value={`${breakdown.gross} SP`}
               testid="capacity-breakdown-gross"
             />
