@@ -66,13 +66,19 @@ Every "points" and "frameEstimate" value MUST be exactly one of these Fibonacci 
 Use "generatedStories": null when the epic already contains a decomposition; otherwise invent 2-5 plausible stories that sum approximately to the estimate. Keep the rationale concise (1-3 sentences).`;
 
 function buildUserPrompt(epic: Epic, references: readonly ReferenceEpic[]): string {
+  // Reference-class anchoring (T5): present the closed reference epics as a
+  // calibration ladder sorted by ACTUAL story points (low → high). This is
+  // the dominant accuracy lever in the research — sizing each story relative
+  // to historical analogues with known outcomes, rather than picking numbers
+  // in a vacuum. epicId is included so the model can cite the analogue it used.
+  const sortedRefs = [...references].sort((a, b) => a.actualSp - b.actualSp);
   const refsBlock =
-    references.length === 0
-      ? 'NONE'
-      : references
+    sortedRefs.length === 0
+      ? 'NONE — no closed reference epics available; size conservatively from the description and lower your confidence accordingly.'
+      : sortedRefs
           .map(
-            (r, i) =>
-              `[${i + 1}] iid? title="${r.title}" actualSp=${r.actualSp} similarity=${r.similarity.toFixed(2)}`,
+            (r) =>
+              `- epicId=${r.epicId} actualSp=${r.actualSp} similarity=${r.similarity.toFixed(2)} title="${r.title}"`,
           )
           .join('\n');
 
@@ -82,8 +88,13 @@ function buildUserPrompt(epic: Epic, references: readonly ReferenceEpic[]): stri
     `title: ${epic.title}`,
     `description: ${epic.description}`,
     ``,
-    `Historical references (closed epics in the same pod):`,
+    `Historical reference epics (closed, in the same pod), sorted by actual story points — use these as your calibration scale:`,
     refsBlock,
+    ``,
+    `Sizing rules:`,
+    `- Size each story by relative comparison to the nearest reference epic(s) by actual story points — do not invent numbers in isolation.`,
+    `- When you use a reference for a story, name it (its epicId) and explain the comparison briefly in that story's rationale.`,
+    `- Keep the whole decomposition's points consistent with the references' scale.`,
     ``,
     `Return only the JSON object — no prose, no fences.`,
   ].join('\n');

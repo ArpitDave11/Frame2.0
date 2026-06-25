@@ -363,8 +363,9 @@
           "1",
           "4"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "in-progress",
+        "subtasks": [],
+        "updatedAt": "2026-06-25T12:35:04.048Z"
       },
       {
         "id": "6",
@@ -403,9 +404,9 @@
         "testStrategy": "Unit tests for computeCapacity: (1) Basic velocity calculation, (2) Holiday deduction works correctly, (3) Leave deduction works correctly, (4) Total never negative (Math.max), (5) Zero velocity edge case, (6) Large velocity numbers, (7) All deductions zeroed gives gross, (8) Deductions exceeding gross gives 0, (9) Deprecated fields still present for migration",
         "priority": "medium",
         "dependencies": [],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-06-25T12:31:56.320Z"
+        "updatedAt": "2026-06-25T12:33:20.838Z"
       },
       {
         "id": "9",
@@ -509,9 +510,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-06-25T12:31:56.321Z",
+      "lastModified": "2026-06-25T12:35:04.049Z",
       "taskCount": 15,
-      "completedCount": 5,
+      "completedCount": 6,
       "tags": [
         "brp-trust"
       ]
